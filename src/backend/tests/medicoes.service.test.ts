@@ -10,7 +10,7 @@ import {
   processarMedicao,
   calcularResultadoLaudo,
   Requisito,
-} from '../../src/services/medicoes.service';
+} from '../src/services/medicoes.service';
 
 // ─── Requisito de exemplo ──────────────────────────────────────────────────
 const requisitoBase: Requisito = {
