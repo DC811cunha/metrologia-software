@@ -1,0 +1,30 @@
+# Dependências
+node_modules/
+.npm
+
+# Build
+dist/
+build/
+
+# Ambiente
+.env
+.env.local
+.env.production
+
+# Cobertura de testes
+coverage/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Docker volumes
+postgres_data/
