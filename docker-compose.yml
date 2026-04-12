@@ -15,7 +15,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-softmeter}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-softmeter} -d ${DB_NAME:-softmeter_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -57,7 +57,7 @@ services:
     volumes:
       - ./src/frontend:/app
       - /app/node_modules
-    command: npm run dev
+    command: npm run dev -- --host 0.0.0.0
 
 volumes:
   postgres_data:
