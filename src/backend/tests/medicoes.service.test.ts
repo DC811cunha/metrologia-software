@@ -10,7 +10,28 @@ import {
   processarMedicao,
   calcularResultadoLaudo,
   Requisito,
+  StatusConformidade,
+  Criticidade,
 } from '../src/services/medicoes.service';
+
+// ─── Tipos auxiliares ──────────────────────────────────────────────────────
+type EntradaLaudo = { status: StatusConformidade; criticidade: Criticidade };
+
+function aprovado(criticidade: Criticidade = 'menor'): EntradaLaudo {
+  return { status: 'aprovado', criticidade };
+}
+
+function reprovado(criticidade: Criticidade = 'menor'): EntradaLaudo {
+  return { status: 'reprovado', criticidade };
+}
+
+function alerta(criticidade: Criticidade = 'menor'): EntradaLaudo {
+  return { status: 'alerta', criticidade };
+}
+
+function repeat(item: EntradaLaudo, n: number): EntradaLaudo[] {
+  return Array.from({ length: n }, () => ({ ...item }));
+}
 
 // ─── Requisito de exemplo ──────────────────────────────────────────────────
 const requisitoBase: Requisito = {
@@ -69,7 +90,7 @@ describe('classificarConformidade', () => {
     expect(classificarConformidade(2.49, requisitoBase)).toBe('alerta');
   });
 
-  it('retorna "aprovado" exatamente no limite superior', () => {
+  it('retorna "aprovado" ou "alerta" exatamente no limite superior', () => {
     const status = classificarConformidade(2.5, requisitoBase);
     expect(['aprovado', 'alerta']).toContain(status);
   });
@@ -100,16 +121,15 @@ describe('processarMedicao', () => {
 // ─── calcularResultadoLaudo ────────────────────────────────────────────────
 describe('calcularResultadoLaudo', () => {
   it('classifica como "conforme" quando índice >= 90%', () => {
-    const medicoes = Array(10).fill({ status: 'aprovado', criticidade: 'menor' });
-    const resultado = calcularResultadoLaudo(medicoes);
+    const resultado = calcularResultadoLaudo(repeat(aprovado(), 10));
     expect(resultado.classificacaoFinal).toBe('conforme');
     expect(resultado.indiceConformidade).toBe(100);
   });
 
   it('classifica como "condicional" quando índice entre 70% e 89%', () => {
-    const medicoes = [
-      ...Array(8).fill({ status: 'aprovado', criticidade: 'menor' }),
-      ...Array(2).fill({ status: 'reprovado', criticidade: 'menor' }),
+    const medicoes: EntradaLaudo[] = [
+      ...repeat(aprovado(), 8),
+      ...repeat(reprovado(), 2),
     ];
     const resultado = calcularResultadoLaudo(medicoes);
     expect(resultado.classificacaoFinal).toBe('condicional');
@@ -117,28 +137,28 @@ describe('calcularResultadoLaudo', () => {
   });
 
   it('classifica como "nao_conforme" quando índice < 70%', () => {
-    const medicoes = [
-      ...Array(6).fill({ status: 'aprovado', criticidade: 'menor' }),
-      ...Array(4).fill({ status: 'reprovado', criticidade: 'menor' }),
+    const medicoes: EntradaLaudo[] = [
+      ...repeat(aprovado(), 6),
+      ...repeat(reprovado(), 4),
     ];
     const resultado = calcularResultadoLaudo(medicoes);
     expect(resultado.classificacaoFinal).toBe('nao_conforme');
   });
 
   it('classifica como "nao_conforme" quando há requisito crítico reprovado', () => {
-    const medicoes = [
-      ...Array(9).fill({ status: 'aprovado', criticidade: 'menor' }),
-      { status: 'reprovado', criticidade: 'critico' },
+    const medicoes: EntradaLaudo[] = [
+      ...repeat(aprovado(), 9),
+      reprovado('critico'),
     ];
     const resultado = calcularResultadoLaudo(medicoes);
     expect(resultado.classificacaoFinal).toBe('nao_conforme');
   });
 
   it('calcula corretamente o total de aprovados', () => {
-    const medicoes = [
-      { status: 'aprovado', criticidade: 'menor' },
-      { status: 'reprovado', criticidade: 'menor' },
-      { status: 'alerta', criticidade: 'menor' },
+    const medicoes: EntradaLaudo[] = [
+      aprovado(),
+      reprovado(),
+      alerta(),
     ];
     const resultado = calcularResultadoLaudo(medicoes);
     expect(resultado.totalRequisitos).toBe(3);
