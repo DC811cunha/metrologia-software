@@ -13,7 +13,7 @@
   Web App
 
 - **Autor:**  
-  [Seu Nome Completo]
+  Diego Cunha
 
 - **Data da Proposta:**  
   12/04/2026
@@ -761,21 +761,14 @@ CI/CD integrado nativamente ao repositório. Pipeline configurado para executar 
 
 *(A ser preenchido pelos professores)*
 
-**Avaliador 1:** __________________________  
+**PAULO ROGERIO PIRES MANSEIRA:** __________________________  
 **Status:** [ ] Aprovado  [ ] Ajustar
 
 Observações:
 
 ---
 
-**Avaliador 2:** __________________________  
-**Status:** [ ] Aprovado  [ ] Ajustar
-
-Observações:
-
----
-
-**Avaliador 3:** __________________________  
+**LUIZ CARLOS CAMARGO:** __________________________  
 **Status:** [ ] Aprovado  [ ] Ajustar
 
 Observações:
