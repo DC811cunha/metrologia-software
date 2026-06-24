@@ -1,42 +1,45 @@
 <!--
 Sync Impact Report
 ==================
-Version change: TEMPLATE → 1.0.0 (initial ratification)
-Rationale: First concrete constitution for SoftMeter, filling all template placeholders.
-This is a MAJOR version because it establishes the baseline governing principles
-(no prior ratified version existed to compare against).
+Version change: 1.0.0 → 2.0.0 (MAJOR)
+Rationale: ADR-003 (docs/adr/ADR-003-stack-backend-fastapi.md) replaces the backend defined in
+ADR-001 (Node.js + TypeScript + Express) with FastAPI + Python 3.12 + Celery/Redis, to use the
+mature Python static-analysis ecosystem (Radon) as the core of the metric engine. This redefines
+the binding technology stack established in v1.0.0, which is an incompatible governance change
+for any plan/PR that assumed the Node.js stack — hence MAJOR.
 
-Modified principles: N/A (initial ratification, no renames)
+Modified principles:
+- I. Qualidade de Código com Cobertura Mínima de 80% — wording generalized from a Jest-only,
+  Node-path-specific requirement to a per-language coverage tool requirement (pytest-cov for the
+  Python backend, Jest for the React frontend), so the principle does not need a new amendment on
+  every future stack change.
+- II. Disciplina de Testes em Múltiplas Camadas — wording generalized from Node-specific
+  directory names (`controllers/`, `routes/`, `repositories/`) to layer descriptions (camada de
+  entrada HTTP, camada de regras de negócio, camada de persistência) that apply equally to the
+  FastAPI structure.
 
-Principles added:
-- I. Qualidade de Código com Cobertura Mínima de 80%
-- II. Disciplina de Testes em Múltiplas Camadas (Unit, Integração e E2E)
-- III. Consistência de Interface Metrológica
-- IV. Performance da Análise (< 10 segundos)
-- V. Rastreabilidade Metrológica das Métricas (NON-NEGOTIABLE)
+Principles added/removed: none (I-V unchanged in substance, only de-coupled from Node-specific
+wording; see modifications above)
 
-Sections added:
-- Restrições Tecnológicas e de Stack
-- Fluxo de Desenvolvimento e Quality Gates
-- Governance
-
-Sections removed: none (template placeholders replaced, no prior content existed)
+Sections modified:
+- Restrições Tecnológicas e de Stack — full replacement: backend FastAPI/Python 3.12, PostgreSQL
+  16, Celery+Redis, Radon + parser AST próprio, React 18 + TypeScript + Vite, Recharts, ReportLab,
+  JWT (access+refresh) + bcrypt, Docker Compose, GitHub Actions. Node.js/Express removed as
+  binding stack per ADR-003.
 
 Templates requiring updates:
 - ✅ .specify/templates/plan-template.md — generic "[Gates determined based on constitution
-  file]" placeholder already defers to this document; no edit needed, gate content will be
-  filled per-feature by /speckit-plan referencing principles I-V.
+  file]" placeholder still defers to this document; no edit needed.
 - ✅ .specify/templates/spec-template.md — generic, technology-agnostic; no changes required.
-- ✅ .specify/templates/tasks-template.md — generic task categorization already accommodates
-  unit/integration/E2E test phases and polish/performance tasks required by Principles II and IV.
-- ⚠ No command files found under .specify/templates/commands/ (directory does not exist in
-  this installation) — nothing to update.
-- ⚠ README.md documents the metrology classification thresholds (≥90% Conforme, 70-89%
-  Condicional, <70% Não-Conforme) referenced by Principle III; kept consistent, no edit needed.
+- ✅ .specify/templates/tasks-template.md — generic task categorization unaffected by stack
+  change.
+- ⚠ docs/adr/ADR-001-stack-tecnologica.md is superseded for the backend layer by ADR-003; ADR-001
+  is kept as historical record (status not edited) and ADR-003 cross-references it.
 
 Follow-up TODOs:
 - TODO(METRICS_CATALOG_LOCATION): exact path for the metrics catalog required by Principle V
-  (e.g., docs/metrics/) should be formalized in the next plan that introduces metric definitions.
+  (e.g., docs/metrics/) should be formalized in the plan/data-model of feature
+  001-softmeter-plataforma-mvp.
 -->
 
 # SoftMeter Constitution
@@ -45,13 +48,15 @@ Follow-up TODOs:
 
 ### I. Qualidade de Código com Cobertura Mínima de 80%
 
-Todo código de produção (backend `src/backend/src/` e frontend `src/frontend/src/`) DEVE manter
-cobertura automatizada de testes igual ou superior a 80%, medida em linhas e branches pelos
-relatórios de cobertura do Jest. Pipelines de CI DEVEM bloquear merge de Pull Requests que
-reduzam a cobertura abaixo do limiar vigente ou que introduzam regressão de cobertura em
-arquivos já cobertos. Lint e checagem de tipos (TypeScript `strict`) DEVEM passar sem erros
-antes de qualquer merge; alertas de análise estática (SonarCloud ou equivalente) classificados
-como bloqueantes DEVEM ser resolvidos antes do merge.
+Todo código de produção (backend `src/backend/` e frontend `src/frontend/src/`) DEVE manter
+cobertura automatizada de testes igual ou superior a 80%, medida em linhas e branches pela
+ferramenta de cobertura adequada à linguagem de cada camada (`pytest-cov` no backend Python,
+relatórios de cobertura do Jest no frontend). Pipelines de CI DEVEM bloquear merge de Pull
+Requests que reduzam a cobertura abaixo do limiar vigente ou que introduzam regressão de
+cobertura em arquivos já cobertos. Lint e checagem de tipos (`mypy`/`ruff` no backend,
+TypeScript `strict` no frontend) DEVEM passar sem erros antes de qualquer merge; alertas de
+análise estática (SonarCloud ou equivalente) classificados como bloqueantes DEVEM ser
+resolvidos antes do merge.
 
 **Rationale**: Assim como uma peça fora de tolerância dimensional é refugada na indústria,
 código sem cobertura mínima comprovada não pode ser aceito como "conforme". O limiar de 80%
@@ -62,11 +67,11 @@ código sem cobertura mínima comprovada não pode ser aceito como "conforme". O
 
 Toda funcionalidade nova ou alterada DEVE ser validada nas três camadas de teste do projeto:
 
-- **Testes unitários**: cobrem regras de negócio isoladas em `services/`, sem I/O real
-  (banco de dados, rede, sistema de arquivos mockados).
-- **Testes de integração**: validam contratos entre camadas reais — `controllers/` +
-  `routes/` + `repositories/` contra um banco de dados de teste, e chamadas reais à API do
-  GitHub via fixtures/stubs controlados.
+- **Testes unitários**: cobrem regras de negócio isoladas na camada de serviços/regras de
+  negócio, sem I/O real (banco de dados, rede, sistema de arquivos mockados).
+- **Testes de integração**: validam contratos entre camadas reais — camada de entrada HTTP
+  (rotas/endpoints) + camada de regras de negócio + camada de persistência — contra um banco de
+  dados de teste, e chamadas reais à API do GitHub via fixtures/stubs controlados.
 - **Testes E2E**: validam os fluxos críticos de ponta a ponta (cadastro de repositório GitHub,
   execução de análise automática, visualização do dashboard com gauges metrológicos) através
   da interface real do frontend.
@@ -143,13 +148,22 @@ apenas um número sem significado verificável.
 
 ## Restrições Tecnológicas e de Stack
 
-A stack tecnológica documentada no README do projeto é vinculante para todo desenvolvimento,
-salvo decisão registrada em ADR (`docs/adr/`):
+A stack tecnológica abaixo, definida pelo ADR-003 (`docs/adr/ADR-003-stack-backend-fastapi.md`,
+que substitui o backend originalmente definido no ADR-001), é vinculante para todo
+desenvolvimento, salvo decisão registrada em novo ADR (`docs/adr/`):
 
-- **Backend**: Node.js + TypeScript + Express, em `src/backend/`.
-- **Frontend**: React + TypeScript (SPA), em `src/frontend/`.
-- **Banco de dados**: PostgreSQL.
-- **Testes**: Jest + Testing Library (cobre as três camadas do Princípio II).
+- **Backend / API**: FastAPI + Python 3.12, em `src/backend/`.
+- **Banco de dados**: PostgreSQL 16.
+- **Processamento assíncrono**: Celery + Redis, para execuções de análise que excedam o
+  orçamento de tempo síncrono do Princípio IV.
+- **Motor de cálculo de métricas**: Radon (Complexidade Ciclomática, LOC, Índice de
+  Manutenibilidade) + parser AST próprio (Acoplamento, Score de Duplicação).
+- **Frontend**: React 18 + TypeScript, com Vite como build tool, em `src/frontend/`.
+- **Visualização/gráficos**: Recharts, reutilizado pelos componentes de gauge do Princípio III.
+- **Geração de relatórios**: ReportLab, executado no backend, para os PDFs do Princípio V.
+- **Autenticação**: JWT (access token + refresh token) com hashing de senha via bcrypt.
+- **Testes**: `pytest` + `pytest-cov` no backend, Jest + Testing Library no frontend (cobrem as
+  três camadas do Princípio II).
 - **Containerização**: Docker + Docker Compose para ambiente local e CI.
 - **CI/CD**: GitHub Actions executando lint, type-check, testes (unit/integração/E2E) e
   verificação de cobertura em todo Pull Request.
@@ -194,4 +208,4 @@ Check". Violações DEVEM ser justificadas na tabela de "Complexity Tracking" do
 eliminadas antes do merge. Uso de orientação em tempo de execução (CLAUDE.md e demais arquivos
 de contexto do agente) DEVE permanecer consistente com esta constituição.
 
-**Version**: 1.0.0 | **Ratified**: 2026-06-24 | **Last Amended**: 2026-06-24
+**Version**: 2.0.0 | **Ratified**: 2026-06-24 | **Last Amended**: 2026-06-24
