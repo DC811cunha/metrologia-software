@@ -2,9 +2,25 @@
 node_modules/
 .npm
 
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
 # Build
 dist/
 build/
+
+# E2E (Playwright)
+test-results/
+playwright-report/
 
 # Ambiente
 .env

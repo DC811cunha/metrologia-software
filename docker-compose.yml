@@ -20,6 +20,18 @@ services:
       timeout: 5s
       retries: 5
 
+  redis:
+    image: redis:7-alpine
+    container_name: softmeter_redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   backend:
     build:
       context: ./src/backend
@@ -29,18 +41,38 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
-      NODE_ENV: development
-      PORT: 3001
       DATABASE_URL: postgresql://${DB_USER:-softmeter}:${DB_PASSWORD:-softmeter123}@db:5432/${DB_NAME:-softmeter_db}
+      REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
-      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
     ports:
       - "3001:3001"
     volumes:
       - ./src/backend:/app
-      - /app/node_modules
-    command: npm run dev
+    command: uvicorn app.main:app --host 0.0.0.0 --port 3001 --reload
+
+  celery-worker:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    container_name: softmeter_celery_worker
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://${DB_USER:-softmeter}:${DB_PASSWORD:-softmeter123}@db:5432/${DB_NAME:-softmeter_db}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
+    volumes:
+      - ./src/backend:/app
+    command: celery -A app.core.celery_app worker --loglevel=info
 
   frontend:
     build:

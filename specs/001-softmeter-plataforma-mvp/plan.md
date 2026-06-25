@@ -22,8 +22,9 @@ armazenamento; JWT (access+refresh) com bcrypt para autenticação; ReportLab pa
 **Language/Version**: Backend: Python 3.12. Frontend: TypeScript 5.x (React 18, via Vite).
 
 **Primary Dependencies**: Backend: FastAPI, SQLAlchemy + Alembic, Celery, Redis (broker/result
-backend), Radon, PyJWT (ou python-jose), passlib[bcrypt], ReportLab, httpx (cliente para a API
-REST do GitHub). Frontend: React 18, Vite, React Router, Recharts, Axios.
+backend), Radon, PyJWT, bcrypt (hashing direto — ver nota de implementação sobre incompatibilidade
+passlib/bcrypt 5.x), ReportLab, httpx (cliente para a API REST do GitHub). Frontend: React 18,
+Vite, React Router, Recharts, Axios.
 
 **Storage**: PostgreSQL 16 (dados de domínio: usuários, repositórios, análises, medições,
 relatórios). Redis como broker/result backend do Celery (não armazena dados de domínio

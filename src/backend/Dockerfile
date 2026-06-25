@@ -1,13 +1,14 @@
-FROM node:20-alpine
+FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY package*.json ./
+RUN apt-get update && apt-get install -y --no-install-recommends gcc libpq-dev && rm -rf /var/lib/apt/lists/*
 
-RUN npm install
+COPY pyproject.toml ./
+RUN pip install --no-cache-dir -e ".[dev]"
 
 COPY . .
 
 EXPOSE 3001
 
-CMD ["npm", "run", "dev"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3001", "--reload"]

@@ -33,12 +33,12 @@ independentes de cada uma.
 
 **Purpose**: inicialização do projeto conforme a stack do ADR-003 / `plan.md`
 
-- [ ] T001 Criar esqueleto do projeto backend (pyproject.toml/requirements.txt, `src/backend/app/main.py` com bootstrap FastAPI vazio) per Project Structure do `plan.md`
-- [ ] T002 [P] Criar esqueleto do projeto frontend Vite+React 18+TypeScript em `src/frontend/` (package.json, vite.config.ts), reaproveitando `src/frontend/src/{components,pages,services}` já existentes
-- [ ] T003 [P] Configurar lint/format do backend (`ruff`, `mypy`) em `src/backend/pyproject.toml`
-- [ ] T004 [P] Configurar lint/format do frontend (ESLint + Prettier) em `src/frontend/.eslintrc.cjs`
-- [ ] T005 [P] Escrever `docker-compose.yml` com serviços `postgres` (16), `redis`, `backend`, `celery-worker` e `frontend`
-- [ ] T006 [P] Criar esqueleto do workflow de CI em `.github/workflows/ci.yml` (jobs de lint, type-check e teste para backend e frontend)
+- [X] T001 Criar esqueleto do projeto backend (pyproject.toml/requirements.txt, `src/backend/app/main.py` com bootstrap FastAPI vazio) per Project Structure do `plan.md`
+- [X] T002 [P] Criar esqueleto do projeto frontend Vite+React 18+TypeScript em `src/frontend/` (package.json, vite.config.ts), reaproveitando `src/frontend/src/{components,pages,services}` já existentes
+- [X] T003 [P] Configurar lint/format do backend (`ruff`, `mypy`) em `src/backend/pyproject.toml`
+- [X] T004 [P] Configurar lint/format do frontend (ESLint + Prettier) em `src/frontend/.eslintrc.cjs`
+- [X] T005 [P] Escrever `docker-compose.yml` com serviços `postgres` (16), `redis`, `backend`, `celery-worker` e `frontend`
+- [X] T006 [P] Criar esqueleto do workflow de CI em `.github/workflows/ci.yml` (jobs de lint, type-check e teste para backend e frontend)
 
 ---
 
@@ -50,22 +50,22 @@ independentes de cada uma.
 
 **⚠️ CRITICAL**: nenhuma user story pode iniciar antes desta fase estar completa
 
-- [ ] T007 Configurar engine/sessão SQLAlchemy e framework de migrations Alembic em `src/backend/app/db/`
-- [ ] T008 [P] Criar modelo SQLAlchemy de Usuário em `src/backend/app/models/user.py`
-- [ ] T009 [P] Definir o catálogo fixo das 6 métricas (nome, unidade, fórmula, fonte bibliográfica, limites — ver `data-model.md`) em `src/backend/app/analysis/metrics_catalog.py`
-- [ ] T010 Implementar utilitários de hashing de senha (bcrypt) em `src/backend/app/core/security.py`
-- [ ] T011 Implementar emissão/validação de JWT (access + refresh token) em `src/backend/app/core/security.py` (depende de T010)
-- [ ] T012 Implementar dependency `get_current_user` (FastAPI `Depends`) em `src/backend/app/core/dependencies.py` (depende de T011)
-- [ ] T013 [P] Configurar app Celery + broker/result backend Redis em `src/backend/app/core/celery_app.py`
-- [ ] T014 Implementar endpoint `POST /api/v1/auth/register` em `src/backend/app/api/auth.py` (depende de T008, T010, T011)
-- [ ] T015 Implementar endpoint `POST /api/v1/auth/login` em `src/backend/app/api/auth.py` (depende de T014)
-- [ ] T016 Implementar endpoints `POST /api/v1/auth/refresh` e `POST /api/v1/auth/logout` em `src/backend/app/api/auth.py` (depende de T015)
-- [ ] T017 Conectar routers, CORS e exception handlers no bootstrap em `src/backend/app/main.py` (depende de T014–T016)
-- [ ] T018 [P] Configurar roteamento (React Router) e layout base em `src/frontend/src/App.tsx`
-- [ ] T019 [P] Implementar cliente de API (Axios com header de auth + refresh interceptor) em `src/frontend/src/services/apiClient.ts`
-- [ ] T020 [P] Implementar componente `ProtectedRoute` (redireciona para login se não autenticado) em `src/frontend/src/components/ProtectedRoute.tsx`
-- [ ] T021 [P] Testes unitários dos utilitários de segurança (hash, JWT) em `src/backend/tests/unit/test_security.py`
-- [ ] T022 Testes de integração dos endpoints de autenticação em `src/backend/tests/integration/test_auth_api.py` (depende de T014–T016)
+- [X] T007 Configurar engine/sessão SQLAlchemy e framework de migrations Alembic em `src/backend/app/db/`
+- [X] T008 [P] Criar modelo SQLAlchemy de Usuário em `src/backend/app/models/user.py`
+- [X] T009 [P] Definir o catálogo fixo das 6 métricas (nome, unidade, fórmula, fonte bibliográfica, limites — ver `data-model.md`) em `src/backend/app/analysis/metrics_catalog.py`
+- [X] T010 Implementar utilitários de hashing de senha (bcrypt) em `src/backend/app/core/security.py`
+- [X] T011 Implementar emissão/validação de JWT (access + refresh token) em `src/backend/app/core/security.py` (depende de T010)
+- [X] T012 Implementar dependency `get_current_user` (FastAPI `Depends`) em `src/backend/app/core/dependencies.py` (depende de T011)
+- [X] T013 [P] Configurar app Celery + broker/result backend Redis em `src/backend/app/core/celery_app.py`
+- [X] T014 Implementar endpoint `POST /api/v1/auth/register` em `src/backend/app/api/auth.py` (depende de T008, T010, T011)
+- [X] T015 Implementar endpoint `POST /api/v1/auth/login` em `src/backend/app/api/auth.py` (depende de T014)
+- [X] T016 Implementar endpoints `POST /api/v1/auth/refresh` e `POST /api/v1/auth/logout` em `src/backend/app/api/auth.py` (depende de T015)
+- [X] T017 Conectar routers, CORS e exception handlers no bootstrap em `src/backend/app/main.py` (depende de T014–T016)
+- [X] T018 [P] Configurar roteamento (React Router) e layout base em `src/frontend/src/App.tsx`
+- [X] T019 [P] Implementar cliente de API (Axios com header de auth + refresh interceptor) em `src/frontend/src/services/apiClient.ts` (reaproveitado o `services/api.ts` já existente em vez de duplicar o arquivo)
+- [X] T020 [P] Implementar componente `ProtectedRoute` (redireciona para login se não autenticado) em `src/frontend/src/components/ProtectedRoute.tsx`
+- [X] T021 [P] Testes unitários dos utilitários de segurança (hash, JWT) em `src/backend/tests/unit/test_security.py`
+- [X] T022 Testes de integração dos endpoints de autenticação em `src/backend/tests/integration/test_auth_api.py` (depende de T014–T016)
 
 **Checkpoint**: fundação pronta — implementação das user stories pode começar
 
