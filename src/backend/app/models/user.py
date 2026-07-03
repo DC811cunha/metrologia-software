@@ -1,10 +1,14 @@
 import uuid
 from datetime import datetime, timezone
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, String
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
+
+if TYPE_CHECKING:
+    from app.models.repository import Repository
 
 
 class User(Base):
@@ -17,5 +21,6 @@ class User(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
 
-    # A relação com Repositório é adicionada em app/models/repository.py (User Story 1)
-    # via relationship(back_populates=...) quando esse modelo for criado.
+    repositories: Mapped[list["Repository"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )

@@ -26,38 +26,36 @@ resulta em um **Laudo de Conformidade de Software** — Conforme, Condicional ou
 
 ```
 metrologia-software/
-├── docs/
-│   ├── rfc/                        # Documento RFC do projeto
-│   │   └── RFC-001-metrologia-software.md
-│   ├── architecture/               # Diagramas C4 e decisões de arquitetura
-│   └── adr/                        # Architecture Decision Records
+├── specs/
+│   └── 001-softmeter-plataforma-mvp/   # Spec, ADRs, data model, tasks
 ├── src/
-│   ├── backend/                    # API Node.js + TypeScript + Express
-│   │   ├── src/
-│   │   │   ├── controllers/        # Camada de entrada HTTP
-│   │   │   ├── services/           # Regras de negócio
-│   │   │   ├── repositories/       # Acesso ao banco de dados
-│   │   │   ├── models/             # Tipagens e interfaces
-│   │   │   ├── routes/             # Definição de rotas
-│   │   │   └── middleware/         # Auth, validação, erros
-│   │   ├── tests/                  # Testes unitários e integração (Jest)
-│   │   ├── package.json
-│   │   ├── tsconfig.json
+│   ├── backend/                    # API FastAPI + Python 3.12
+│   │   ├── app/
+│   │   │   ├── api/                # Routers: auth, repositories, analyses, reports
+│   │   │   ├── analysis/           # Motores de métricas (CC, LOC, MI, acoplamento, duplicação)
+│   │   │   ├── core/               # Config, segurança JWT, dependências
+│   │   │   ├── models/             # SQLAlchemy ORM models
+│   │   │   ├── schemas/            # Pydantic request/response schemas
+│   │   │   ├── services/           # GitHub, análise, relatório, conformidade, tendência
+│   │   │   └── workers/            # Celery tasks (análise assíncrona)
+│   │   ├── alembic/                # Migrations do banco de dados
+│   │   ├── tests/
+│   │   │   ├── unit/               # Testes unitários (métricas, conformidade, PDF)
+│   │   │   └── integration/        # Testes de integração (APIs, isolamento, performance)
+│   │   ├── pyproject.toml
 │   │   └── Dockerfile
-│   └── frontend/                   # SPA React + TypeScript
+│   └── frontend/                   # SPA React 18 + TypeScript + Vite + Tailwind CSS
 │       ├── src/
-│       │   ├── components/         # Componentes reutilizáveis
-│       │   ├── pages/              # Telas da aplicação
-│       │   └── services/           # Chamadas à API
-│       ├── tests/                  # Testes de componentes
+│       │   ├── components/         # Gauge, TrendChart, AppLayout, UI atoms
+│       │   ├── pages/              # Login, Register, Repositories, Dashboard, History
+│       │   └── services/           # Clientes axios: analysis, report, repository
+│       ├── tests/                  # Testes de componentes (Jest + Testing Library)
 │       ├── package.json
 │       └── Dockerfile
-├── scripts/                        # Scripts de setup e migrations
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                  # Pipeline CI/CD (GitHub Actions)
-├── docker-compose.yml              # Ambiente local completo
-├── .env.example                    # Variáveis de ambiente necessárias
+│       └── ci.yml                  # CI: lint + mypy + pytest (≥80%) + ESLint + Jest (≥80%)
+├── docker-compose.yml              # PostgreSQL + Redis + backend + worker Celery + frontend
 └── README.md
 ```
 
@@ -67,8 +65,7 @@ metrologia-software/
 
 ### Pré-requisitos
 
-- [Docker](https://www.docker.com/) e Docker Compose
-- [Node.js](https://nodejs.org/) v20+
+- [Docker Desktop](https://www.docker.com/) (inclui Docker Compose v2)
 - [Git](https://git-scm.com/)
 
 ### Setup em 3 passos
@@ -78,26 +75,27 @@ metrologia-software/
 git clone https://github.com/SEU_USUARIO/metrologia-software.git
 cd metrologia-software
 
-# 2. Configure as variáveis de ambiente
-cp .env.example .env
-# Edite o .env com suas configurações locais
+# 2. Suba o ambiente completo (PostgreSQL, Redis, backend FastAPI, Celery worker, frontend)
+docker compose up --build -d
 
-# 3. Suba o ambiente completo
-docker-compose up --build
+# 3. Aplique as migrations do banco de dados
+docker compose exec backend alembic upgrade head
 ```
 
 A aplicação estará disponível em:
-- **Frontend:** http://localhost:3000
-- **Backend API:** http://localhost:3001
-- **Banco de dados:** localhost:5432
+
+- **Frontend:** <http://localhost:3000>
+- **Backend API (Swagger):** <http://localhost:3001/docs>
+- **PostgreSQL:** localhost:5432
+- **Redis:** localhost:6379
 
 ### Rodando os testes
 
 ```bash
-# Backend
+# Backend (Python 3.12, requer venv local)
 cd src/backend
-npm install
-npm test
+pip install -e ".[dev]"
+pytest --cov=app --cov-report=term-missing
 
 # Frontend
 cd src/frontend
@@ -105,20 +103,23 @@ npm install
 npm test
 ```
 
+Ver também o [Quickstart completo de validação manual](specs/001-softmeter-plataforma-mvp/quickstart.md).
+
 ---
 
 ## 🏗️ Stack Tecnológica
 
 | Camada | Tecnologia | Justificativa |
 |---|---|---|
-| Backend | Node.js + TypeScript + Express | Ecossistema rico, tipagem estática, alto desempenho |
-| Frontend | React + TypeScript | Componentização, padrão de mercado |
-| Banco de dados | PostgreSQL | Robusto, relacional, suportado nas diretrizes do portfólio |
-| Testes | Jest + Testing Library | Padrão TDD para Node.js e React |
-| Container | Docker + Docker Compose | Ambiente consistente e portável |
-| CI/CD | GitHub Actions | Integrado ao repositório, automação de testes e deploy |
-| Qualidade de código | SonarCloud (a configurar) | Análise estática e cobertura de testes |
-| Monitoramento | New Relic / Grafana (a configurar) | Observabilidade em produção |
+| Backend | Python 3.12 + FastAPI + SQLAlchemy 2.0 | Tipagem nativa, ecossistema científico (Radon, tree-sitter) |
+| Frontend | React 18 + TypeScript + Vite + Tailwind CSS | Componentização, design system consistente |
+| Banco de dados | PostgreSQL 16 | Robusto, relacional, suportado nas diretrizes do portfólio |
+| Fila de tarefas | Celery + Redis | Análise assíncrona de repositórios grandes |
+| Motor de métricas | Radon (CC/LOC/MI) + tree-sitter (JS/TS) | Bibliotecas especializadas por linguagem |
+| Relatórios | ReportLab + Bitstream Vera TTF | PDF gerado server-side com Unicode |
+| Testes | pytest + Jest + Testing Library | TDD full-stack, cobertura ≥80% em CI |
+| Container | Docker + Docker Compose | Ambiente local idêntico à produção |
+| CI/CD | GitHub Actions | Lint + mypy + pytest + ESLint + Jest a cada push |
 
 ---
 

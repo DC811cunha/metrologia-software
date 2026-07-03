@@ -11,5 +11,11 @@ export default defineConfig({
         changeOrigin: true,
       },
     },
+    // Bind mounts do Docker em hosts Windows não propagam eventos inotify de forma
+    // confiável; sem polling, o HMR para de detectar alterações em src/ silenciosamente.
+    watch: {
+      usePolling: true,
+      interval: 300,
+    },
   },
 });

@@ -762,13 +762,25 @@ CI/CD integrado nativamente ao repositório. Pipeline configurado para executar 
 *(A ser preenchido pelos professores)*
 
 **PAULO ROGERIO PIRES MANSEIRA:** __________________________  
-**Status:** [ ] Aprovado  [ ] Ajustar
+**Status:** [X] Aprovado  [ ] Ajustar
 
 Observações:
 
 ---
 
 **LUIZ CARLOS CAMARGO:** __________________________  
-**Status:** [ ] Aprovado  [ ] Ajustar
+**Status:** [X] Aprovado  [ ] Ajustar
 
 Observações:
+
+<img src="images/Camargo.png" width="600">
+
+<img src="images/Manseira.png" width="600">
+
+<img src="images/Lucas.png" width="600">
+
+<img src="images/Sandro.png" width="600">
+
+<img src="images/DiegoLucas.png" width="600">
+
+<img src="images/DiegoSandro.png" width="600">

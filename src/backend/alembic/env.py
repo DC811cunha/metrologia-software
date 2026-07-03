@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.db.session import Base
 
 # Import models so they register on Base.metadata before autogenerate runs.
-from app.models import user  # noqa: F401
+from app.models import analysis, report, repository, user  # noqa: F401
 
 config = context.config
 if config.config_file_name is not None:

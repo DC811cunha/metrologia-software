@@ -11,15 +11,11 @@
 ## Setup local
 
 ```bash
-# 1. Configurar variáveis de ambiente
-cp .env.example .env
-# Editar .env com: DATABASE_URL, REDIS_URL, JWT_SECRET, JWT_REFRESH_SECRET
+# 1. Subir o ambiente completo (PostgreSQL, Redis, backend FastAPI, worker Celery, frontend)
+docker compose up --build -d
 
-# 2. Subir o ambiente completo (PostgreSQL, Redis, backend FastAPI, worker Celery, frontend)
-docker-compose up --build
-
-# 3. Aplicar migrations do banco
-docker-compose exec backend alembic upgrade head
+# 2. Aplicar migrations do banco (apenas na primeira execução ou após novas migrations)
+docker compose exec backend alembic upgrade head
 ```
 
 A aplicação estará disponível em:
@@ -43,9 +39,10 @@ A aplicação estará disponível em:
 ## Rodando os testes
 
 ```bash
-# Backend
+# Backend (cria venv local primeiro, se ainda não existir)
 cd src/backend
-pip install -r requirements-dev.txt
+python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
+pip install -e ".[dev]"
 pytest --cov=app --cov-report=term-missing
 
 # Frontend
@@ -53,8 +50,8 @@ cd src/frontend
 npm install
 npm test
 
-# E2E
-npx playwright test
+# E2E (requer aplicação rodando em localhost:3000)
+npx playwright test tests/e2e/
 ```
 
 ## Critério de pronto (alinhado à Constitution Check do plan.md)

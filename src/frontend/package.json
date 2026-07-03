@@ -17,10 +17,10 @@
     "recharts": "^2.10.4"
   },
   "devDependencies": {
-    "@babel/core": "^8.0.1",
-    "@babel/preset-env": "^8.0.2",
-    "@babel/preset-react": "^8.0.1",
-    "@babel/preset-typescript": "^8.0.1",
+    "@babel/core": "^7.29.7",
+    "@babel/preset-env": "^7.29.7",
+    "@babel/preset-react": "^7.29.7",
+    "@babel/preset-typescript": "^7.29.7",
     "@testing-library/jest-dom": "^6.2.0",
     "@testing-library/react": "^14.1.2",
     "@types/jest": "^29.5.11",
@@ -29,13 +29,16 @@
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
     "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.5.2",
     "babel-jest": "^30.4.1",
     "babel-plugin-transform-vite-meta-env": "^1.0.3",
     "eslint": "^8.56.0",
     "eslint-plugin-react-hooks": "^4.6.0",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",
+    "postcss": "^8.5.15",
     "prettier": "^3.2.5",
+    "tailwindcss": "^3.4.19",
     "typescript": "^5.3.3",
     "vite": "^5.0.11"
   }

@@ -1,0 +1,12 @@
+import { HTMLAttributes } from 'react';
+
+function Card({ className = '', ...props }: HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      className={`rounded-xl border border-slate-200 bg-white p-6 shadow-sm ${className}`}
+      {...props}
+    />
+  );
+}
+
+export default Card;
