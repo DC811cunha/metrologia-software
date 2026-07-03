@@ -1,29 +1,42 @@
-import React from 'react';
+import { Navigate, Route, BrowserRouter, Routes } from 'react-router-dom';
+
+import AppLayout from './components/AppLayout';
+import ProtectedRoute from './components/ProtectedRoute';
+import DashboardPage from './pages/DashboardPage';
+import HistoryPage from './pages/HistoryPage';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import RepositoriesPage from './pages/RepositoriesPage';
 
 /**
  * SoftMeter — Frontend React
- * Páginas planejadas:
- * /login       → Autenticação
- * /dashboard   → Visão geral dos sistemas
- * /sistemas    → Lista e cadastro de sistemas
- * /ciclos/:id  → Ciclo de teste ativo
- * /laudos/:id  → Laudo de conformidade gerado
+ *
+ * Rotas planejadas (adicionadas incrementalmente por user story):
+ * /login, /register        → US5 (Autenticação)
+ * /repositories             → US1 (Cadastro e análise)
+ * /repositories/:repositoryId/analyses/:analysisId → US2 (Dashboard de gauges)
+ * /repositories/:id/history    → US3 (Histórico e tendências)
  */
 function App() {
   return (
-    <div style={{ fontFamily: 'Arial, sans-serif', padding: '2rem', maxWidth: '800px', margin: '0 auto' }}>
-      <h1>📐 SoftMeter</h1>
-      <p><strong>Metrologia de Software</strong> — Plataforma de Inspeção e Conformidade</p>
-      <hr />
-      <p>Frontend em desenvolvimento. Próximas telas:</p>
-      <ul>
-        <li>🔐 Login / Cadastro</li>
-        <li>📊 Dashboard</li>
-        <li>⚙️ Gestão de Sistemas e Requisitos</li>
-        <li>🧪 Registro de Medições</li>
-        <li>📄 Laudo de Conformidade</li>
-      </ul>
-    </div>
+    <BrowserRouter>
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route element={<ProtectedRoute />}>
+          <Route element={<AppLayout />}>
+            <Route path="/" element={<Navigate to="/repositories" replace />} />
+            <Route path="/repositories" element={<RepositoriesPage />} />
+            <Route
+              path="/repositories/:repositoryId/analyses/:analysisId"
+              element={<DashboardPage />}
+            />
+            <Route path="/repositories/:repositoryId/history" element={<HistoryPage />} />
+          </Route>
+        </Route>
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+    </BrowserRouter>
   );
 }
 

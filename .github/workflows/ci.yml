@@ -7,38 +7,65 @@ on:
     branches: [main, develop]
 
 jobs:
-  backend-tests:
-    name: Backend — Lint + Testes
+  backend:
+    name: Backend — Lint + Tipos + Testes
     runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: softmeter
+          POSTGRES_PASSWORD: softmeter123
+          POSTGRES_DB: softmeter_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
-          node-version: '20'
+          python-version: '3.12'
 
       - name: Instalar dependências
         working-directory: src/backend
-        run: npm install
+        run: pip install -e ".[dev]"
 
-      - name: Rodar testes com cobertura
+      - name: Lint (ruff)
         working-directory: src/backend
-        run: npm test
+        run: ruff check .
+
+      - name: Type-check (mypy)
+        working-directory: src/backend
+        run: mypy app
+
+      - name: Testes com cobertura
+        working-directory: src/backend
+        run: pytest --cov=app --cov-report=xml --cov-report=term-missing --cov-fail-under=80
         env:
+          DATABASE_URL: postgresql://softmeter:softmeter123@localhost:5432/softmeter_test
+          REDIS_URL: redis://localhost:6379/0
           JWT_SECRET: test_secret_key
-          NODE_ENV: test
+          JWT_REFRESH_SECRET: test_refresh_secret_key
 
       - name: Upload cobertura
         uses: actions/upload-artifact@v4
         with:
           name: backend-coverage
-          path: src/backend/coverage/
+          path: src/backend/coverage.xml
 
-  frontend-tests:
-    name: Frontend — Lint + Testes
+  frontend:
+    name: Frontend — Lint + Tipos + Testes
     runs-on: ubuntu-latest
 
     steps:
@@ -54,29 +81,20 @@ jobs:
         working-directory: src/frontend
         run: npm install
 
-      - name: Verificar estrutura do frontend
+      - name: Lint (ESLint)
         working-directory: src/frontend
-        run: echo "Frontend estrutura OK — testes a implementar nos próximos sprints"
+        run: npm run lint
 
-  lint-check:
-    name: Lint geral
-    runs-on: ubuntu-latest
-    needs: [backend-tests, frontend-tests]
+      - name: Type-check
+        working-directory: src/frontend
+        run: npx tsc --noEmit
 
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Testes com cobertura
+        working-directory: src/frontend
+        run: npm test -- --coverage
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Upload cobertura
+        uses: actions/upload-artifact@v4
         with:
-          node-version: '20'
-
-      - name: Lint backend
-        working-directory: src/backend
-        run: |
-          npm install
-          npm run lint || true
-
-      - name: Pipeline OK
-        run: echo "✅ Todos os testes passaram!"
+          name: frontend-coverage
+          path: src/frontend/coverage/

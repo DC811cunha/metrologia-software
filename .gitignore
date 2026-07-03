@@ -2,9 +2,25 @@
 node_modules/
 .npm
 
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+
 # Build
 dist/
 build/
+
+# E2E (Playwright)
+test-results/
+playwright-report/
 
 # Ambiente
 .env
@@ -28,3 +44,12 @@ Thumbs.db
 
 # Docker volumes
 postgres_data/
+
+# Relatórios PDF gerados em runtime (US4)
+src/backend/generated_reports/
+
+# Claude Code — configurações locais (contém permissões pessoais, não compartilhar)
+.claude/settings.local.json
+
+# Specify extension (configuração local de design tokens)
+.specify/
