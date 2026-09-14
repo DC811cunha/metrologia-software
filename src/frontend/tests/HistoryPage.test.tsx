@@ -68,6 +68,29 @@ describe('HistoryPage', () => {
     expect(getMetricTrend).toHaveBeenCalledWith('repo-1', 'complexidade_ciclomatica');
   });
 
+  it('shows insufficient-data message when the series has points but no measured values', async () => {
+    // Regressão: cobertura_testes (ou qualquer métrica "Não disponível" em todas as
+    // análises) retorna uma série não-vazia com valor_medido: null em cada ponto —
+    // o gráfico não deve ser renderizado vazio nesse caso.
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce(HISTORY);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce({
+      metrica_chave: 'cobertura_testes',
+      tendencia: null,
+      serie: [
+        { analise_id: 'analysis-1', concluida_em: '2026-06-01T00:00:00Z', valor_medido: null, status_conformidade: 'Não disponível' },
+        { analise_id: 'analysis-2', concluida_em: '2026-06-15T00:00:00Z', valor_medido: null, status_conformidade: 'Não disponível' },
+      ],
+    });
+
+    renderHistoryPage();
+
+    await waitFor(() =>
+      expect(
+        screen.getByText(/Sem dados suficientes para a tendência/i),
+      ).toBeInTheDocument(),
+    );
+  });
+
   it('shows an empty state when there is no history', async () => {
     (listAnalysesHistory as jest.Mock).mockResolvedValueOnce([]);
     (getMetricTrend as jest.Mock).mockResolvedValueOnce({

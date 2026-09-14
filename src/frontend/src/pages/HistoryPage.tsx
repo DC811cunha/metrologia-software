@@ -49,6 +49,10 @@ function HistoryPage() {
   }, [repositoryId, metrica]);
 
   const metricConfig = METRICS_GAUGE_CONFIG.find((config) => config.chave === metrica);
+  // A série pode ter itens (uma análise por execução) sem nenhum valor plotável —
+  // ex.: cobertura_testes ausente em todas as análises — nesse caso o gráfico não
+  // deve ser exibido vazio, e sim a mensagem de dados insuficientes.
+  const hasPlottableData = trend?.serie.some((point) => point.valor_medido !== null) ?? false;
 
   return (
     <div className="flex flex-col gap-6">
@@ -85,7 +89,7 @@ function HistoryPage() {
           )}
         </div>
 
-        {trend && trend.serie.length > 0 ? (
+        {trend && hasPlottableData ? (
           <TrendChart serie={trend.serie} />
         ) : (
           <p className="text-sm text-slate-500">
