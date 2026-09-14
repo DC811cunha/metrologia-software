@@ -47,6 +47,11 @@ postgres_data/
 
 # Relatórios PDF gerados em runtime (US4)
 src/backend/generated_reports/
+src/backend/generated_reports_e2e/
+
+# Banco SQLite local usado para rodar a app sem Docker durante os testes E2E
+# (ver tests/e2e/README.md)
+src/backend/*.db
 
 # Claude Code — configurações locais (contém permissões pessoais, não compartilhar)
 .claude/settings.local.json

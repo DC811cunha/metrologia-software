@@ -2,9 +2,8 @@
 Testes para os middlewares de segurança: limite de tamanho de payload e rate limiting de login.
 """
 import pytest
-from fastapi.testclient import TestClient
 
-from app.main import _login_window, app
+from app.main import _login_window
 
 
 @pytest.fixture(autouse=True)

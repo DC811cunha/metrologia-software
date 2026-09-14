@@ -37,7 +37,10 @@ function Gauge({ label, value, unit, min, max, bands, statusLabel }: GaugeProps)
   }));
 
   return (
-    <div className="flex flex-col items-center rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div
+      data-testid="gauge-card"
+      className="flex flex-col items-center rounded-xl border border-slate-200 bg-white p-4 shadow-sm"
+    >
       <span className="text-sm font-medium text-slate-700">{label}</span>
 
       <div className="relative h-[100px] w-[180px] overflow-hidden">

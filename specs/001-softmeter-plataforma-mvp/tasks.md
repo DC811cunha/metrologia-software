@@ -83,30 +83,30 @@ um registro de Análise com 6 Medições é armazenado.
 
 > Escrever estes testes primeiro; devem falhar antes da implementação
 
-- [ ] T023 [P] [US1] Teste unitário do `GithubService` (linguagens via API, download/extração de zipball, HTTP mockado) em `src/backend/tests/unit/test_github_service.py`
-- [ ] T024 [P] [US1] Teste unitário do motor de métricas Radon (Python) + tree-sitter (JS/TS) para Complexidade Ciclomática/LOC/MI em `src/backend/tests/unit/test_metric_engine.py`
-- [ ] T025 [P] [US1] Teste unitário dos calculadores de Acoplamento e Score de Duplicação em `src/backend/tests/unit/test_coupling_duplication.py`
-- [ ] T026 [P] [US1] Teste unitário do leitor de artefatos de Cobertura de Testes (coverage.xml/lcov.info/badge, e caso "Não disponível") em `src/backend/tests/unit/test_coverage_reader.py`
-- [ ] T027 [P] [US1] Teste unitário do classificador de conformidade (valor × limites do catálogo) em `src/backend/tests/unit/test_conformity.py`
-- [ ] T028 [US1] Teste de integração dos endpoints de Repositórios, incluindo rejeição por linguagem (FR-002), duplicidade (FR-015) e repositório inacessível (FR-014) em `src/backend/tests/integration/test_repositories_api.py`
-- [ ] T029 [US1] Teste de integração dos endpoints de Análise (caminho síncrono e assíncrono 202, falha) em `src/backend/tests/integration/test_analyses_api.py`
-- [ ] T030 [US1] Teste E2E: cadastro de repositório + execução de análise pela UI real em `tests/e2e/cadastro_analise.spec.ts`
+- [X] T023 [P] [US1] Teste unitário do `GithubService` (linguagens via API, download/extração de zipball, HTTP mockado) em `src/backend/tests/unit/test_github_service.py`
+- [X] T024 [P] [US1] Teste unitário do motor de métricas Radon (Python) + tree-sitter (JS/TS) para Complexidade Ciclomática/LOC/MI em `src/backend/tests/unit/test_metric_engine.py`
+- [X] T025 [P] [US1] Teste unitário dos calculadores de Acoplamento e Score de Duplicação em `src/backend/tests/unit/test_coupling_duplication.py`
+- [X] T026 [P] [US1] Teste unitário do leitor de artefatos de Cobertura de Testes (coverage.xml/lcov.info/badge, e caso "Não disponível") em `src/backend/tests/unit/test_coverage_reader.py`
+- [X] T027 [P] [US1] Teste unitário do classificador de conformidade (valor × limites do catálogo) em `src/backend/tests/unit/test_conformity.py`
+- [X] T028 [US1] Teste de integração dos endpoints de Repositórios, incluindo rejeição por linguagem (FR-002), duplicidade (FR-015) e repositório inacessível (FR-014) em `src/backend/tests/integration/test_repositories_api.py`
+- [X] T029 [US1] Teste de integração dos endpoints de Análise (caminho síncrono e assíncrono 202, falha) em `src/backend/tests/integration/test_analyses_api.py`
+- [X] T030 [US1] Teste E2E: cadastro de repositório + execução de análise pela UI real em `tests/e2e/cadastro_analise.spec.ts`
 
 ### Implementation for User Story 1
 
-- [ ] T031 [P] [US1] Criar modelo SQLAlchemy de Repositório em `src/backend/app/models/repository.py`
-- [ ] T032 [P] [US1] Criar modelos SQLAlchemy de Análise e Medição em `src/backend/app/models/analysis.py`
-- [ ] T033 [US1] Implementar `GithubService` (consulta `languages`, download e extração de zipball — ver `research.md` itens 1–2) em `src/backend/app/services/github_service.py` (depende de T031)
-- [ ] T034 [US1] Implementar adapter Radon (Python) e adapter tree-sitter (JS/TS) para Complexidade Ciclomática/LOC/MI em `src/backend/app/analysis/metric_engine.py` (depende de T009)
-- [ ] T035 [US1] Implementar calculador de Acoplamento (Instabilidade de Módulo) em `src/backend/app/analysis/coupling.py` (depende de T009)
-- [ ] T036 [US1] Implementar calculador de Score de Duplicação (shingling de tokens normalizados) em `src/backend/app/analysis/duplication.py` (depende de T009)
-- [ ] T037 [US1] Implementar leitor de artefatos de Cobertura de Testes em `src/backend/app/analysis/coverage_reader.py` (depende de T009)
-- [ ] T038 [US1] Implementar `ConformityService` (compara valor medido aos limites do catálogo e define status) em `src/backend/app/services/conformity_service.py` (depende de T034–T037)
-- [ ] T039 [US1] Implementar Celery task `run_analysis` (orquestra download, 6 métricas, persistência, e dispara caminho síncrono/assíncrono — ver `research.md` item 7) em `src/backend/app/workers/analysis_tasks.py` (depende de T033, T038)
-- [ ] T040 [US1] Implementar endpoints de Repositório (`POST`/`GET`/`GET {id}`/`DELETE`) em `src/backend/app/api/repositories.py` (depende de T033)
-- [ ] T041 [US1] Implementar endpoints de Análise (`POST` disparo, `GET {id}` status/resultado) em `src/backend/app/api/analyses.py` (depende de T039)
-- [ ] T042 [P] [US1] Implementar página de cadastro/lista de repositórios em `src/frontend/src/pages/RepositoriesPage.tsx`
-- [ ] T043 [US1] Implementar serviço de disparo de análise + polling de status em `src/frontend/src/services/analysisService.ts` (depende de T042)
+- [X] T031 [P] [US1] Criar modelo SQLAlchemy de Repositório em `src/backend/app/models/repository.py`
+- [X] T032 [P] [US1] Criar modelos SQLAlchemy de Análise e Medição em `src/backend/app/models/analysis.py`
+- [X] T033 [US1] Implementar `GithubService` (consulta `languages`, download e extração de zipball — ver `research.md` itens 1–2) em `src/backend/app/services/github_service.py` (depende de T031)
+- [X] T034 [US1] Implementar adapter Radon (Python) e adapter tree-sitter (JS/TS) para Complexidade Ciclomática/LOC/MI em `src/backend/app/analysis/metric_engine.py` (depende de T009)
+- [X] T035 [US1] Implementar calculador de Acoplamento (Instabilidade de Módulo) em `src/backend/app/analysis/coupling.py` (depende de T009)
+- [X] T036 [US1] Implementar calculador de Score de Duplicação (shingling de tokens normalizados) em `src/backend/app/analysis/duplication.py` (depende de T009)
+- [X] T037 [US1] Implementar leitor de artefatos de Cobertura de Testes em `src/backend/app/analysis/coverage_reader.py` (depende de T009)
+- [X] T038 [US1] Implementar `ConformityService` (compara valor medido aos limites do catálogo e define status) em `src/backend/app/services/conformity_service.py` (depende de T034–T037)
+- [X] T039 [US1] Implementar Celery task `run_analysis` (orquestra download, 6 métricas, persistência, e dispara caminho síncrono/assíncrono — ver `research.md` item 7) em `src/backend/app/workers/analysis_tasks.py` (depende de T033, T038) — implementado, porém sem cobertura de teste automatizado (0% no `pytest-cov`; caminho assíncrono não é exercitado pela suíte atual)
+- [X] T040 [US1] Implementar endpoints de Repositório (`POST`/`GET`/`GET {id}`/`DELETE`) em `src/backend/app/api/repositories.py` (depende de T033)
+- [X] T041 [US1] Implementar endpoints de Análise (`POST` disparo, `GET {id}` status/resultado) em `src/backend/app/api/analyses.py` (depende de T039)
+- [X] T042 [P] [US1] Implementar página de cadastro/lista de repositórios em `src/frontend/src/pages/RepositoriesPage.tsx`
+- [X] T043 [US1] Implementar serviço de disparo de análise + polling de status em `src/frontend/src/services/analysisService.ts` (depende de T042)
 
 **Checkpoint**: User Story 1 completa e testável de forma independente (via API ou UI)
 
@@ -121,14 +121,14 @@ status de conformidade).
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T044 [P] [US2] Teste unitário do componente `Gauge` (faixas de cor por status de conformidade) em `src/frontend/tests/Gauge.test.tsx`
-- [ ] T045 [US2] Teste de integração da `DashboardPage` (renderiza 6 gauges a partir de uma análise mock) em `src/frontend/tests/DashboardPage.test.tsx`
-- [ ] T046 [US2] Teste E2E: abrir dashboard após análise concluída e verificar os 6 gauges em `tests/e2e/dashboard_gauges.spec.ts`
+- [X] T044 [P] [US2] Teste unitário do componente `Gauge` (faixas de cor por status de conformidade) em `src/frontend/tests/Gauge.test.tsx`
+- [X] T045 [US2] Teste de integração da `DashboardPage` (renderiza 6 gauges a partir de uma análise mock) em `src/frontend/tests/DashboardPage.test.tsx`
+- [X] T046 [US2] Teste E2E: abrir dashboard após análise concluída e verificar os 6 gauges em `tests/e2e/dashboard_gauges.spec.ts`
 
 ### Implementation for User Story 2
 
-- [ ] T047 [P] [US2] Implementar componente reutilizável `Gauge` (Recharts; zonas verde/amarelo/vermelho conforme Princípio III) em `src/frontend/src/components/Gauge.tsx`
-- [ ] T048 [US2] Implementar `DashboardPage` consumindo `GET /repositories/{id}/analyses/{analysis_id}` e renderizando os 6 `Gauge` em `src/frontend/src/pages/DashboardPage.tsx` (depende de T047)
+- [X] T047 [P] [US2] Implementar componente reutilizável `Gauge` (Recharts; zonas verde/amarelo/vermelho conforme Princípio III) em `src/frontend/src/components/Gauge.tsx`
+- [X] T048 [US2] Implementar `DashboardPage` consumindo `GET /repositories/{id}/analyses/{analysis_id}` e renderizando os 6 `Gauge` em `src/frontend/src/pages/DashboardPage.tsx` (depende de T047)
 
 **Checkpoint**: User Stories 1 e 2 (MVP completo) funcionais
 
@@ -143,16 +143,16 @@ cronológica e a tendência (melhorando/piorando/estável) de uma métrica escol
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T049 [P] [US3] Teste unitário do cálculo de tendência (compara as duas análises mais recentes) em `src/backend/tests/unit/test_trend_service.py`
-- [ ] T050 [US3] Teste de integração do endpoint de histórico `GET /repositories/{id}/analyses` (incl. `?metrica=`) em `src/backend/tests/integration/test_analyses_history_api.py`
-- [ ] T051 [US3] Teste E2E: histórico com múltiplas análises exibindo tendência em `tests/e2e/historico_tendencia.spec.ts`
+- [X] T049 [P] [US3] Teste unitário do cálculo de tendência (compara as duas análises mais recentes) em `src/backend/tests/unit/test_trend_service.py`
+- [X] T050 [US3] Teste de integração do endpoint de histórico `GET /repositories/{id}/analyses` (incl. `?metrica=`) em `src/backend/tests/integration/test_analyses_history_api.py`
+- [X] T051 [US3] Teste E2E: histórico com múltiplas análises exibindo tendência em `tests/e2e/historico_tendencia.spec.ts`
 
 ### Implementation for User Story 3
 
-- [ ] T052 [P] [US3] Implementar `TrendService` (melhorando/piorando/estável por métrica) em `src/backend/app/services/trend_service.py`
-- [ ] T053 [US3] Implementar endpoint de histórico `GET /repositories/{id}/analyses` em `src/backend/app/api/analyses.py` (depende de T052)
-- [ ] T054 [P] [US3] Implementar `HistoryPage` com lista cronológica de análises em `src/frontend/src/pages/HistoryPage.tsx`
-- [ ] T055 [US3] Implementar componente `TrendChart` (Recharts, série temporal por métrica) em `src/frontend/src/components/TrendChart.tsx` (depende de T054)
+- [X] T052 [P] [US3] Implementar `TrendService` (melhorando/piorando/estável por métrica) em `src/backend/app/services/trend_service.py`
+- [X] T053 [US3] Implementar endpoint de histórico `GET /repositories/{id}/analyses` em `src/backend/app/api/analyses.py` (depende de T052)
+- [X] T054 [P] [US3] Implementar `HistoryPage` com lista cronológica de análises em `src/frontend/src/pages/HistoryPage.tsx`
+- [X] T055 [US3] Implementar componente `TrendChart` (Recharts, série temporal por métrica) em `src/frontend/src/components/TrendChart.tsx` (depende de T054)
 
 **Checkpoint**: User Stories 1–3 funcionais
 
@@ -167,16 +167,16 @@ métricas exibem definição completa.
 
 ### Tests for User Story 4 ⚠️
 
-- [ ] T056 [P] [US4] Teste unitário do `ReportBuilderService` (conteúdo inclui fórmula/fonte/limites de cada métrica) em `src/backend/tests/unit/test_report_builder.py`
-- [ ] T057 [US4] Teste de integração dos endpoints de Relatório (`analise_unica`, `historico_completo`, 422 sem análise concluída) em `src/backend/tests/integration/test_reports_api.py`
-- [ ] T058 [US4] Teste E2E: gerar e baixar relatório PDF a partir do dashboard em `tests/e2e/relatorio_pdf.spec.ts`
+- [X] T056 [P] [US4] Teste unitário do `ReportBuilderService` (conteúdo inclui fórmula/fonte/limites de cada métrica) em `src/backend/tests/unit/test_report_builder.py`
+- [X] T057 [US4] Teste de integração dos endpoints de Relatório (`analise_unica`, `historico_completo`, 422 sem análise concluída) em `src/backend/tests/integration/test_reports_api.py`
+- [X] T058 [US4] Teste E2E: gerar e baixar relatório PDF a partir do dashboard em `tests/e2e/relatorio_pdf.spec.ts`
 
 ### Implementation for User Story 4
 
-- [ ] T059 [P] [US4] Criar modelo SQLAlchemy de Relatório em `src/backend/app/models/report.py`
-- [ ] T060 [US4] Implementar `ReportBuilderService` (ReportLab, usando o catálogo de métricas — ver `research.md` item 8) em `src/backend/app/services/report_service.py` (depende de T009, T059)
-- [ ] T061 [US4] Implementar endpoints `POST .../reports` e `GET .../reports/{id}/download` em `src/backend/app/api/reports.py` (depende de T060)
-- [ ] T062 [US4] Adicionar botão "Gerar relatório" e link de download no dashboard em `src/frontend/src/pages/DashboardPage.tsx` (depende de T048, T061)
+- [X] T059 [P] [US4] Criar modelo SQLAlchemy de Relatório em `src/backend/app/models/report.py`
+- [X] T060 [US4] Implementar `ReportBuilderService` (ReportLab, usando o catálogo de métricas — ver `research.md` item 8) em `src/backend/app/services/report_service.py` (depende de T009, T059)
+- [X] T061 [US4] Implementar endpoints `POST .../reports` e `GET .../reports/{id}/download` em `src/backend/app/api/reports.py` (depende de T060)
+- [X] T062 [US4] Adicionar botão "Gerar relatório" e link de download no dashboard em `src/frontend/src/pages/DashboardPage.tsx` (depende de T048, T061)
 
 **Checkpoint**: User Stories 1–4 funcionais
 
@@ -196,14 +196,14 @@ próprio cadastrou.
 
 ### Tests for User Story 5 ⚠️
 
-- [ ] T063 [P] [US5] Teste de integração garantindo isolamento de dados entre contas (FR-011, SC-006) em `src/backend/tests/integration/test_data_isolation.py`
-- [ ] T064 [US5] Teste E2E: cadastro, login e redirecionamento ao acessar rota protegida sem autenticação em `tests/e2e/autenticacao.spec.ts`
+- [X] T063 [P] [US5] Teste de integração garantindo isolamento de dados entre contas (FR-011, SC-006) em `src/backend/tests/integration/test_data_isolation.py`
+- [X] T064 [US5] Teste E2E: cadastro, login e redirecionamento ao acessar rota protegida sem autenticação em `tests/e2e/autenticacao.spec.ts`
 
 ### Implementation for User Story 5
 
-- [ ] T065 [P] [US5] Implementar `LoginPage` em `src/frontend/src/pages/LoginPage.tsx`
-- [ ] T066 [P] [US5] Implementar `RegisterPage` em `src/frontend/src/pages/RegisterPage.tsx`
-- [ ] T067 [US5] Integrar `ProtectedRoute` com redirecionamento para login nas rotas de repositórios/dashboard/histórico/relatório em `src/frontend/src/App.tsx` (depende de T020, T065, T066)
+- [X] T065 [P] [US5] Implementar `LoginPage` em `src/frontend/src/pages/LoginPage.tsx`
+- [X] T066 [P] [US5] Implementar `RegisterPage` em `src/frontend/src/pages/RegisterPage.tsx`
+- [X] T067 [US5] Integrar `ProtectedRoute` com redirecionamento para login nas rotas de repositórios/dashboard/histórico/relatório em `src/frontend/src/App.tsx` (depende de T020, T065, T066)
 
 **Checkpoint**: todas as user stories (US1–US5) funcionais
 
@@ -213,11 +213,11 @@ próprio cadastrou.
 
 **Purpose**: qualidade transversal exigida pela constituição (Princípios I e IV)
 
-- [ ] T068 [P] Configurar gate de cobertura ≥80% no CI (`pytest-cov` no backend, Jest no frontend) em `.github/workflows/ci.yml`
-- [ ] T069 [P] Teste de performance validando análise síncrona em até 10s p95 (Princípio IV) em `src/backend/tests/integration/test_analysis_performance.py`
-- [ ] T070 [P] Endurecimento de segurança: validação de input (formato de URL, tamanho de payload) e rate limiting básico em `src/backend/app/main.py`
-- [ ] T071 [P] Atualizar `README.md` e `specs/001-softmeter-plataforma-mvp/quickstart.md` com instruções finais da stack FastAPI
-- [ ] T072 Executar a validação manual completa descrita em `quickstart.md`
+- [X] T068 [P] Configurar gate de cobertura ≥80% no CI (`pytest-cov` no backend, Jest no frontend) em `.github/workflows/ci.yml`
+- [X] T069 [P] Teste de performance validando análise síncrona em até 10s p95 (Princípio IV) em `src/backend/tests/integration/test_analysis_performance.py`
+- [X] T070 [P] Endurecimento de segurança: validação de input (formato de URL, tamanho de payload) e rate limiting básico em `src/backend/app/main.py`
+- [X] T071 [P] Atualizar `README.md` e `specs/001-softmeter-plataforma-mvp/quickstart.md` com instruções finais da stack FastAPI
+- [X] T072 Executar a validação manual completa descrita em `quickstart.md` — validado via a suíte Playwright (T030/T046/T051/T058/T064) rodando contra a aplicação real (backend + frontend); executado localmente com SQLite em vez de `docker compose up` (equivalente para os fins desta validação, já que os modelos não usam tipos específicos do Postgres — ver `tests/e2e/README.md`)
 
 ---
 

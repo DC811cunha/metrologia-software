@@ -101,6 +101,12 @@ pytest --cov=app --cov-report=term-missing
 cd src/frontend
 npm install
 npm test
+
+# E2E (Playwright) — requer a aplicação completa rodando (ver tests/e2e/README.md)
+cd tests/e2e
+npm install
+npx playwright install --with-deps chromium
+npm test
 ```
 
 Ver também o [Quickstart completo de validação manual](specs/001-softmeter-plataforma-mvp/quickstart.md).
