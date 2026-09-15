@@ -2,8 +2,7 @@ import uuid
 
 from app.core.celery_app import celery_app
 from app.db.session import SessionLocal
-from app.models.analysis import Analysis
-from app.models.repository import Repository
+from app.models import Analysis, Repository
 from app.services.analysis_runner import run_full_analysis
 from app.services.github_service import GithubService
 
