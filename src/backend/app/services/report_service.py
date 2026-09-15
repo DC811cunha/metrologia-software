@@ -13,25 +13,34 @@ from datetime import datetime
 
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
-from reportlab.lib.styles import getSampleStyleSheet
+from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.analysis.metrics_catalog import METRICS_CATALOG
+from app.analysis.metrics_catalog import METRICS_CATALOG, ConformityStatus
 from app.services.trend_service import calculate_trend
 
 # Fontes padrão do ReportLab (Helvetica/Times) não embutem um CMap Unicode, então
 # acentuação em português é corrompida na extração de texto (e em alguns leitores de
 # PDF). Registramos a TTF Bitstream Vera (incluída no próprio pacote reportlab) para
 # garantir codificação Unicode correta.
-_VERA_FONT_PATH = os.path.join(os.path.dirname(pdfmetrics.__file__), "..", "fonts", "Vera.ttf")
-pdfmetrics.registerFont(TTFont("Vera", os.path.normpath(_VERA_FONT_PATH)))
+_FONTS_DIR = os.path.normpath(os.path.join(os.path.dirname(pdfmetrics.__file__), "..", "fonts"))
+pdfmetrics.registerFont(TTFont("Vera", os.path.join(_FONTS_DIR, "Vera.ttf")))
+pdfmetrics.registerFont(TTFont("Vera-Bold", os.path.join(_FONTS_DIR, "VeraBd.ttf")))
 
 _STYLES = getSampleStyleSheet()
 for _style in _STYLES.byName.values():
     _style.fontName = "Vera"
+
+# Estilo próprio para o cabeçalho da tabela: o `TEXTCOLOR` do TableStyle não tem
+# efeito quando a célula contém um `Paragraph` (é um Flowable, não texto puro da
+# tabela) — sem isto, o cabeçalho ficava com texto escuro sobre o fundo escuro
+# (#0f172a), ilegível.
+_HEADER_CELL_STYLE = ParagraphStyle(
+    "TableHeaderCell", parent=_STYLES["BodyText"], textColor=colors.white, fontName="Vera-Bold"
+)
 
 
 def _measurement_table_data(measurements: list[dict]) -> list[list[str]]:
@@ -59,8 +68,9 @@ def _measurement_table_data(measurements: list[dict]) -> list[list[str]]:
 
 def _build_measurement_table(measurements: list[dict]) -> Table:
     data = _measurement_table_data(measurements)
-    wrapped = [
-        [Paragraph(str(cell), _STYLES["BodyText"]) for cell in row] for row in data
+    header, body = data[0], data[1:]
+    wrapped = [[Paragraph(str(cell), _HEADER_CELL_STYLE) for cell in header]] + [
+        [Paragraph(str(cell), _STYLES["BodyText"]) for cell in row] for row in body
     ]
     table = Table(wrapped, colWidths=[3.8 * cm, 1.3 * cm, 2.6 * cm, 2.6 * cm, 3.9 * cm, 3.5 * cm])
     table.setStyle(
@@ -78,8 +88,132 @@ def _build_measurement_table(measurements: list[dict]) -> Table:
     return table
 
 
+_SCORE_BY_STATUS = {
+    ConformityStatus.CONFORME.value: 100,
+    ConformityStatus.CONDICIONAL.value: 50,
+    ConformityStatus.NAO_CONFORME.value: 0,
+}
+
+_OVERALL_STATUS_INTRO = {
+    ConformityStatus.CONFORME.value: "o repositório está em conformidade com os limites de especificação do catálogo de métricas.",
+    ConformityStatus.CONDICIONAL.value: "o repositório está condicionalmente conforme — dentro de uma faixa aceitável, mas com pontos que merecem atenção antes de novas entregas.",
+    ConformityStatus.NAO_CONFORME.value: "o repositório está fora de conformidade com um ou mais limites de especificação do catálogo de métricas.",
+}
+
+# Implicação prática de cada métrica estar fora do limite nominal — genérica por
+# métrica (não específica de um repositório), fundamentada na mesma fonte
+# bibliográfica já citada no catálogo (metrics_catalog.py).
+_INSIGHT_FORA_DO_LIMITE = {
+    "complexidade_ciclomatica": (
+        "Funções com muitos caminhos de execução independentes exigem mais casos de "
+        "teste para cobertura exaustiva e concentram maior risco de defeitos (McCabe, 1976)."
+    ),
+    "loc": (
+        "Funções longas tendem a acumular múltiplas responsabilidades, o que dificulta "
+        "leitura, revisão e manutenção (Martin, 2008)."
+    ),
+    "indice_manutenibilidade": (
+        "Um índice de manutenibilidade baixo indica maior esforço esperado para "
+        "futuras alterações e correções nesses arquivos."
+    ),
+    "cobertura_testes": (
+        "Cobertura de testes abaixo do limite aumenta o risco de regressões não "
+        "detectadas em alterações futuras."
+    ),
+    "acoplamento": (
+        "Instabilidade de módulo alta indica dependência excessiva de outros "
+        "componentes, dificultando alterações isoladas (Martin, 2002)."
+    ),
+    "score_duplicacao": (
+        "Código duplicado eleva o custo de manutenção — uma correção precisa ser "
+        "replicada em todos os pontos duplicados, sob risco de inconsistência."
+    ),
+}
+
+
+def _build_interpretation_section(measurements: list[dict], overall_status: str) -> list:
+    """Resumo interpretativo gerado a partir dos valores/status reais da análise —
+    genérico para qualquer repositório, nunca texto fixo (FR-009 exige que o
+    relatório seja rastreável às métricas medidas, não a uma narrativa solta)."""
+    conformes = [m for m in measurements if m["status_conformidade"] == ConformityStatus.CONFORME.value]
+    atencao = [
+        m
+        for m in measurements
+        if m["status_conformidade"]
+        in (ConformityStatus.CONDICIONAL.value, ConformityStatus.NAO_CONFORME.value)
+    ]
+    indisponiveis = [
+        m for m in measurements if m["status_conformidade"] == ConformityStatus.NAO_DISPONIVEL.value
+    ]
+
+    def _label(m: dict) -> str:
+        metric = METRICS_CATALOG[m["metrica_chave"]]
+        valor = m["valor_medido"]
+        valor_str = f"{valor}" if valor is not None else "—"
+        return f"{metric.nome} ({valor_str})"
+
+    story: list = [Paragraph("Resumo da análise", _STYLES["Heading2"])]
+    intro = _OVERALL_STATUS_INTRO.get(overall_status, "")
+    story.append(
+        Paragraph(f"Conformidade geral: <b>{overall_status}</b> — {intro}", _STYLES["BodyText"])
+    )
+    story.append(Spacer(1, 0.25 * cm))
+
+    if conformes:
+        story.append(Paragraph("Pontos fortes", _STYLES["Heading3"]))
+        for m in conformes:
+            story.append(Paragraph(f"• {_label(m)} — dentro do limite recomendado.", _STYLES["BodyText"]))
+        story.append(Spacer(1, 0.2 * cm))
+
+    if atencao:
+        story.append(Paragraph("Pontos de atenção", _STYLES["Heading3"]))
+        for m in atencao:
+            insight = _INSIGHT_FORA_DO_LIMITE.get(m["metrica_chave"], "")
+            story.append(
+                Paragraph(
+                    f"• {_label(m)} — {m['status_conformidade']}. {insight}", _STYLES["BodyText"]
+                )
+            )
+        story.append(Spacer(1, 0.2 * cm))
+
+    if indisponiveis:
+        story.append(Paragraph("Métricas não avaliadas", _STYLES["Heading3"]))
+        for m in indisponiveis:
+            metric = METRICS_CATALOG[m["metrica_chave"]]
+            story.append(
+                Paragraph(
+                    f"• {metric.nome} — sem artefato disponível para leitura; excluída do "
+                    "índice agregado (não conta como reprovação).",
+                    _STYLES["BodyText"],
+                )
+            )
+        story.append(Spacer(1, 0.2 * cm))
+
+    avaliaveis = conformes + atencao
+    if avaliaveis:
+        soma = sum(_SCORE_BY_STATUS[m["status_conformidade"]] for m in avaliaveis)
+        indice = soma / len(avaliaveis)
+        story.append(
+            Paragraph(
+                f"Índice agregado: ({' + '.join(str(_SCORE_BY_STATUS[m['status_conformidade']]) for m in avaliaveis)}) "
+                f"÷ {len(avaliaveis)} = {indice:.1f} "
+                "— média dos escores por métrica avaliável (Conforme=100, Condicional=50, "
+                "Não-Conforme=0), excluindo métricas não disponíveis.",
+                _STYLES["BodyText"],
+            )
+        )
+
+    story.append(Spacer(1, 0.5 * cm))
+    return story
+
+
 def build_single_analysis_report(
-    *, repository_url: str, analysis_id: str, concluida_em: datetime | None, measurements: list[dict]
+    *,
+    repository_url: str,
+    analysis_id: str,
+    concluida_em: datetime | None,
+    measurements: list[dict],
+    overall_status: str,
 ) -> bytes:
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=1.2 * cm, rightMargin=1.2 * cm)
@@ -93,6 +227,9 @@ def build_single_analysis_report(
             _STYLES["Normal"],
         ),
         Spacer(1, 0.5 * cm),
+        *_build_interpretation_section(measurements, overall_status),
+        Paragraph("Detalhamento por métrica", _STYLES["Heading2"]),
+        Spacer(1, 0.15 * cm),
         _build_measurement_table(measurements),
     ]
     doc.build(story)
@@ -102,7 +239,8 @@ def build_single_analysis_report(
 def build_history_report(
     *, repository_url: str, analyses: list[dict]
 ) -> bytes:
-    """`analyses`: lista cronológica de `{id, concluida_em, measurements}`."""
+    """`analyses`: lista cronológica de
+    `{id, concluida_em, measurements, status_conformidade_geral}`."""
     buffer = io.BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, leftMargin=1.2 * cm, rightMargin=1.2 * cm)
     story: list = [
@@ -112,6 +250,10 @@ def build_history_report(
         Paragraph(f"Total de análises: {len(analyses)}", _STYLES["Normal"]),
         Spacer(1, 0.4 * cm),
     ]
+
+    latest_overall_status = analyses[-1].get("status_conformidade_geral") if analyses else None
+    if latest_overall_status:
+        story.extend(_build_interpretation_section(analyses[-1]["measurements"], latest_overall_status))
 
     if len(analyses) >= 2:
         story.append(Paragraph("Tendência (entre as duas análises mais recentes)", _STYLES["Heading2"]))

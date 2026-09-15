@@ -62,11 +62,14 @@ def create_report(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Análise inexistente ou não concluída",
             )
+        # invariante do analysis_runner: toda Analysis CONCLUIDA tem status_conformidade_geral
+        assert analysis.status_conformidade_geral is not None
         pdf_bytes = build_single_analysis_report(
             repository_url=repository.url,
             analysis_id=str(analysis.id),
             concluida_em=analysis.concluida_em,
             measurements=_measurements_payload(analysis),
+            overall_status=analysis.status_conformidade_geral,
         )
     elif payload.tipo == ReportType.HISTORICO_COMPLETO.value:
         analyses = (
@@ -93,6 +96,7 @@ def create_report(
                     "id": str(a.id),
                     "concluida_em": a.concluida_em,
                     "measurements": _measurements_payload(a),
+                    "status_conformidade_geral": a.status_conformidade_geral,
                 }
                 for a in analyses
             ],
