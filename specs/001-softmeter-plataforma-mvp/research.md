@@ -91,6 +91,12 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 - **Alternatives considered**: Executar testes em sandbox isolado (rejeitado por risco de
   segurança e custo de infraestrutura); métrica proxy estática de razão teste/código (rejeitado
   por divergir do nome e do significado de "Cobertura de Testes" definidos no spec).
+- **Atualização (16/09/2026, ver ADR-004)**: adicionada uma fonte antes das listadas acima — o
+  artifact de cobertura mais recente publicado pelo GitHub Actions do próprio repositório
+  analisado (ex.: `backend-coverage`, `frontend-coverage`), baixado sem executar nada. Motivo: a
+  maioria dos repositórios públicos não versiona artefato de build (é o próprio caso do
+  SoftMeter), o que deixava a métrica quase sempre "Não disponível" na prática. A decisão de
+  nunca executar código do repositório analisado permanece intacta.
 
 ## 7. Processamento assíncrono e orçamento de 10 segundos (Princípio IV)
 
