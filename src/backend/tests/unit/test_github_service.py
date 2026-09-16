@@ -4,6 +4,7 @@ import zipfile
 import httpx
 import pytest
 
+from app.core.config import settings
 from app.services.github_service import (
     GithubService,
     RepositoryAccessError,
@@ -107,3 +108,54 @@ class TestDownloadAndExtract:
         service = GithubService(client=_client_with(handler))
         with pytest.raises(RepositoryAccessError):
             service.download_and_extract("octocat", "missing-repo", tmp_path)
+
+
+class TestFetchLatestCoverageArtifactZip:
+    def test_returns_none_without_token_and_makes_no_request(self, monkeypatch):
+        monkeypatch.setattr(settings, "github_token", None)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            raise AssertionError("não deveria chamar a API sem token configurado")
+
+        service = GithubService(client=_client_with(handler))
+        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None
+
+    def test_downloads_the_most_recent_non_expired_coverage_artifact(self, monkeypatch):
+        monkeypatch.setattr(settings, "github_token", "fake-token")
+        zip_bytes = b"PK\x03\x04fake-zip-content"
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/actions/artifacts"):
+                return httpx.Response(
+                    200,
+                    json={
+                        "artifacts": [
+                            {"id": 1, "name": "build-logs", "expired": False},
+                            {"id": 2, "name": "backend-coverage", "expired": True},
+                            {"id": 3, "name": "backend-coverage", "expired": False},
+                        ]
+                    },
+                )
+            assert request.url.path.endswith("/actions/artifacts/3/zip")
+            return httpx.Response(200, content=zip_bytes)
+
+        service = GithubService(client=_client_with(handler))
+        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") == zip_bytes
+
+    def test_returns_none_when_no_coverage_artifact_exists(self, monkeypatch):
+        monkeypatch.setattr(settings, "github_token", "fake-token")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"artifacts": [{"id": 1, "name": "build-logs", "expired": False}]})
+
+        service = GithubService(client=_client_with(handler))
+        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None
+
+    def test_returns_none_on_api_error(self, monkeypatch):
+        monkeypatch.setattr(settings, "github_token", "fake-token")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(500)
+
+        service = GithubService(client=_client_with(handler))
+        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None

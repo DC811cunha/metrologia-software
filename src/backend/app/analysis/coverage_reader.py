@@ -1,15 +1,27 @@
-"""Leitor de artefatos de Cobertura de Testes já publicados no repositório
-(research.md item 6) — o SoftMeter não executa a suíte de testes do repositório
-analisado, apenas lê relatórios estáticos já existentes.
+"""Leitor de artefatos de Cobertura de Testes já publicados (research.md item 6) —
+o SoftMeter não executa a suíte de testes do repositório analisado (risco de
+execução de código arbitrário de terceiros), apenas lê relatórios estáticos já
+existentes, nesta ordem:
 
-Ordem de busca: `coverage.xml` (coverage.py/Cobertura) → `lcov.info` (lcov/nyc) →
-badge Codecov/Coveralls referenciado no README. Retorna `None` ("Não disponível")
-quando nenhum artefato é encontrado.
+1. Artifact de cobertura publicado pelo GitHub Actions do próprio repositório
+   (ex.: `backend-coverage`, `frontend-coverage`) — o CI de terceiros já rodou os
+   testes; o SoftMeter só baixa o resultado, sem executar nada. Requer
+   `settings.github_token` (a API de artifacts exige autenticação mesmo em
+   repositórios públicos) e que o artifact ainda não tenha expirado.
+2. `coverage.xml` (coverage.py/Cobertura) versionado no repositório.
+3. `lcov.info` (lcov/nyc) versionado no repositório.
+4. Badge Codecov/Coveralls referenciado no README.
+
+Retorna `None` ("Não disponível") quando nenhuma fonte está acessível — a maioria
+dos repositórios públicos não versiona artefato de build nem publica artifact de
+cobertura, e isso é esperado, não uma falha.
 """
 
 from __future__ import annotations
 
+import io
 import re
+import zipfile
 from pathlib import Path
 from xml.etree import ElementTree
 
@@ -22,17 +34,12 @@ _BADGE_PATTERNS = [
 ]
 
 
-def _find_first(root: Path, filename: str) -> Path | None:
-    matches = list(root.rglob(filename))
-    return matches[0] if matches else None
-
-
-def _read_coverage_xml(path: Path) -> float | None:
+def _parse_coverage_xml(content: str) -> float | None:
     try:
-        tree = ElementTree.parse(path)
+        root = ElementTree.fromstring(content)
     except ElementTree.ParseError:
         return None
-    line_rate = tree.getroot().get("line-rate")
+    line_rate = root.get("line-rate")
     if line_rate is None:
         return None
     try:
@@ -41,9 +48,9 @@ def _read_coverage_xml(path: Path) -> float | None:
         return None
 
 
-def _read_lcov_info(path: Path) -> float | None:
+def _parse_lcov_info(content: str) -> float | None:
     lines_found = lines_hit = 0
-    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+    for line in content.splitlines():
         if line.startswith("LF:"):
             lines_found += int(line.removeprefix("LF:"))
         elif line.startswith("LH:"):
@@ -51,6 +58,11 @@ def _read_lcov_info(path: Path) -> float | None:
     if lines_found == 0:
         return None
     return lines_hit / lines_found * 100
+
+
+def _find_first(root: Path, filename: str) -> Path | None:
+    matches = list(root.rglob(filename))
+    return matches[0] if matches else None
 
 
 def _read_readme_badge(root: Path) -> float | None:
@@ -66,16 +78,37 @@ def _read_readme_badge(root: Path) -> float | None:
     return None
 
 
+def read_coverage_from_artifact_zip(zip_bytes: bytes) -> float | None:
+    """Procura `coverage.xml`/`lcov.info` dentro de um artifact ZIP já baixado do
+    GitHub Actions (ver `GithubService.fetch_latest_coverage_artifact_zip`)."""
+    try:
+        with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+            for name in archive.namelist():
+                lower = name.lower()
+                if lower.endswith("coverage.xml"):
+                    value = _parse_coverage_xml(archive.read(name).decode("utf-8", errors="ignore"))
+                    if value is not None:
+                        return value
+            for name in archive.namelist():
+                if name.lower().endswith("lcov.info"):
+                    value = _parse_lcov_info(archive.read(name).decode("utf-8", errors="ignore"))
+                    if value is not None:
+                        return value
+    except zipfile.BadZipFile:
+        return None
+    return None
+
+
 def read_coverage_percentage(root: Path) -> float | None:
     coverage_xml = _find_first(root, "coverage.xml")
     if coverage_xml is not None:
-        value = _read_coverage_xml(coverage_xml)
+        value = _parse_coverage_xml(coverage_xml.read_text(encoding="utf-8", errors="ignore"))
         if value is not None:
             return value
 
     lcov_info = _find_first(root, "lcov.info")
     if lcov_info is not None:
-        value = _read_lcov_info(lcov_info)
+        value = _parse_lcov_info(lcov_info.read_text(encoding="utf-8", errors="ignore"))
         if value is not None:
             return value
 

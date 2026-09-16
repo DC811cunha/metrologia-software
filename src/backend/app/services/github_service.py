@@ -98,5 +98,41 @@ class GithubService:
             root_entry = archive.namelist()[0].split("/")[0]
         return dest_dir / root_entry
 
+    def fetch_latest_coverage_artifact_zip(self, owner: str, repo: str) -> bytes | None:
+        """Baixa o artifact de cobertura mais recente publicado pelo GitHub Actions do
+        repositório (research.md item 6) — o CI de terceiros já rodou os testes; isto
+        só lê o resultado, sem executar nada. Sempre "melhor esforço": qualquer falha
+        (sem token configurado, API indisponível, nenhum artifact de cobertura,
+        artifact expirado) retorna `None` silenciosamente e o chamador cai para os
+        métodos que leem artefatos versionados no próprio código-fonte.
+
+        A API de artifacts do GitHub Actions exige autenticação mesmo em
+        repositórios públicos — sem `settings.github_token`, a chamada sempre
+        falharia, então nem tentamos.
+        """
+        if not settings.github_token:
+            return None
+        try:
+            response = self._client.get(f"/repos/{owner}/{repo}/actions/artifacts", params={"per_page": 100})
+            response.raise_for_status()
+            artifacts = response.json()["artifacts"]
+            match = next(
+                (
+                    a
+                    for a in artifacts
+                    if not a["expired"] and "coverage" in a["name"].lower()
+                ),
+                None,
+            )
+            if match is None:
+                return None
+            download = self._client.get(
+                f"/repos/{owner}/{repo}/actions/artifacts/{match['id']}/zip", follow_redirects=True
+            )
+            download.raise_for_status()
+            return download.content
+        except httpx.HTTPError:
+            return None
+
     def close(self) -> None:
         self._client.close()

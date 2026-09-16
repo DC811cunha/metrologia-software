@@ -12,20 +12,35 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.analysis import coupling, duplication, metric_engine
-from app.analysis.coverage_reader import read_coverage_percentage
+from app.analysis.coverage_reader import read_coverage_from_artifact_zip, read_coverage_percentage
 from app.models.analysis import Analysis, AnalysisStatus, Measurement
 from app.models.repository import AccessStatus, Repository
 from app.services.conformity_service import calculate_overall_status, classify_measurements
 from app.services.github_service import GithubService, RepositoryAccessError, parse_repo_url
 
 
-def _compute_metric_values(root: Path, languages: list[str]) -> dict[str, float | None]:
+def _read_coverage(service: GithubService, owner: str, repo: str, root: Path) -> float | None:
+    """Cobertura é sempre "melhor esforço": tenta primeiro o artifact de CI mais
+    recente do próprio repositório (mais provável de existir do que um artefato
+    versionado — ver coverage_reader.py), e cai para os artefatos no código-fonte
+    já baixado se não achar nada."""
+    zip_bytes = service.fetch_latest_coverage_artifact_zip(owner, repo)
+    if zip_bytes is not None:
+        value = read_coverage_from_artifact_zip(zip_bytes)
+        if value is not None:
+            return value
+    return read_coverage_percentage(root)
+
+
+def _compute_metric_values(
+    service: GithubService, owner: str, repo: str, root: Path, languages: list[str]
+) -> dict[str, float | None]:
     repo_metrics = metric_engine.analyze_repository(root, languages)
     return {
         "complexidade_ciclomatica": repo_metrics.avg_complexity,
         "loc": repo_metrics.avg_loc,
         "indice_manutenibilidade": repo_metrics.avg_maintainability_index,
-        "cobertura_testes": read_coverage_percentage(root),
+        "cobertura_testes": _read_coverage(service, owner, repo, root),
         "acoplamento": coupling.calculate_average_instability(root, languages),
         "score_duplicacao": duplication.calculate_duplication_score(root, languages),
     }
@@ -72,7 +87,7 @@ def run_full_analysis(
     try:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = service.download_and_extract(owner, repo, Path(tmp_dir))
-            values = _compute_metric_values(root, repository.linguagens_detectadas)
+            values = _compute_metric_values(service, owner, repo, root, repository.linguagens_detectadas)
         _persist_success(db, analysis, values)
     except RepositoryAccessError as exc:
         repository.status_acesso = AccessStatus.INACESSIVEL

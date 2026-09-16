@@ -45,6 +45,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     ports:
       - "3001:3001"
     volumes:
@@ -67,6 +68,7 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
     volumes:
       - ./src/backend:/app
     command: celery -A app.core.celery_app worker --loglevel=info
