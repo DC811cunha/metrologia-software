@@ -56,6 +56,13 @@ function LoginPage() {
             required
           />
 
+          <Link
+            to="/forgot-password"
+            className="-mt-2 text-right text-sm font-medium text-sky-600 hover:text-sky-700"
+          >
+            Esqueci minha senha
+          </Link>
+
           {error && <Alert>{error}</Alert>}
 
           <Button type="submit" disabled={submitting}>

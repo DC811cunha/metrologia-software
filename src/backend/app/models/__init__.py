@@ -11,6 +11,7 @@ centralizado aqui para não depender de cada entry point lembrar de repeti-lo.
 """
 
 from app.models.analysis import Analysis, AnalysisStatus, Measurement  # noqa: F401
+from app.models.password_reset import PasswordResetToken  # noqa: F401
 from app.models.report import Report, ReportType  # noqa: F401
 from app.models.repository import AccessStatus, Repository  # noqa: F401
 from app.models.user import User  # noqa: F401

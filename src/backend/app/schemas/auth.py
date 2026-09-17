@@ -26,3 +26,16 @@ class AccessTokenResponse(BaseModel):
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: EmailStr
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)

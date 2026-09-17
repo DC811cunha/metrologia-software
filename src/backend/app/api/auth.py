@@ -1,7 +1,12 @@
+import hashlib
+import secrets
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.core.security import (
     InvalidTokenError,
@@ -12,15 +17,28 @@ from app.core.security import (
     verify_password,
 )
 from app.db.session import get_db
+from app.models.password_reset import PasswordResetToken
 from app.models.user import User
 from app.schemas.auth import (
     AccessTokenResponse,
+    ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginRequest,
     RegisterRequest,
+    ResetPasswordRequest,
     TokenPairResponse,
 )
+from app.services.email_service import send_password_reset_email
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
+
+_GENERIC_FORGOT_PASSWORD_MESSAGE = (
+    "Se este e-mail estiver cadastrado, você receberá um link de recuperação em instantes."
+)
+
+
+def _hash_token(raw_token: str) -> str:
+    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 REFRESH_COOKIE_NAME = "softmeter_refresh_token"
 
@@ -81,6 +99,67 @@ def refresh(
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado")
 
     return AccessTokenResponse(access_token=create_access_token(user.id))
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+def forgot_password(
+    payload: ForgotPasswordRequest, db: Session = Depends(get_db)
+) -> ForgotPasswordResponse:
+    """Sempre responde com a mesma mensagem genérica — não revela se o e-mail
+    está cadastrado (evita enumeração de contas)."""
+    user = db.query(User).filter(User.email == payload.email).first()
+    if user is None:
+        return ForgotPasswordResponse(message=_GENERIC_FORGOT_PASSWORD_MESSAGE)
+
+    raw_token = secrets.token_urlsafe(32)
+    db.add(
+        PasswordResetToken(
+            usuario_id=user.id,
+            token_hash=_hash_token(raw_token),
+            expira_em=datetime.now(timezone.utc)
+            + timedelta(minutes=settings.password_reset_token_expires_minutes),
+        )
+    )
+    db.commit()
+
+    reset_link = f"{settings.frontend_url}/reset-password?token={raw_token}"
+    send_password_reset_email(user.email, reset_link)
+
+    return ForgotPasswordResponse(message=_GENERIC_FORGOT_PASSWORD_MESSAGE)
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)) -> None:
+    token_hash = _hash_token(payload.token)
+    reset_token = (
+        db.query(PasswordResetToken).filter(PasswordResetToken.token_hash == token_hash).first()
+    )
+
+    if reset_token is None or reset_token.usado_em is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Token inválido ou expirado"
+        )
+
+    now = datetime.now(timezone.utc)
+    expira_em = reset_token.expira_em
+    if expira_em.tzinfo is None:
+        # SQLite não preserva timezone-awareness em DateTime(timezone=True):
+        # o valor volta naive, mas foi gravado em UTC — normaliza antes de comparar.
+        expira_em = expira_em.replace(tzinfo=timezone.utc)
+    if expira_em < now:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Token inválido ou expirado"
+        )
+
+    user = db.get(User, reset_token.usuario_id)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Token inválido ou expirado"
+        )
+
+    user.password_hash = hash_password(payload.new_password)
+    reset_token.usado_em = now
+    db.commit()
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

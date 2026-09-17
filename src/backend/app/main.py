@@ -41,25 +41,30 @@ class _ContentSizeLimitMiddleware(BaseHTTPMiddleware):
 # 2. Request body size limit
 app.add_middleware(_ContentSizeLimitMiddleware)
 
+# Chave é "path:ip" — cada endpoint sensível tem sua própria janela, então
+# esgotar o limite de login não afeta o de forgot-password e vice-versa.
 _login_window: dict[str, deque[float]] = defaultdict(deque)
 _RATE_WINDOW_S = 60
-_RATE_MAX = 10  # login attempts per minute per IP
+_RATE_MAX = 10  # tentativas por minuto por IP
+_RATE_LIMITED_PATHS = {"/api/v1/auth/login", "/api/v1/auth/forgot-password"}
 
 
 class _LoginRateLimitMiddleware(BaseHTTPMiddleware):
-    """Limits login attempts to 10 per minute per IP to prevent brute-force."""
+    """Limita tentativas de login e de recuperação de senha a 10/minuto por IP —
+    o segundo mitiga tanto brute-force quanto spam de e-mail/enumeração de contas."""
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
-        if request.url.path == "/api/v1/auth/login" and request.method == "POST":
+        if request.url.path in _RATE_LIMITED_PATHS and request.method == "POST":
             ip = (request.client.host if request.client else "unknown")
+            key = f"{request.url.path}:{ip}"
             now = time.monotonic()
-            window = _login_window[ip]
+            window = _login_window[key]
             while window and window[0] < now - _RATE_WINDOW_S:
                 window.popleft()
             if len(window) >= _RATE_MAX:
                 return JSONResponse(
                     status_code=429,
-                    content={"detail": "Muitas tentativas de login. Tente novamente em um minuto."},
+                    content={"detail": "Muitas tentativas. Tente novamente em um minuto."},
                     headers={"Retry-After": "60"},
                 )
             window.append(now)
