@@ -22,5 +22,13 @@ class Settings(BaseSettings):
 
     reports_dir: str = "generated_reports"
 
+    # Recuperação de senha (ADR-005) — sem resend_api_key configurada, o link de
+    # reset é apenas registrado no log do backend em vez de enviado por e-mail;
+    # nunca bloqueia o fluxo.
+    resend_api_key: str | None = None
+    email_from: str = "SoftMeter <onboarding@resend.dev>"
+    frontend_url: str = "http://localhost:3000"
+    password_reset_token_expires_minutes: int = 60
+
 
 settings = Settings()

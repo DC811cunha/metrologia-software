@@ -46,6 +46,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-SoftMeter <onboarding@resend.dev>}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      PASSWORD_RESET_TOKEN_EXPIRES_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRES_MINUTES:-60}
     ports:
       - "3001:3001"
     volumes:
@@ -69,6 +73,10 @@ services:
       JWT_SECRET: ${JWT_SECRET:-dev_secret_change_in_production}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-dev_refresh_secret_change_in_production}
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      EMAIL_FROM: ${EMAIL_FROM:-SoftMeter <onboarding@resend.dev>}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
+      PASSWORD_RESET_TOKEN_EXPIRES_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRES_MINUTES:-60}
     volumes:
       - ./src/backend:/app
     command: celery -A app.core.celery_app worker --loglevel=info
