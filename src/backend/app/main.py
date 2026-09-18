@@ -46,12 +46,18 @@ app.add_middleware(_ContentSizeLimitMiddleware)
 _login_window: dict[str, deque[float]] = defaultdict(deque)
 _RATE_WINDOW_S = 60
 _RATE_MAX = 10  # tentativas por minuto por IP
-_RATE_LIMITED_PATHS = {"/api/v1/auth/login", "/api/v1/auth/forgot-password"}
+_RATE_LIMITED_PATHS = {
+    "/api/v1/auth/login",
+    "/api/v1/auth/forgot-password",
+    "/api/v1/auth/reset-password",
+}
 
 
 class _LoginRateLimitMiddleware(BaseHTTPMiddleware):
     """Limita tentativas de login e de recuperação de senha a 10/minuto por IP —
-    o segundo mitiga tanto brute-force quanto spam de e-mail/enumeração de contas."""
+    forgot-password mitiga brute-force e spam de e-mail/enumeração de contas;
+    reset-password entra pelo mesmo motivo por defesa em profundidade (o token
+    já tem 256 bits de entropia, mas o endpoint não tinha nenhum limite antes)."""
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
         if request.url.path in _RATE_LIMITED_PATHS and request.method == "POST":

@@ -24,3 +24,4 @@ celery_app.conf.update(
 # sem erro mas rejeita toda análise assíncrona em runtime com "Received unregistered
 # task of type 'run_analysis'", deixando a Análise presa em "processando" para sempre.
 import app.workers.analysis_tasks  # noqa: E402,F401
+import app.workers.email_tasks  # noqa: E402,F401

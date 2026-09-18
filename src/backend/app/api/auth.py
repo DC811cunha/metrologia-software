@@ -28,7 +28,7 @@ from app.schemas.auth import (
     ResetPasswordRequest,
     TokenPairResponse,
 )
-from app.services.email_service import send_password_reset_email
+from app.workers.email_tasks import send_password_reset_email_task
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -106,7 +106,12 @@ def forgot_password(
     payload: ForgotPasswordRequest, db: Session = Depends(get_db)
 ) -> ForgotPasswordResponse:
     """Sempre responde com a mesma mensagem genérica — não revela se o e-mail
-    está cadastrado (evita enumeração de contas)."""
+    está cadastrado (evita enumeração de contas). O envio do e-mail é despachado
+    para uma task Celery em vez de feito de forma síncrona aqui: se o envio
+    bloqueasse a resposta, o caminho de e-mail cadastrado (grava no banco + chama
+    o Resend, até 10s) ficaria mensuravelmente mais lento que o caminho de e-mail
+    inexistente (retorna na hora) — um side-channel de timing que revelaria quais
+    e-mails existem mesmo com a mensagem de resposta idêntica."""
     user = db.query(User).filter(User.email == payload.email).first()
     if user is None:
         return ForgotPasswordResponse(message=_GENERIC_FORGOT_PASSWORD_MESSAGE)
@@ -123,7 +128,7 @@ def forgot_password(
     db.commit()
 
     reset_link = f"{settings.frontend_url}/reset-password?token={raw_token}"
-    send_password_reset_email(user.email, reset_link)
+    send_password_reset_email_task.delay(user.email, reset_link)
 
     return ForgotPasswordResponse(message=_GENERIC_FORGOT_PASSWORD_MESSAGE)
 
