@@ -83,11 +83,11 @@ def _fake_email_capture(monkeypatch):
 
     sent = {}
 
-    def fake_send(to_email, reset_link):
+    def fake_delay(to_email, reset_link):
         sent["to_email"] = to_email
         sent["reset_link"] = reset_link
 
-    monkeypatch.setattr(auth_module, "send_password_reset_email", fake_send)
+    monkeypatch.setattr(auth_module.send_password_reset_email_task, "delay", fake_delay)
     return sent
 
 
