@@ -58,3 +58,7 @@ src/backend/*.db
 
 # Specify extension (configuração local de design tokens)
 .specify/
+
+# Documento de avaliação do orientador — material de referência pessoal,
+# pode conter feedback privado; não deve ser versionado
+docs/rfc/AvaliacaoProf.Manseira.docx
