@@ -5,6 +5,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import DashboardPage from './pages/DashboardPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import HistoryPage from './pages/HistoryPage';
+import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import RepositoriesPage from './pages/RepositoriesPage';
@@ -14,6 +15,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
  * SoftMeter — Frontend React
  *
  * Rotas planejadas (adicionadas incrementalmente por user story):
+ * /                       → Página inicial pública (apresentação + tutorial)
  * /login, /register        → US5 (Autenticação)
  * /forgot-password, /reset-password → US5 (Recuperação de senha)
  * /repositories             → US1 (Cadastro e análise)
@@ -24,13 +26,13 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<HomePage />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegisterPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<AppLayout />}>
-            <Route path="/" element={<Navigate to="/repositories" replace />} />
             <Route path="/repositories" element={<RepositoriesPage />} />
             <Route
               path="/repositories/:repositoryId/analyses/:analysisId"

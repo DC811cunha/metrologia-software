@@ -1,4 +1,4 @@
-import { NavLink, Outlet, useNavigate } from 'react-router-dom';
+import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
 
 import api, { ACCESS_TOKEN_KEY } from '../services/api';
 import { FolderIcon, LogoutIcon } from './ui/Icon';
@@ -30,7 +30,9 @@ function AppLayout() {
       <header className="sticky top-0 z-40 border-b border-line bg-canvas/75 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-8">
-            <Logo tone="light" />
+            <Link to="/" aria-label="SoftMeter — página inicial" className="rounded-lg">
+              <Logo tone="light" />
+            </Link>
             <nav aria-label="Principal" className="hidden sm:block">
               <NavLink
                 to="/repositories"

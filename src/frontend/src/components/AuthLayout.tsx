@@ -1,4 +1,5 @@
 import { ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 
 import { ChartIcon, DocumentIcon, GaugeIcon } from './ui/Icon';
 import Logo from './ui/Logo';
@@ -117,7 +118,9 @@ function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
 
       <main id="conteudo" className="flex min-h-screen flex-col items-center justify-center px-5 py-10 sm:px-10">
         <div className="w-full max-w-md">
-          <Logo className="mb-8 lg:hidden" />
+          <Link to="/" aria-label="SoftMeter — página inicial" className="mb-8 inline-block rounded-lg lg:hidden">
+            <Logo />
+          </Link>
 
           <div className="animate-fade-up rounded-3xl border border-brand-500/40 bg-gradient-to-b from-surface to-surface/70 p-7 shadow-neon sm:p-9">
             <h1 className="text-2xl font-extrabold text-fg">{title}</h1>

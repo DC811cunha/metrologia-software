@@ -10,6 +10,7 @@ um arquivo por user story:
 | `historico_tendencia.spec.ts` | US3 — Histórico e tendência | T051 |
 | `relatorio_pdf.spec.ts` | US4 — Relatório PDF | T058 |
 | `autenticacao.spec.ts` | US5 — Autenticação | T064 |
+| `home.spec.ts` | Página inicial pública (apresentação + tutorial) | — |
 
 Os fluxos de US1–US4 cadastram e analisam `github.com/pypa/sampleproject` (pequeno,
 Python, estável) — a suíte bate na API real do GitHub sem autenticação, então respeita
