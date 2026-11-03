@@ -1,9 +1,10 @@
 import { FormEvent, useState } from 'react';
 import { Link } from 'react-router-dom';
 
+import AuthLayout from '../components/AuthLayout';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
+import { ArrowLeftIcon, MailIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import api from '../services/api';
 
@@ -13,59 +14,63 @@ import api from '../services/api';
 function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    setError(null);
     setSubmitting(true);
     try {
       const response = await api.post('/api/v1/auth/forgot-password', { email });
       setMessage(response.data.message);
     } catch {
-      // Mesmo em erro de rede, não revelamos se o e-mail existe — a mensagem
-      // genérica do backend cobre o caso de sucesso; aqui só cobrimos falha
-      // de comunicação com a API.
-      setMessage('Não foi possível processar o pedido agora. Tente novamente em instantes.');
+      // Falha de comunicação com a API — o backend nunca revela se o e-mail existe,
+      // então qualquer erro aqui é de rede/servidor e o usuário pode tentar de novo.
+      setError('Não foi possível processar o pedido agora. Tente novamente em instantes.');
     } finally {
       setSubmitting(false);
     }
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <Card className="w-full max-w-sm">
-        <h1 className="mb-1 text-xl font-semibold text-slate-900">Esqueceu sua senha?</h1>
-        <p className="mb-6 text-sm text-slate-500">
-          Informe seu e-mail e enviaremos um link para redefinir sua senha
-        </p>
+    <AuthLayout
+      title="Esqueceu sua senha?"
+      subtitle="Informe seu e-mail e enviaremos um link para redefinir sua senha"
+      footer={
+        <Link
+          to="/login"
+          className="inline-flex items-center gap-1.5 font-semibold text-brand-600 hover:text-brand-700 hover:underline"
+        >
+          <ArrowLeftIcon className="h-4 w-4" />
+          Voltar para o login
+        </Link>
+      }
+    >
+      {message ? (
+        <Alert variant="info">{message}</Alert>
+      ) : (
+        <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+          <Input
+            id="email"
+            label="E-mail"
+            type="email"
+            autoComplete="email"
+            placeholder="voce@exemplo.com"
+            icon={<MailIcon />}
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            required
+          />
 
-        {message ? (
-          <Alert variant="info">{message}</Alert>
-        ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <Input
-              id="email"
-              label="E-mail"
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              required
-            />
+          {error && <Alert>{error}</Alert>}
 
-            <Button type="submit" disabled={submitting}>
-              {submitting ? 'Enviando…' : 'Enviar link de recuperação'}
-            </Button>
-          </form>
-        )}
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Lembrou a senha?{' '}
-          <Link to="/login" className="font-medium text-sky-600 hover:text-sky-700">
-            Entrar
-          </Link>
-        </p>
-      </Card>
-    </div>
+          <Button type="submit" loading={submitting} disabled={submitting} className="w-full min-h-[44px]">
+            {submitting ? 'Enviando…' : 'Enviar link de recuperação'}
+          </Button>
+        </form>
+      )}
+    </AuthLayout>
   );
 }
 
