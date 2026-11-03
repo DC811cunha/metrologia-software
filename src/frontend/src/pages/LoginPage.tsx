@@ -8,7 +8,7 @@ import { LockIcon, MailIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import api, { ACCESS_TOKEN_KEY } from '../services/api';
 
-const LINK_CLASSES = 'font-semibold text-brand-600 hover:text-brand-700 hover:underline';
+const LINK_CLASSES = 'font-semibold text-brand-400 hover:text-brand-300 hover:underline';
 
 /**
  * Tela de login (US5, FR-010).

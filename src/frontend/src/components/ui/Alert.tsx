@@ -5,9 +5,9 @@ import { AlertCircleIcon, CheckCircleIcon, InfoIcon } from './Icon';
 type Variant = 'error' | 'success' | 'info';
 
 const VARIANT_CLASSES: Record<Variant, string> = {
-  error: 'border-red-200 bg-red-50 text-red-800',
+  error: 'border-red-500/30 bg-red-500/10 text-red-200',
   success: 'border-conforme/30 bg-conforme-bg text-conforme-text',
-  info: 'border-brand-200 bg-brand-50 text-brand-900',
+  info: 'border-brand-400/30 bg-brand-500/10 text-brand-200',
 };
 
 const VARIANT_ICONS: Record<Variant, typeof InfoIcon> = {

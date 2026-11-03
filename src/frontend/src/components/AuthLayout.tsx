@@ -49,7 +49,7 @@ function PreviewCard({
  */
 function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
   return (
-    <div className="min-h-screen bg-white lg:grid lg:grid-cols-[1.05fr_1fr]">
+    <div className="min-h-screen bg-canvas lg:grid lg:grid-cols-[1.05fr_1fr]">
       <a href="#conteudo" className="skip-link">
         Pular para o conteúdo
       </a>
@@ -119,13 +119,13 @@ function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
         <div className="w-full max-w-md">
           <Logo className="mb-8 lg:hidden" />
 
-          <div className="animate-fade-up rounded-3xl border border-slate-200/80 bg-white p-7 shadow-card sm:p-9">
-            <h1 className="text-2xl font-extrabold text-ink-900">{title}</h1>
-            <p className="mb-7 mt-1.5 text-sm leading-relaxed text-slate-500">{subtitle}</p>
+          <div className="animate-fade-up rounded-3xl border border-brand-500/40 bg-gradient-to-b from-surface to-surface/70 p-7 shadow-neon sm:p-9">
+            <h1 className="text-2xl font-extrabold text-fg">{title}</h1>
+            <p className="mb-7 mt-1.5 text-sm leading-relaxed text-fg-muted">{subtitle}</p>
             {children}
           </div>
 
-          {footer && <div className="mt-6 text-center text-sm text-slate-500">{footer}</div>}
+          {footer && <div className="mt-6 text-center text-sm text-fg-muted">{footer}</div>}
         </div>
       </main>
     </div>

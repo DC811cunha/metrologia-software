@@ -20,7 +20,7 @@ const KPIS = [
   { status: 'Conforme', label: 'Conformes', dot: 'bg-conforme' },
   { status: 'Condicional', label: 'Condicionais', dot: 'bg-condicional' },
   { status: 'Não-Conforme', label: 'Não conformes', dot: 'bg-nao-conforme' },
-  { status: 'Não disponível', label: 'Sem dados', dot: 'bg-slate-400' },
+  { status: 'Não disponível', label: 'Sem dados', dot: 'bg-fg-subtle' },
 ];
 
 function DashboardSkeleton() {
@@ -97,11 +97,11 @@ function DashboardPage() {
       analysis.medicoes.find((m) => m.metrica_chave === config.chave)?.status_conformidade ??
       'Não disponível',
   );
-  const overallPill = PILL_CLASSES[analysis.status_conformidade_geral ?? ''] ?? 'bg-white/90 text-slate-700';
+  const overallPill = PILL_CLASSES[analysis.status_conformidade_geral ?? ''] ?? 'bg-white/10 text-fg-soft';
 
   return (
     <div className="flex flex-col gap-8">
-      <section className="relative animate-fade-up overflow-hidden rounded-3xl bg-gradient-to-br from-ink-950 via-brand-900 to-brand-700 p-7 text-white shadow-brand sm:p-10">
+      <section className="relative animate-fade-up overflow-hidden rounded-3xl bg-gradient-to-br border border-brand-400/25 from-ink-950 via-brand-900 to-brand-700 p-7 text-white shadow-neon sm:p-10">
         <div className="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_top_right,black_20%,transparent_70%)]" />
         <div className="absolute -right-16 -top-16 h-72 w-72 rounded-full bg-brand-400/30 blur-3xl" />
 
@@ -162,14 +162,14 @@ function DashboardPage() {
           <div
             key={kpi.status}
             style={{ animationDelay: `${index * 70}ms` }}
-            className="flex animate-fade-up items-center gap-4 rounded-2xl border border-slate-200/80 bg-white px-5 py-4 shadow-card"
+            className="flex animate-fade-up items-center gap-4 rounded-2xl border border-line bg-surface px-5 py-4 shadow-card"
           >
             <span className={`h-10 w-1.5 shrink-0 rounded-full ${kpi.dot}`} aria-hidden="true" />
             <div>
-              <p className="text-3xl font-extrabold tabular-nums text-ink-900">
+              <p className="text-3xl font-extrabold tabular-nums text-fg">
                 {statusByMetric.filter((status) => status === kpi.status).length}
               </p>
-              <p className="text-xs font-medium text-slate-500">{kpi.label}</p>
+              <p className="text-xs font-medium text-fg-muted">{kpi.label}</p>
             </div>
           </div>
         ))}
@@ -177,8 +177,8 @@ function DashboardPage() {
 
       <section className="flex flex-col gap-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-          <h2 className="text-xl font-bold text-ink-900">Indicadores por métrica</h2>
-          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500" aria-label="Legenda">
+          <h2 className="text-xl font-bold text-fg">Indicadores por métrica</h2>
+          <ul className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-fg-muted" aria-label="Legenda">
             {[
               ['Conforme', 'bg-conforme'],
               ['Condicional', 'bg-condicional'],

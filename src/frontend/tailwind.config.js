@@ -1,4 +1,9 @@
 /** @type {import('tailwindcss').Config} */
+
+// Tokens semânticos lidos de variáveis CSS (definidas em src/index.css) — o tema vive
+// em um único lugar, e `<alpha-value>` mantém utilitários como `bg-surface/80` funcionando.
+const token = (name) => `rgb(var(--${name}) / <alpha-value>)`;
+
 module.exports = {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
@@ -29,6 +34,18 @@ module.exports = {
           900: '#1a3575',
           950: '#0f1f4a',
         },
+        // Superfícies e texto do tema (valores em src/index.css)
+        canvas: token('canvas'),
+        surface: token('surface'),
+        'surface-2': token('surface-2'),
+        line: token('line'),
+        'line-strong': token('line-strong'),
+        field: token('field'),
+        fg: token('fg'),
+        'fg-soft': token('fg-soft'),
+        'fg-muted': token('fg-muted'),
+        'fg-subtle': token('fg-subtle'),
+        glow: token('glow'),
         // Navy profundo para superfícies escuras (navbar, painéis de destaque)
         ink: {
           700: '#16275a',
@@ -37,16 +54,20 @@ module.exports = {
           950: '#060d24',
         },
         // Semântica de conformidade — mantida distinta do azul da marca
-        conforme: { DEFAULT: '#16a34a', bg: '#dcfce7', text: '#166534' },
-        condicional: { DEFAULT: '#d97706', bg: '#fef3c7', text: '#92400e' },
-        'nao-conforme': { DEFAULT: '#dc2626', bg: '#fee2e2', text: '#991b1b' },
-        'nao-disponivel': { DEFAULT: '#6b7280', bg: '#f3f4f6', text: '#374151' },
+        conforme: { DEFAULT: '#22c55e', bg: 'rgb(34 197 94 / 0.14)', text: '#4ade80' },
+        condicional: { DEFAULT: '#f59e0b', bg: 'rgb(245 158 11 / 0.14)', text: '#fbbf24' },
+        'nao-conforme': { DEFAULT: '#ef4444', bg: 'rgb(239 68 68 / 0.14)', text: '#f87171' },
+        'nao-disponivel': { DEFAULT: '#94a3b8', bg: 'rgb(148 163 184 / 0.14)', text: '#cbd5e1' },
       },
       boxShadow: {
-        card: '0 1px 2px rgba(15, 29, 71, 0.04), 0 4px 16px -4px rgba(15, 29, 71, 0.08)',
-        'card-hover': '0 2px 4px rgba(15, 29, 71, 0.06), 0 12px 32px -8px rgba(31, 90, 224, 0.22)',
-        glow: '0 0 0 4px rgba(52, 120, 246, 0.18)',
-        brand: '0 8px 24px -6px rgba(31, 90, 224, 0.55)',
+        card: '0 1px 0 0 rgb(255 255 255 / 0.03) inset, 0 12px 32px -16px rgb(0 0 0 / 0.7)',
+        // Borda luminosa azul — o traço de identidade dos cards de destaque
+        neon: '0 0 0 1px rgb(var(--glow) / 0.45), 0 0 28px -6px rgb(var(--glow) / 0.35)',
+        'neon-hover':
+          '0 0 0 1px rgb(var(--glow) / 0.8), 0 0 40px -4px rgb(var(--glow) / 0.55)',
+        'card-hover': '0 0 0 1px rgb(var(--glow) / 0.45), 0 16px 40px -12px rgb(var(--glow) / 0.35)',
+        glow: '0 0 0 3px rgb(var(--glow) / 0.28)',
+        brand: '0 8px 24px -6px rgb(31 90 224 / 0.6)',
       },
       keyframes: {
         'fade-up': {

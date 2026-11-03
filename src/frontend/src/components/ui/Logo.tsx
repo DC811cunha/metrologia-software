@@ -6,8 +6,8 @@ interface LogoProps {
 
 /** Marca do SoftMeter: um medidor (gauge) estilizado + wordmark. */
 function Logo({ tone = 'dark', className = '' }: LogoProps) {
-  const wordmarkClass = tone === 'light' ? 'text-white' : 'text-ink-900';
-  const accentClass = tone === 'light' ? 'text-brand-300' : 'text-brand-600';
+  const wordmarkClass = tone === 'light' ? 'text-white' : 'text-fg';
+  const accentClass = tone === 'light' ? 'text-brand-300' : 'text-brand-400';
 
   return (
     <span className={`inline-flex items-center gap-2.5 ${className}`}>

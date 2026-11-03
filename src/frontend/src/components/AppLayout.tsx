@@ -27,7 +27,7 @@ function AppLayout() {
         Pular para o conteúdo
       </a>
 
-      <header className="sticky top-0 z-40 border-b border-white/10 bg-ink-900/90 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-line bg-canvas/75 backdrop-blur-xl">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
           <div className="flex items-center gap-8">
             <Logo tone="light" />
@@ -35,9 +35,9 @@ function AppLayout() {
               <NavLink
                 to="/repositories"
                 className={({ isActive }) =>
-                  `inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:ring-offset-ink-900 ${
+                  `inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
                     isActive
-                      ? 'bg-white/10 text-white'
+                      ? 'bg-brand-500/15 text-white ring-1 ring-inset ring-brand-400/30'
                       : 'text-brand-100/80 hover:bg-white/5 hover:text-white'
                   }`
                 }
@@ -51,7 +51,7 @@ function AppLayout() {
           <button
             type="button"
             onClick={handleLogout}
-            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-white/15 px-3.5 py-2 text-sm font-medium text-brand-50 transition-colors hover:bg-white/10 hover:text-white focus-visible:ring-offset-ink-900"
+            className="inline-flex min-h-[40px] items-center gap-2 rounded-lg border border-line-strong px-3.5 py-2 text-sm font-medium text-fg-soft transition-colors hover:border-brand-400/60 hover:bg-brand-500/10 hover:text-white"
           >
             <LogoutIcon className="h-4 w-4" />
             Sair
@@ -63,7 +63,7 @@ function AppLayout() {
         <Outlet />
       </main>
 
-      <footer className="border-t border-slate-200/70 py-6 text-center text-xs text-slate-400">
+      <footer className="border-t border-line py-6 text-center text-xs text-fg-subtle">
         SoftMeter · Metrologia aplicada à qualidade de software
       </footer>
     </div>
