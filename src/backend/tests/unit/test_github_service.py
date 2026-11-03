@@ -1,4 +1,5 @@
 import io
+import logging
 import zipfile
 
 import httpx
@@ -156,6 +157,91 @@ class TestFetchLatestCoverageArtifactZip:
 
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(500)
+
+        service = GithubService(client=_client_with(handler))
+        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None
+
+
+class TestGithubTokenHandling:
+    """Token opcional com fallback gracioso: um token inválido não pode piorar o serviço
+    em relação a não ter token algum (repositórios públicos funcionam anonimamente)."""
+
+    def test_sends_bearer_token_when_configured(self, monkeypatch):
+        monkeypatch.setattr(settings, "github_token", "valid-token")
+        seen: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.headers.get("Authorization"))
+            return httpx.Response(200, json={"size": 10})
+
+        GithubService(client=_client_with(handler)).fetch_repo_size_kb("octocat", "Hello-World")
+
+        assert seen == ["Bearer valid-token"]
+
+    def test_sends_no_authorization_header_without_token(self, monkeypatch):
+        monkeypatch.setattr(settings, "github_token", None)
+        seen: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.headers.get("Authorization"))
+            return httpx.Response(200, json={"size": 10})
+
+        GithubService(client=_client_with(handler)).fetch_repo_size_kb("octocat", "Hello-World")
+
+        assert seen == [None]
+
+    def test_retries_without_token_when_github_rejects_it(self, monkeypatch, caplog):
+        monkeypatch.setattr(settings, "github_token", "expired-secret-token")
+        seen: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            auth = request.headers.get("Authorization")
+            seen.append(auth)
+            if auth:
+                return httpx.Response(401, json={"message": "Bad credentials"})
+            return httpx.Response(200, json={"Python": 1000})
+
+        service = GithubService(client=_client_with(handler))
+        with caplog.at_level(logging.WARNING):
+            languages = service.fetch_languages("octocat", "Hello-World")
+
+        assert languages == ["python"]
+        assert seen == ["Bearer expired-secret-token", None]
+        assert "GITHUB_TOKEN rejeitado" in caplog.text
+        assert "expired-secret-token" not in caplog.text
+
+    def test_stops_sending_the_rejected_token_on_later_requests(self, monkeypatch):
+        monkeypatch.setattr(settings, "github_token", "expired-token")
+        seen: list[str | None] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            auth = request.headers.get("Authorization")
+            seen.append(auth)
+            if auth:
+                return httpx.Response(401)
+            return httpx.Response(200, json={"size": 10})
+
+        service = GithubService(client=_client_with(handler))
+        service.fetch_repo_size_kb("octocat", "Hello-World")
+        service.fetch_repo_size_kb("octocat", "Hello-World")
+
+        assert seen == ["Bearer expired-token", None, None]
+
+    def test_private_repository_still_raises_access_error_after_fallback(self, monkeypatch):
+        monkeypatch.setattr(settings, "github_token", "expired-token")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(401 if request.headers.get("Authorization") else 404)
+
+        service = GithubService(client=_client_with(handler))
+        with pytest.raises(RepositoryAccessError):
+            service.fetch_languages("octocat", "private-repo")
+
+    def test_coverage_artifact_returns_none_when_token_is_rejected(self, monkeypatch):
+        monkeypatch.setattr(settings, "github_token", "expired-token")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(401, json={"message": "Bad credentials"})
 
         service = GithubService(client=_client_with(handler))
         assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None

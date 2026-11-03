@@ -75,6 +75,11 @@ disso.
   backend e do worker Celery, com um Personal Access Token que tenha o escopo `repo` (classic) ou
   a permissão "Actions: Read-only" (fine-grained) — o escopo restrito `public_repo` **não** é
   suficiente para baixar (só para listar) artifacts, mesmo em repositórios públicos.
+- **Token inválido não piora o serviço.** Se o `GITHUB_TOKEN` configurado for rejeitado pelo
+  GitHub (401 — expirado ou revogado), o `GithubService` registra um aviso (sem expor o valor),
+  repete a requisição sem credenciais e deixa de enviar o token nas chamadas seguintes. Repositórios
+  públicos continuam funcionando anonimamente (60 req/h); só a fonte de artifacts do Actions, que
+  exige autenticação, é pulada. Antes, um token expirado derrubava até o cadastro de repositórios.
 - **Cobertura ainda pode legitimamente não aparecer.** Repositórios sem CI configurado, ou cujo
   artifact mais recente já expirou (padrão do GitHub: 90 dias), continuam corretamente mostrando
   "Não disponível" — isto não é uma regressão, é o mesmo comportamento documentado no
