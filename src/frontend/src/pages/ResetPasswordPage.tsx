@@ -9,7 +9,7 @@ import { LockIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import api from '../services/api';
 
-const LINK_CLASSES = 'font-semibold text-brand-600 hover:text-brand-700 hover:underline';
+const LINK_CLASSES = 'font-semibold text-brand-400 hover:text-brand-300 hover:underline';
 
 /**
  * Tela de redefinição de senha (US5, FR-010) — acessada pelo link enviado por e-mail.

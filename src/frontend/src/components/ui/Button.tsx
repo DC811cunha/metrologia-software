@@ -14,14 +14,14 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANT_CLASSES: Record<Variant, string> = {
   primary:
-    'bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-brand hover:from-brand-500 hover:to-brand-700 active:translate-y-px',
+    'bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-brand hover:from-brand-400 hover:to-brand-600 hover:shadow-neon active:translate-y-px',
   secondary:
-    'border border-slate-300 bg-white text-slate-700 shadow-sm hover:border-brand-300 hover:bg-brand-50 hover:text-brand-800 active:translate-y-px',
+    'border border-line-strong bg-white/[0.04] text-fg-soft hover:border-brand-400/60 hover:bg-brand-500/10 hover:text-fg active:translate-y-px',
   danger:
-    'border border-red-200 bg-white text-red-700 hover:border-red-300 hover:bg-red-50 active:translate-y-px',
-  ghost: 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
+    'border border-red-500/40 bg-red-500/5 text-red-300 hover:border-red-400/70 hover:bg-red-500/15 hover:text-red-200 active:translate-y-px',
+  ghost: 'text-fg-soft hover:bg-white/10 hover:text-fg',
   inverse:
-    'bg-white text-brand-800 shadow-sm hover:bg-brand-50 active:translate-y-px focus-visible:ring-offset-ink-900',
+    'bg-white text-brand-800 shadow-sm hover:bg-brand-100 active:translate-y-px focus-visible:ring-offset-ink-900',
 };
 
 function Button({

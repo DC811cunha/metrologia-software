@@ -47,7 +47,7 @@ function RegisterPage() {
       footer={
         <>
           Já tem conta?{' '}
-          <Link to="/login" className="font-semibold text-brand-600 hover:text-brand-700 hover:underline">
+          <Link to="/login" className="font-semibold text-brand-400 hover:text-brand-300 hover:underline">
             Entrar
           </Link>
         </>

@@ -1,8 +1,8 @@
 import { GaugeBand } from './components/Gauge';
 
-const CONFORME = '#16a34a';
-const CONDICIONAL = '#d97706';
-const NAO_CONFORME = '#dc2626';
+const CONFORME = '#22c55e';
+const CONDICIONAL = '#f59e0b';
+const NAO_CONFORME = '#ef4444';
 
 export interface MetricGaugeConfig {
   chave: string;

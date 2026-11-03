@@ -40,7 +40,7 @@ function ForgotPasswordPage() {
       footer={
         <Link
           to="/login"
-          className="inline-flex items-center gap-1.5 font-semibold text-brand-600 hover:text-brand-700 hover:underline"
+          className="inline-flex items-center gap-1.5 font-semibold text-brand-400 hover:text-brand-300 hover:underline"
         >
           <ArrowLeftIcon className="h-4 w-4" />
           Voltar para o login

@@ -25,7 +25,7 @@ const TREND_LABEL: Record<string, string> = {
 const TREND_CLASSES: Record<string, string> = {
   melhorando: 'bg-conforme-bg text-conforme-text',
   piorando: 'bg-nao-conforme-bg text-nao-conforme-text',
-  estavel: 'bg-slate-100 text-slate-700',
+  estavel: 'bg-white/10 text-fg-soft',
 };
 
 const TREND_ICONS: Record<string, typeof TrendUpIcon> = {
@@ -74,7 +74,7 @@ function HistoryPage() {
         back={
           <Link
             to="/repositories"
-            className="mb-1.5 inline-flex w-fit items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700"
+            className="mb-1.5 inline-flex w-fit items-center gap-1.5 text-sm font-medium text-brand-400 hover:text-brand-300"
           >
             <ArrowLeftIcon className="h-4 w-4" />
             Repositórios
@@ -87,14 +87,14 @@ function HistoryPage() {
       <Card className="animate-fade-up [animation-delay:80ms]">
         <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3">
-            <label htmlFor="metric-select" className="text-sm font-semibold text-slate-700">
+            <label htmlFor="metric-select" className="text-sm font-semibold text-fg-soft">
               Métrica
             </label>
             <select
               id="metric-select"
               value={metrica}
               onChange={(event) => setMetrica(event.target.value)}
-              className="min-h-[44px] rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-sm font-medium text-slate-900 shadow-sm outline-none transition-all hover:border-slate-400 focus:border-brand-500 focus:shadow-glow focus-visible:ring-0"
+              className="min-h-[44px] rounded-lg border border-line-strong bg-field px-3.5 py-2 text-sm font-medium text-fg outline-none transition-all hover:border-brand-400/60 focus:border-brand-500 focus:shadow-glow focus-visible:ring-0"
             >
               {METRICS_GAUGE_CONFIG.map((config) => (
                 <option key={config.chave} value={config.chave}>
@@ -116,11 +116,11 @@ function HistoryPage() {
         {trend && hasPlottableData ? (
           <TrendChart serie={trend.serie} />
         ) : (
-          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 py-12 text-center">
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white text-slate-400 shadow-sm ring-1 ring-slate-200">
+          <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-line bg-white/[0.03] py-12 text-center">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface text-fg-subtle ring-1 ring-line">
               <ChartIcon className="h-6 w-6" />
             </span>
-            <p className="max-w-sm text-sm text-slate-500">
+            <p className="max-w-sm text-sm text-fg-muted">
               Sem dados suficientes para a tendência de {metricConfig?.label}.
             </p>
           </div>
@@ -137,7 +137,7 @@ function HistoryPage() {
           ))}
         </div>
       ) : history.length === 0 ? (
-        <Card className="text-center text-sm text-slate-500">Nenhuma análise registrada ainda.</Card>
+        <Card className="text-center text-sm text-fg-muted">Nenhuma análise registrada ainda.</Card>
       ) : (
         <ul className="flex flex-col gap-2.5">
           {history.map((item, index) => (
@@ -148,8 +148,8 @@ function HistoryPage() {
               className="flex animate-fade-up items-center justify-between gap-4 px-5 py-4"
             >
               <div className="flex items-center gap-3">
-                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-brand-100" />
-                <span className="text-sm font-medium text-slate-700">
+                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-brand-500/20" />
+                <span className="text-sm font-medium text-fg-soft">
                   {item.concluida_em ? new Date(item.concluida_em).toLocaleString('pt-BR') : 'Em andamento'}
                 </span>
               </div>
@@ -157,12 +157,12 @@ function HistoryPage() {
                 {item.status_conformidade_geral ? (
                   <StatusBadge label={item.status_conformidade_geral} />
                 ) : (
-                  <span className="text-sm font-medium text-slate-400">—</span>
+                  <span className="text-sm font-medium text-fg-subtle">—</span>
                 )}
                 {repositoryId && (
                   <Link
                     to={`/repositories/${repositoryId}/analyses/${item.id}`}
-                    className="text-sm font-semibold text-brand-600 hover:text-brand-700 hover:underline"
+                    className="text-sm font-semibold text-brand-400 hover:text-brand-300 hover:underline"
                   >
                     Ver dashboard
                   </Link>

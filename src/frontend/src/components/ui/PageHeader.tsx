@@ -17,10 +17,10 @@ function PageHeader({ title, description, eyebrow, back, actions }: PageHeaderPr
       <div className="flex flex-col gap-1.5">
         {back}
         {eyebrow && (
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-600">{eyebrow}</p>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-brand-400">{eyebrow}</p>
         )}
-        <h1 className="text-3xl font-extrabold text-ink-900">{title}</h1>
-        {description && <p className="max-w-2xl text-sm leading-relaxed text-slate-500">{description}</p>}
+        <h1 className="text-3xl font-extrabold text-fg">{title}</h1>
+        {description && <p className="max-w-2xl text-sm leading-relaxed text-fg-muted">{description}</p>}
       </div>
       {actions && <div className="flex flex-wrap items-center gap-3">{actions}</div>}
     </div>
