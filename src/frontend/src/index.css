@@ -2,6 +2,65 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-  @apply bg-slate-50 text-slate-900;
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    @apply bg-slate-50 font-sans text-slate-900;
+    background-image:
+      radial-gradient(60rem 28rem at 50% -8rem, rgba(52, 120, 246, 0.14), transparent 70%),
+      radial-gradient(40rem 24rem at 100% 0, rgba(34, 211, 238, 0.07), transparent 70%);
+    background-repeat: no-repeat;
+  }
+
+  ::selection {
+    @apply bg-brand-200 text-brand-950;
+  }
+
+  /* Foco sempre visível para navegação por teclado (WCAG 2.4.7) */
+  :focus-visible {
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-white;
+  }
+
+  h1,
+  h2,
+  h3 {
+    @apply tracking-tight;
+  }
+}
+
+@layer components {
+  /* Textura de grade usada nos painéis escuros */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    background-size: 36px 36px;
+  }
+
+  /* Ponto de status desenhado por CSS — não adiciona texto ao DOM */
+  .status-dot::before {
+    content: '';
+    @apply mr-1.5 inline-block h-1.5 w-1.5 rounded-full bg-current align-middle;
+  }
+
+  .skip-link {
+    @apply fixed left-4 top-4 z-50 -translate-y-24 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-brand transition-transform focus:translate-y-0;
+  }
+}
+
+/* Respeita a preferência do sistema por menos movimento (WCAG 2.3.3) */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

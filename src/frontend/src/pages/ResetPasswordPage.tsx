@@ -2,11 +2,14 @@ import { FormEvent, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 
+import AuthLayout from '../components/AuthLayout';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
+import { LockIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import api from '../services/api';
+
+const LINK_CLASSES = 'font-semibold text-brand-600 hover:text-brand-700 hover:underline';
 
 /**
  * Tela de redefinição de senha (US5, FR-010) — acessada pelo link enviado por e-mail.
@@ -39,45 +42,51 @@ function ResetPasswordPage() {
 
   if (!token) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-        <Card className="w-full max-w-sm">
-          <h1 className="mb-1 text-xl font-semibold text-slate-900">Link inválido</h1>
-          <Alert>Este link de recuperação está incompleto. Solicite um novo.</Alert>
-          <p className="mt-6 text-center text-sm text-slate-500">
-            <Link to="/forgot-password" className="font-medium text-sky-600 hover:text-sky-700">
-              Solicitar novo link
-            </Link>
-          </p>
-        </Card>
-      </div>
+      <AuthLayout
+        title="Link inválido"
+        subtitle="Não conseguimos identificar o seu pedido de recuperação."
+        footer={
+          <Link to="/forgot-password" className={LINK_CLASSES}>
+            Solicitar novo link
+          </Link>
+        }
+      >
+        <Alert>Este link de recuperação está incompleto. Solicite um novo.</Alert>
+      </AuthLayout>
     );
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <Card className="w-full max-w-sm">
-        <h1 className="mb-1 text-xl font-semibold text-slate-900">Redefinir senha</h1>
-        <p className="mb-6 text-sm text-slate-500">Escolha uma nova senha para sua conta</p>
+    <AuthLayout
+      title="Redefinir senha"
+      subtitle="Escolha uma nova senha para sua conta"
+      footer={
+        <Link to="/login" className={LINK_CLASSES}>
+          Voltar para o login
+        </Link>
+      }
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <Input
+          id="password"
+          label="Nova senha"
+          type="password"
+          autoComplete="new-password"
+          icon={<LockIcon />}
+          hint="Use pelo menos 8 caracteres."
+          minLength={8}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          required
+        />
 
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Input
-            id="password"
-            label="Nova senha"
-            type="password"
-            minLength={8}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
+        {error && <Alert>{error}</Alert>}
 
-          {error && <Alert>{error}</Alert>}
-
-          <Button type="submit" disabled={submitting}>
-            {submitting ? 'Salvando…' : 'Redefinir senha'}
-          </Button>
-        </form>
-      </Card>
-    </div>
+        <Button type="submit" loading={submitting} disabled={submitting} className="w-full min-h-[44px]">
+          {submitting ? 'Salvando…' : 'Redefinir senha'}
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }
 
