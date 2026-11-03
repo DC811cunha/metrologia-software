@@ -2,9 +2,10 @@ import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 
+import AuthLayout from '../components/AuthLayout';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
+import { LockIcon, MailIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import api, { ACCESS_TOKEN_KEY } from '../services/api';
 
@@ -40,45 +41,50 @@ function RegisterPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <Card className="w-full max-w-sm">
-        <h1 className="mb-1 text-xl font-semibold text-slate-900">Criar conta</h1>
-        <p className="mb-6 text-sm text-slate-500">Comece a inspecionar seus repositórios</p>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Input
-            id="email"
-            label="E-mail"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
-          <Input
-            id="password"
-            label="Senha"
-            type="password"
-            minLength={8}
-            value={password}
-            onChange={(event) => setPassword(event.target.value)}
-            required
-          />
-
-          {error && <Alert>{error}</Alert>}
-
-          <Button type="submit" disabled={submitting}>
-            {submitting ? 'Cadastrando…' : 'Cadastrar'}
-          </Button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
+    <AuthLayout
+      title="Criar conta"
+      subtitle="Comece a inspecionar seus repositórios"
+      footer={
+        <>
           Já tem conta?{' '}
-          <Link to="/login" className="font-medium text-sky-600 hover:text-sky-700">
+          <Link to="/login" className="font-semibold text-brand-600 hover:text-brand-700 hover:underline">
             Entrar
           </Link>
-        </p>
-      </Card>
-    </div>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <Input
+          id="email"
+          label="E-mail"
+          type="email"
+          autoComplete="email"
+          placeholder="voce@exemplo.com"
+          icon={<MailIcon />}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          required
+        />
+        <Input
+          id="password"
+          label="Senha"
+          type="password"
+          autoComplete="new-password"
+          icon={<LockIcon />}
+          hint="Use pelo menos 8 caracteres."
+          minLength={8}
+          value={password}
+          onChange={(event) => setPassword(event.target.value)}
+          required
+        />
+
+        {error && <Alert>{error}</Alert>}
+
+        <Button type="submit" loading={submitting} disabled={submitting} className="w-full min-h-[44px]">
+          {submitting ? 'Cadastrando…' : 'Cadastrar'}
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }
 

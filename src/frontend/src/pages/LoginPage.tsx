@@ -1,11 +1,14 @@
 import { FormEvent, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 
+import AuthLayout from '../components/AuthLayout';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
-import Card from '../components/ui/Card';
+import { LockIcon, MailIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import api, { ACCESS_TOKEN_KEY } from '../services/api';
+
+const LINK_CLASSES = 'font-semibold text-brand-600 hover:text-brand-700 hover:underline';
 
 /**
  * Tela de login (US5, FR-010).
@@ -33,51 +36,53 @@ function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4">
-      <Card className="w-full max-w-sm">
-        <h1 className="mb-1 text-xl font-semibold text-slate-900">SoftMeter</h1>
-        <p className="mb-6 text-sm text-slate-500">Entre para acessar seus repositórios</p>
-
-        <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <Input
-            id="email"
-            label="E-mail"
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            required
-          />
+    <AuthLayout
+      title="Bem-vindo de volta"
+      subtitle="Entre para acessar seus repositórios"
+      footer={
+        <>
+          Não tem conta?{' '}
+          <Link to="/register" className={LINK_CLASSES}>
+            Cadastre-se
+          </Link>
+        </>
+      }
+    >
+      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+        <Input
+          id="email"
+          label="E-mail"
+          type="email"
+          autoComplete="email"
+          placeholder="voce@exemplo.com"
+          icon={<MailIcon />}
+          value={email}
+          onChange={(event) => setEmail(event.target.value)}
+          required
+        />
+        <div className="flex flex-col gap-2">
           <Input
             id="password"
             label="Senha"
             type="password"
+            autoComplete="current-password"
+            icon={<LockIcon />}
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             required
           />
-
-          <Link
-            to="/forgot-password"
-            className="-mt-2 text-right text-sm font-medium text-sky-600 hover:text-sky-700"
-          >
+          <Link to="/forgot-password" className={`self-end text-sm ${LINK_CLASSES}`}>
             Esqueci minha senha
           </Link>
+        </div>
 
-          {error && <Alert>{error}</Alert>}
+        {error && <Alert>{error}</Alert>}
 
-          <Button type="submit" disabled={submitting}>
-            {submitting ? 'Entrando…' : 'Entrar'}
-          </Button>
-        </form>
-
-        <p className="mt-6 text-center text-sm text-slate-500">
-          Não tem conta?{' '}
-          <Link to="/register" className="font-medium text-sky-600 hover:text-sky-700">
-            Cadastre-se
-          </Link>
-        </p>
-      </Card>
-    </div>
+        <Button type="submit" loading={submitting} disabled={submitting} className="w-full min-h-[44px]">
+          {submitting ? 'Entrando…' : 'Entrar'}
+        </Button>
+      </form>
+    </AuthLayout>
   );
 }
 
