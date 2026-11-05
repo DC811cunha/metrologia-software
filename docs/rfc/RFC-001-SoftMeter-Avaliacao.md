@@ -112,7 +112,7 @@ Na ausência de métricas quantitativas claras e **coletadas de forma automátic
 
 **Exemplo real do problema (dado real, coletado nesta revisão):**
 
-Ao analisar o repositório público `SandroMachiniski-SE/Viaje-Mais` com o SoftMeter, o Score de
+Ao analisar o repositório público `SandroMachiniski-SE/NomadPlan` (nome anterior: Viaje-Mais) com o SoftMeter, o Score de
 Duplicação medido foi de **49,70%** — quase metade do código-fonte está em blocos duplicados —
 contra um limite de especificação de ≤ 15% (Condicional) e ≤ 5% (Conforme). Sem uma ferramenta
 como o SoftMeter, esse número simplesmente não existe: o time trabalha sem saber que está
@@ -611,7 +611,7 @@ análises feitas no mesmo dia.
 
 ![Primeira página do laudo gerado](images/screenshots/05_laudo.png)
 
-Laudo real, gerado a partir de uma análise do repositório `Viaje-Mais`. A seção "Resumo da
+Laudo real, gerado a partir de uma análise do repositório `NomadPlan` (que aparece na captura pelo nome anterior, `Viaje-Mais`). A seção "Resumo da
 análise" (adicionada nesta revisão) lista pontos fortes e pontos de atenção com a implicação
 prática de cada métrica fora do limite, seguida da tabela detalhada com fórmula e fonte
 bibliográfica de cada uma das 6 métricas.
@@ -1030,7 +1030,7 @@ diretamente em `metrics_catalog.py` e no Laudo de Conformidade gerado pelo siste
 ## Apêndice B — Exemplo Real de Laudo de Conformidade
 
 *(Substitui o exemplo fictício da v1.0 por dados reais coletados nesta revisão — repositório
-`SandroMachiniski-SE/Viaje-Mais`)*
+`SandroMachiniski-SE/NomadPlan`, nome anterior Viaje-Mais)*
 
 | Métrica | Limite (Conforme/Condicional) | Medido | Status |
 |---|---|---|---|
