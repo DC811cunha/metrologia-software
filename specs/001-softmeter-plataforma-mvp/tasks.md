@@ -18,7 +18,7 @@ independentes de cada uma.
 ## Format: `[ID] [P?] [Story] Description`
 
 - **[P]**: Pode rodar em paralelo (arquivos diferentes, sem dependência de tasks incompletas)
-- **[Story]**: User story à qual a task pertence (US1–US5); ausente em Setup/Foundational/Polish
+- **[Story]**: User story à qual a task pertence (US1–US7); ausente em Setup/Foundational/Polish
 - Caminhos de arquivo exatos incluídos em cada descrição
 
 ## Path Conventions
@@ -231,6 +231,7 @@ próprio cadastrou.
 - [X] T076 Seguir sem token quando o `GITHUB_TOKEN` é rejeitado pelo GitHub (401), em vez de HTTP 500 — PR #82
 - [X] T077 [P] Redesign visual do frontend (identidade azul, acessibilidade) e tema escuro azul-navy com bordas luminosas — PRs #81 e #83
 - [X] T078 [US7] Página inicial pública de apresentação, com tutorial em carrossel, e `tests/e2e/home.spec.ts` — PR #84
+- [X] T083 Revisão geral da documentação contra o código (RFC-001 v2.1, ADRs, C4, README, CONTRIBUTING, specs) e correção da data da revisão por pares — PRs #85 e #86
 - [ ] T079 Registrar domínio próprio e verificá-lo no Resend (SPF/DKIM); atualizar `EMAIL_FROM` — pré-requisito para entregar o e-mail de recuperação a usuários externos e para o deploy público (ADR-005)
 - [ ] T080 Revisão das métricas solicitada na orientação de 15/09/2026 — escopo a definir com o orientador (o catálogo `metrics_catalog.py` não muda desde 25/06/2026)
 - [ ] T081 Se a suíte E2E passar a rodar no CI, propagar o `GITHUB_TOKEN` a ela para não esbarrar no limite anônimo de 60 req/h (comentário do PR #75)

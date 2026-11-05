@@ -44,13 +44,13 @@ metrologia-software/
 │   │   │   └── workers/            # Celery tasks (análise assíncrona, e-mail de recuperação)
 │   │   ├── alembic/                # Migrations do banco de dados
 │   │   ├── tests/
-│   │   │   ├── unit/               # Testes unitários (métricas, conformidade, PDF)
+│   │   │   ├── unit/               # Testes unitários (métricas, conformidade, PDF, e-mail, segurança)
 │   │   │   └── integration/        # Testes de integração (APIs, isolamento, performance)
 │   │   ├── pyproject.toml
 │   │   └── Dockerfile
 │   └── frontend/                   # SPA React 18 + TypeScript + Vite + Tailwind CSS
 │       ├── src/
-│       │   ├── components/         # Gauge, TrendChart, AppLayout, UI atoms
+│       │   ├── components/         # Gauge, TrendChart, AppLayout/AuthLayout, home/ (landing + tutorial), ui/ (Button, Card, ...)
 │       │   ├── pages/              # Home, Login, Register, ForgotPassword, ResetPassword,
 │       │   │                       # Repositories, Dashboard, History
 │       │   └── services/           # Clientes axios: analysis, report, repository
@@ -146,7 +146,8 @@ Ver também o [Quickstart completo de validação manual](specs/001-softmeter-pl
 | Fila de tarefas | Celery + Redis | Análise assíncrona de repositórios grandes |
 | Motor de métricas | Radon (CC/LOC/MI) + tree-sitter (JS/TS) | Bibliotecas especializadas por linguagem |
 | Relatórios | ReportLab + Bitstream Vera TTF | PDF gerado server-side com Unicode |
-| Testes | pytest + Jest + Testing Library | TDD full-stack, cobertura ≥80% em CI |
+| E-mail transacional | Resend (API HTTP) | Recuperação de senha; sem chave, o link vai para o log (ADR-005) |
+| Testes | pytest + Jest + Testing Library + Playwright | TDD full-stack, cobertura ≥80% em CI; E2E rodado localmente |
 | Container | Docker + Docker Compose | Ambiente local idêntico à produção |
 | CI/CD | GitHub Actions | Lint + mypy + pytest + ESLint + Jest a cada push |
 

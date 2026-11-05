@@ -91,11 +91,11 @@ Valor de uma Métrica específica dentro de uma Análise (FR-004, FR-005, FR-006
 |---|---|---|
 | id | UUID | chave primária |
 | analise_id | UUID | FK → Análise; obrigatório |
-| metrica_chave | string | FK → Métrica (catálogo); obrigatório |
+| metrica_chave | string | chave de uma Métrica do catálogo (`metrics_catalog.py`); obrigatório. O catálogo é código versionado, não tabela — logo não há FK de banco, e a integridade é garantida pela aplicação |
 | valor_medido | decimal (nullable) | `null` apenas quando `status_conformidade = Não disponível` |
 | status_conformidade | enum: `Conforme`, `Condicional`, `Não-Conforme`, `Não disponível` | calculado comparando `valor_medido` aos limites da Métrica correspondente |
 
-**Relacionamentos**: N Medição → 1 Análise; N Medição → 1 Métrica (catálogo).
+**Relacionamentos**: N Medição → 1 Análise; N Medição → 1 Métrica (catálogo, por chave — sem FK de banco).
 
 **Validação**: para cada Análise com `status = concluida`, deve existir exatamente uma Medição
 por chave de Métrica do catálogo (6 no total nesta versão).
