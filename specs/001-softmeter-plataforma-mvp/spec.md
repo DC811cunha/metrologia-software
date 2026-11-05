@@ -4,7 +4,7 @@
 
 **Created**: 2026-06-24
 
-**Status**: Draft
+**Status**: Implemented (MVP, US1–US5) — emendada em 2026-11-05 com US6–US7 e FR-016/FR-017 (pós-MVP)
 
 **Input**: User description: "Desenvolver o SoftMeter, uma plataforma web de TCC que aplica metrologia industrial à qualidade de software. O sistema permite que desenvolvedores cadastrem repositórios GitHub, executem análises automáticas e visualizem métricas de qualidade como Complexidade Ciclomática, LOC, Índice de Manutenibilidade, Cobertura de Testes, Acoplamento e Score de Duplicação em um dashboard estilo gauge metrológico com valor medido, limites de especificação e status de conformidade. O sistema mantém histórico de análises para identificar tendências, gera relatórios PDF técnicos adequados para inclusão em TCC, e possui autenticação de usuários. Linguagens suportadas: Python e JavaScript/TypeScript. Repositórios GitHub públicos apenas nesta versão."
 
@@ -131,6 +131,51 @@ os repositórios que ele próprio cadastrou.
 
 ---
 
+### User Story 6 - Recuperação de senha (Priority: P3) *(pós-MVP, adicionada em 2026-11-05)*
+
+Um usuário que esqueceu a senha recupera o acesso à própria conta por meio de um link enviado ao
+seu e-mail, sem precisar criar outra conta.
+
+**Why this priority**: sem isso, quem esquece a senha perde permanentemente o acesso ao seu
+histórico de análises; vira requisito essencial antes de abrir a plataforma a usuários reais.
+Registrada retroativamente — implementada em 16/09/2026 (ADR-005), após a orientação de 15/09.
+
+**Independent Test**: solicitar a recuperação para um e-mail cadastrado, abrir o link recebido,
+definir uma nova senha e autenticar-se com ela.
+
+**Acceptance Scenarios**:
+
+1. **Given** uma conta cadastrada, **When** o usuário solicita a recuperação informando o e-mail,
+   **Then** recebe um link de redefinição de uso único e com validade limitada.
+2. **Given** um e-mail **não** cadastrado, **When** a recuperação é solicitada, **Then** a resposta
+   é indistinguível (conteúdo e tempo) da de um e-mail cadastrado — o sistema não revela quais
+   e-mails têm conta.
+3. **Given** um link já utilizado ou expirado, **When** o usuário tenta redefinir a senha,
+   **Then** o sistema recusa com mensagem clara e o usuário pode solicitar um novo link.
+
+---
+
+### User Story 7 - Página inicial pública de apresentação (Priority: P3) *(pós-MVP, adicionada em 2026-11-05)*
+
+Um visitante sem conta entende o que é o SoftMeter, como funciona e quais métricas mede antes de
+decidir criar uma conta.
+
+**Why this priority**: o produto não era compreensível a quem chegava sem contexto — a raiz do
+site levava direto ao login. Implementada em 03/11/2026.
+
+**Independent Test**: acessar a raiz do site sem autenticação e chegar a "Criar conta" e "Entrar"
+a partir de uma página que explica o produto, as 6 métricas e o fluxo de uso.
+
+**Acceptance Scenarios**:
+
+1. **Given** um visitante não autenticado, **When** ele acessa a raiz, **Then** vê a apresentação
+   do produto (o que é, como funciona, métricas, perguntas frequentes e tutorial com capturas
+   reais) e acessos diretos a cadastro e login.
+2. **Given** um usuário já autenticado, **When** ele acessa a raiz, **Then** vê o acesso direto
+   à plataforma em vez dos botões de cadastro/login.
+
+---
+
 ### Edge Cases
 
 - O que acontece quando um repositório cadastrado se torna privado, é renomeado ou é excluído no
@@ -188,6 +233,13 @@ os repositórios que ele próprio cadastrou.
   (privados, renomeados ou excluídos), informando ao usuário o motivo da falha.
 - **FR-015**: O sistema DEVE impedir o cadastro duplicado da mesma URL de repositório dentro da
   conta do mesmo usuário.
+- **FR-016** *(pós-MVP)*: O sistema DEVE permitir que um usuário que esqueceu a senha solicite um
+  link de redefinição por e-mail e defina uma nova senha por esse link, que é de uso único e tem
+  validade limitada; a resposta à solicitação DEVE ser a mesma, em conteúdo e em tempo, exista ou
+  não uma conta com aquele e-mail.
+- **FR-017** *(pós-MVP)*: O sistema DEVE disponibilizar uma página inicial pública que apresenta o
+  produto (o que é, como funciona, métricas, perguntas frequentes e tutorial) com acesso direto a
+  cadastro e login.
 
 ### Key Entities
 
@@ -206,6 +258,8 @@ os repositórios que ele próprio cadastrou.
 - **Relatório**: documento PDF gerado a partir de uma ou mais análises de um repositório; possui
   a(s) análise(s) referenciada(s), data de geração e o conteúdo completo (métricas, limites,
   status, fontes bibliográficas).
+- **Token de Redefinição de Senha** *(pós-MVP)*: credencial temporária e de uso único que
+  autoriza a definição de uma nova senha; pertence a um usuário e tem validade limitada.
 
 ## Success Criteria *(mandatory)*
 
@@ -232,7 +286,9 @@ os repositórios que ele próprio cadastrou.
   SSO corporativo, por se tratar de uma plataforma acadêmica de uso individual.
 - O cadastro de repositório exige apenas a URL pública do GitHub; nenhuma autenticação adicional
   com o GitHub (token/OAuth) é necessária nesta versão, já que somente repositórios públicos são
-  suportados.
+  suportados. *(Atualização: um `GITHUB_TOKEN` de serviço é **opcional** — habilita ler o
+  artifact de cobertura do CI do repositório analisado e eleva o limite da API; sem ele, ou com
+  ele inválido, o sistema segue anonimamente. Ver ADR-004.)*
 - Cada execução de análise processa o conteúdo do repositório no momento da execução, sem
   exigência de sincronização contínua entre execuções; cada execução é uma "medição"
   independente no tempo.

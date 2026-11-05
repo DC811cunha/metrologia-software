@@ -23,11 +23,11 @@ armazenamento; JWT (access+refresh) com bcrypt para autenticação; ReportLab pa
 
 **Primary Dependencies**: Backend: FastAPI, SQLAlchemy + Alembic, Celery, Redis (broker/result
 backend), Radon, PyJWT, bcrypt (hashing direto — ver nota de implementação sobre incompatibilidade
-passlib/bcrypt 5.x), ReportLab, httpx (cliente para a API REST do GitHub). Frontend: React 18,
-Vite, React Router, Recharts, Axios.
+passlib/bcrypt 5.x), ReportLab, httpx (cliente para a API REST do GitHub e do Resend, pós-MVP).
+Frontend: React 18, Vite, React Router, Recharts, Axios, Tailwind CSS 3.
 
 **Storage**: PostgreSQL 16 (dados de domínio: usuários, repositórios, análises, medições,
-relatórios). Redis como broker/result backend do Celery (não armazena dados de domínio
+relatórios e, pós-MVP, tokens de redefinição de senha). Redis como broker/result backend do Celery (não armazena dados de domínio
 permanentes).
 
 **Testing**: Backend: `pytest` + `pytest-cov` (unit + integração, com `httpx`/`TestClient` para
@@ -51,7 +51,13 @@ disparada apenas sob demanda, sem agendamento em segundo plano (FR-012).
 
 **Scale/Scope**: Uso acadêmico individual (TCC) — poucos usuários concorrentes esperados, sem
 exigência de escala horizontal; 6 métricas, 5 telas principais (cadastro/lista de repositórios,
-dashboard, histórico, relatório, autenticação).
+dashboard, histórico, relatório, autenticação) — mais, pós-MVP, a página inicial pública e as telas
+de recuperação de senha (US6–US7).
+
+> **Atualização (2026-11-05):** este plano descreve o MVP (US1–US5), já implementado. Mudanças
+> posteriores — recuperação de senha (ADR-005), leitura de cobertura via artifact de CI (ADR-004),
+> redesign visual e página inicial — estão registradas em `spec.md` (US6–US7, FR-016/FR-017),
+> `research.md` (itens 6, 11 e 12), `tasks.md` (Fase 9) e no RFC-001 v2.1.
 
 ## Constitution Check
 
@@ -98,12 +104,12 @@ src/backend/                  # FastAPI (substitui o backend Node/Express do ADR
 │   ├── main.py                # Bootstrap da aplicação FastAPI
 │   ├── core/                  # Config, segurança (JWT/bcrypt), Celery app
 │   ├── api/                   # Routers: auth, repositories, analyses, reports
-│   ├── models/                # Modelos SQLAlchemy (Usuário, Repositório, Análise, Métrica, Medição, Relatório)
+│   ├── models/                # Modelos SQLAlchemy (Usuário, Repositório, Análise, Medição, Relatório, Token de Redefinição); Métrica é catálogo em código
 │   ├── schemas/                # Schemas Pydantic (request/response)
 │   ├── services/                # Regras de negócio (github_service, conformity_service, report_service)
 │   ├── analysis/                 # Motor de métricas: adapter Radon + parser AST próprio (acoplamento/duplicação)
 │   ├── repositories/              # Acesso a dados (camada de persistência)
-│   ├── workers/                    # Tasks Celery (execução assíncrona de análise)
+│   ├── workers/                    # Tasks Celery (análise assíncrona; envio do e-mail de recuperação)
 │   └── db/                          # Sessão SQLAlchemy, migrations Alembic
 └── tests/
     ├── unit/                        # Regras de negócio e motor de métricas isolados
@@ -112,7 +118,7 @@ src/backend/                  # FastAPI (substitui o backend Node/Express do ADR
 src/frontend/                # React 18 + TypeScript + Vite (já existente, mantido)
 ├── src/
 │   ├── components/            # Inclui o componente de gauge metrológico reutilizável
-│   ├── pages/                 # Cadastro/lista de repositórios, Dashboard, Histórico, Relatório, Login/Registro
+│   ├── pages/                 # Cadastro/lista de repositórios, Dashboard, Histórico, Relatório, Login/Registro, Home, Recuperação de senha
 │   └── services/              # Chamadas à API do backend
 └── tests/                     # Testes de componente (Jest + Testing Library)
 

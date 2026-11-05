@@ -1,6 +1,6 @@
 # Data Model: SoftMeter — Plataforma de Metrologia de Qualidade de Software
 
-**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24
+**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-05 (token de redefinição, fonte de cobertura)
 
 ## Entidades
 
@@ -73,12 +73,12 @@ Métrica que não esteja completamente preenchida abaixo.
 | `complexidade_ciclomatica` | Complexidade Ciclomática | nº de caminhos / função (média do repositório) | `CC = E - N + 2P` (arestas - nós + 2×componentes conexos do grafo de fluxo de controle), por função/método, McCabe (1976) | McCabe, T.J. (1976). *A Complexity Measure*. IEEE Trans. Software Engineering; NIST Special Publication 500-235 | ≤ 10 | 11–20 | > 20 |
 | `loc` | Linhas de Código (LOC) | linhas / função (média do repositório) | Contagem de linhas de código lógicas (SLOC), excluindo comentários e linhas em branco, por função/método | Martin, R.C. (2008). *Clean Code* | ≤ 30 | 31–60 | > 60 |
 | `indice_manutenibilidade` | Índice de Manutenibilidade | escala 0–100 (por arquivo, média do repositório) | `MI = 171 − 5.2·ln(HV) − 0.23·CC − 16.2·ln(LOC)` (HV = volume de Halstead), normalizado 0–100 | Coleman, D. et al. (1994). *Using Metrics to Evaluate Software System Maintainability*. IEEE Computer; ranks adotados pela ferramenta Radon | ≥ 20 (Rank A) | 10–19,99 (Rank B) | < 10 (Rank C) |
-| `cobertura_testes` | Cobertura de Testes | % de linhas cobertas | Percentual relatado em artefato de cobertura já publicado no repositório (`coverage.xml`, `lcov.info`, badge Codecov/Coveralls); ver `research.md` item 6 | Especificação de cobertura de testes (ex.: relatórios `coverage.py`/`lcov`); limites de referência alinhados ao Princípio I da Constituição SoftMeter | ≥ 80% | 50%–79% | < 50% (ou **Não disponível** se nenhum artefato for encontrado) |
+| `cobertura_testes` | Cobertura de Testes | % de linhas cobertas | Percentual relatado em artefato de cobertura já publicado, lido nesta ordem: artifact do GitHub Actions do repositório (ADR-004), `coverage.xml`, `lcov.info`, badge Codecov/Coveralls no README; ver `research.md` item 6 | Especificação de cobertura de testes (ex.: relatórios `coverage.py`/`lcov`); limites de referência alinhados ao Princípio I da Constituição SoftMeter | ≥ 80% | 50%–79% | < 50% (ou **Não disponível** se nenhum artefato for encontrado) |
 | `acoplamento` | Acoplamento (Instabilidade de Módulo) | razão 0–1 (média do repositório) | `I = Ce / (Ce + Ca)` — Ce = acoplamento de saída (imports), Ca = acoplamento de entrada (módulos que importam este) | Martin, R.C. (2002). *Agile Software Development: Principles, Patterns, and Practices* | ≤ 0,70 | 0,70–0,85 | > 0,85 |
 | `score_duplicacao` | Score de Duplicação | % de linhas duplicadas | Percentual de linhas em blocos de código duplicados (Tipo-1/Tipo-2) detectados por *shingling* de tokens normalizados, janela mínima de 6 linhas | Abordagem equivalente à métrica *Duplicated Lines Density* da SonarSource (documentação pública do SonarQube) | ≤ 5% | 5%–15% | > 15% |
 
-**Regra de status "Não disponível"**: aplica-se apenas a `cobertura_testes`, quando nenhum
-artefato de cobertura é encontrado no repositório. Medições com esse status são excluídas do
+**Regra de status "Não disponível"**: aplica-se apenas a `cobertura_testes`, quando nenhuma
+fonte de cobertura é encontrada (artifact de CI, artefato versionado ou badge). Medições com esse status são excluídas do
 cálculo do `status_conformidade_geral` da Análise (não contam como Não-Conforme).
 
 ---
@@ -123,12 +123,34 @@ Documento PDF gerado a partir de uma ou mais Análises de um Repositório (FR-00
 
 ---
 
+### Token de Redefinição de Senha *(adicionado em 16/09/2026 — ADR-005; tabela `password_reset_tokens`)*
+
+Token de uso único para recuperação de acesso à conta (FR-016).
+
+| Campo | Tipo | Regras |
+|---|---|---|
+| id | UUID | chave primária |
+| usuario_id | UUID | FK → Usuário; obrigatório |
+| token_hash | string (64) | hash SHA-256 do token enviado por e-mail; único; o valor bruto **nunca** é armazenado |
+| expira_em | timestamp | criação + 60 min (configurável em `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES`) |
+| usado_em | timestamp (nullable) | preenchido quando o token é consumido; um token usado não é aceito de novo |
+| criado_em | timestamp | definido na criação |
+
+**Relacionamentos**: N Token → 1 Usuário.
+
+**Validação**: a redefinição é recusada (HTTP 400, "Token inválido ou expirado") quando o hash não
+existe, o token já foi usado, expirou ou o usuário não existe mais.
+
+---
+
 ## Diagrama de relacionamentos (textual)
 
 ```text
 Usuário (1) ───── (N) Repositório (1) ───── (N) Análise (1) ───── (N) Medição (N) ───── (1) Métrica
    │                                                                                      [catálogo fixo]
-   └────────────────────────────── (N) Relatório ─────────────────────────────────────┘
+   ├────────────────────────────── (N) Relatório ─────────────────────────────────────┘
+   │
+   └── (1) ───── (N) Token de Redefinição de Senha
 ```
 
 ## Mapeamento para Requisitos Funcionais
@@ -142,4 +164,5 @@ Usuário (1) ───── (N) Repositório (1) ───── (N) Análise (
 | Medição.status_conformidade | FR-005, FR-006 |
 | Relatório | FR-009 |
 | Usuário (escopo de dados) | FR-010, FR-011 |
+| Token de Redefinição de Senha | FR-016 |
 | Repositório.status_acesso, Análise.motivo_falha | FR-014 |

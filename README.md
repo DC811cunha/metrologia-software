@@ -2,7 +2,7 @@
 
 > **Metrologia de Software** — Plataforma de Inspeção e Conformidade de Qualidade de Software
 
-[![CI](https://github.com/SEU_USUARIO/metrologia-software/actions/workflows/ci.yml/badge.svg)](https://github.com/SEU_USUARIO/metrologia-software/actions)
+[![CI](https://github.com/DC811cunha/metrologia-software/actions/workflows/ci.yml/badge.svg)](https://github.com/DC811cunha/metrologia-software/actions)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
@@ -16,9 +16,13 @@ medição — existem tolerâncias, laudos de inspeção e protocolos de conform
 **Por que o software não tem o mesmo rigor?**
 
 O SoftMeter traz o protocolo da metrologia industrial para a Engenharia de Software:
-cada requisito recebe um **valor nominal** e **tolerâncias** (assim como uma cota dimensional),
-cada ciclo de testes gera **medições com desvios calculados automaticamente** e cada entrega
-resulta em um **Laudo de Conformidade de Software** — Conforme, Condicional ou Não-Conforme.
+analisa **automaticamente** o código-fonte de repositórios GitHub públicos (Python, JavaScript e
+TypeScript) e calcula **6 métricas objetivas** — Complexidade Ciclomática, LOC, Índice de
+Manutenibilidade, Cobertura de Testes, Acoplamento e Score de Duplicação. Cada métrica tem
+fórmula, unidade, fonte bibliográfica e **limites de especificação** (como uma cota com
+tolerância), e nenhum valor é digitado à mão. O resultado aparece em um dashboard de gauges, com
+histórico e tendência, e vira um **Laudo de Conformidade de Software** em PDF — Conforme,
+Condicional ou Não-Conforme.
 
 ---
 
@@ -27,7 +31,7 @@ resulta em um **Laudo de Conformidade de Software** — Conforme, Condicional ou
 ```
 metrologia-software/
 ├── specs/
-│   └── 001-softmeter-plataforma-mvp/   # Spec, ADRs, data model, tasks
+│   └── 001-softmeter-plataforma-mvp/   # Spec, plano, pesquisa, data model, contratos, tasks
 ├── src/
 │   ├── backend/                    # API FastAPI + Python 3.12
 │   │   ├── app/
@@ -37,7 +41,7 @@ metrologia-software/
 │   │   │   ├── models/             # SQLAlchemy ORM models
 │   │   │   ├── schemas/            # Pydantic request/response schemas
 │   │   │   ├── services/           # GitHub, análise, relatório, conformidade, tendência
-│   │   │   └── workers/            # Celery tasks (análise assíncrona)
+│   │   │   └── workers/            # Celery tasks (análise assíncrona, e-mail de recuperação)
 │   │   ├── alembic/                # Migrations do banco de dados
 │   │   ├── tests/
 │   │   │   ├── unit/               # Testes unitários (métricas, conformidade, PDF)
@@ -47,15 +51,24 @@ metrologia-software/
 │   └── frontend/                   # SPA React 18 + TypeScript + Vite + Tailwind CSS
 │       ├── src/
 │       │   ├── components/         # Gauge, TrendChart, AppLayout, UI atoms
-│       │   ├── pages/              # Login, Register, Repositories, Dashboard, History
+│       │   ├── pages/              # Home, Login, Register, ForgotPassword, ResetPassword,
+│       │   │                       # Repositories, Dashboard, History
 │       │   └── services/           # Clientes axios: analysis, report, repository
 │       ├── tests/                  # Testes de componentes (Jest + Testing Library)
 │       ├── package.json
 │       └── Dockerfile
+├── tests/
+│   └── e2e/                        # Playwright — fluxos ponta a ponta pela UI real
+├── docs/
+│   ├── rfc/                        # RFC-001 (v2.1): proposta, requisitos, arquitetura, segurança
+│   ├── adr/                        # Decisões de arquitetura (ADR-001 a ADR-005)
+│   ├── architecture/               # Diagramas C4 e fluxos de dados
+│   └── archive/                    # Backend Node/Express original (descontinuado, ADR-003)
 ├── .github/
 │   └── workflows/
 │       └── ci.yml                  # CI: lint + mypy + pytest (≥80%) + ESLint + Jest (≥80%)
 ├── docker-compose.yml              # PostgreSQL + Redis + backend + worker Celery + frontend
+├── .env.example                    # Modelo das variáveis de ambiente (copie para .env)
 └── README.md
 ```
 
@@ -72,7 +85,7 @@ metrologia-software/
 
 ```bash
 # 1. Clone o repositório
-git clone https://github.com/SEU_USUARIO/metrologia-software.git
+git clone https://github.com/DC811cunha/metrologia-software.git
 cd metrologia-software
 
 # 2. Suba o ambiente completo (PostgreSQL, Redis, backend FastAPI, Celery worker, frontend)
@@ -81,6 +94,16 @@ docker compose up --build -d
 # 3. Aplique as migrations do banco de dados
 docker compose exec backend alembic upgrade head
 ```
+
+O `.env` é opcional — sem ele, valem os padrões de desenvolvimento do `docker-compose.yml`. Para
+habilitar recursos que dependem de serviços externos, copie [`.env.example`](.env.example) para
+`.env` e preencha:
+
+- `GITHUB_TOKEN` — permite ler a cobertura de testes publicada como artifact do GitHub Actions do
+  repositório analisado e sobe o limite da API de 60 para 5000 req/h (ADR-004). Um token
+  expirado não quebra o sistema: ele segue sem credenciais.
+- `RESEND_API_KEY` — envia o e-mail de recuperação de senha; sem ela, o link de redefinição é
+  registrado no log do worker Celery (`docker compose logs celery-worker`) (ADR-005).
 
 A aplicação estará disponível em:
 
@@ -135,12 +158,12 @@ Ver também o [Quickstart completo de validação manual](specs/001-softmeter-pl
 
 | Metrologia Industrial | SoftMeter |
 |---|---|
-| Desenho técnico / GD&T | Documento de Requisitos |
-| Tolerância dimensional | Tolerância por requisito (sup/inf) |
-| Medição com Braço FARO | Coleta de valores em ciclo de testes |
+| Desenho técnico / GD&T | Catálogo de métricas (fórmula + limites) |
+| Tolerância dimensional | Limite de especificação por métrica (nominal/superior) |
+| Medição com Braço FARO | Análise automática do código-fonte via API do GitHub |
 | Software PolyWorks | SoftMeter |
-| Laudo de Inspeção | Laudo de Conformidade de Software |
-| Peça aprovada / refugada | Software Conforme / Não-Conforme |
+| Laudo de Inspeção | Laudo de Conformidade de Software (PDF) |
+| Peça aprovada / refugada | Repositório Conforme / Não-Conforme |
 
 ### Classificação do Laudo
 
@@ -150,15 +173,19 @@ Ver também o [Quickstart completo de validação manual](specs/001-softmeter-pl
 | 70% – 89% | ⚠️ Condicional |
 | < 70% | ❌ Não-Conforme |
 
-> **Obs.:** Qualquer requisito com criticidade **Crítica** reprovado resulta em Não-Conforme independente do índice geral.
+> **Como o índice é calculado:** média dos escores por métrica (Conforme = 100, Condicional = 50,
+> Não-Conforme = 0). Uma métrica "Não disponível" (ex.: Cobertura de Testes sem fonte) fica fora do
+> cálculo — nunca conta como reprovação. Todas as métricas têm o mesmo peso.
 
 ---
 
 ## 📋 Documentação
 
-- 📄 [RFC-001 — Documento de Proposta do Projeto](docs/rfc/RFC-001-metrologia-software.md)
+- 📄 [RFC-001 — Documento de Proposta do Projeto](docs/rfc/RFC-001-SoftMeter-Avaliacao.md)
 - 🏛️ [Decisões de Arquitetura (ADR)](docs/adr/)
-- 🖼️ [Diagramas C4](docs/architecture/)
+- 🖼️ [Diagramas C4](docs/architecture/C4-diagramas.md)
+- 🧭 [Especificação, plano e contratos da API](specs/001-softmeter-plataforma-mvp/)
+- 🤝 [Guia de contribuição](CONTRIBUTING.md)
 
 ---
 
