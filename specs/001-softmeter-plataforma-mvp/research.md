@@ -100,12 +100,14 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 
 ## 7. Processamento assíncrono e orçamento de 10 segundos (Princípio IV)
 
-- **Decision**: A requisição de análise inicia de forma síncrona; se o cálculo das 6 métricas
-  para os arquivos elegíveis (Python/JS/TS) completar em até ~8 segundos, o resultado é retornado
-  diretamente. Caso o repositório seja maior (heurística: número de arquivos elegíveis acima de um
-  limite configurável), a tarefa é despachada para uma fila Celery/Redis, e o endpoint retorna
-  imediatamente um identificador de análise com status "processando"; o frontend faz polling até
-  a conclusão.
+- **Decision**: A requisição de análise consulta o tamanho do repositório na API do GitHub
+  (`size`, em KB). Se estiver dentro de um limite configurável (`sync_analysis_size_limit_kb`,
+  padrão 5000 KB), as 6 métricas são calculadas de forma síncrona e o resultado é retornado
+  diretamente (HTTP 201). Caso o repositório seja maior, a tarefa é despachada para uma fila
+  Celery/Redis e o endpoint retorna imediatamente (HTTP 202) um identificador de análise com
+  status "processando"; o frontend faz polling (a cada 2 s) até a conclusão. *(Redação original:
+  heurística por número de arquivos elegíveis e orçamento de ~8 s; a implementação adotou o
+  tamanho informado pelo GitHub, que é conhecido antes de baixar qualquer código.)*
 - **Rationale**: Atende ao Princípio IV (resultado em até 10s para o caso padrão) sem impor um
   hard timeout abrupto que descartaria análises de repositórios maiores — a degradação graciosa é
   explicitamente exigida pela constituição.
@@ -137,12 +139,33 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 
 ## 10. Testes E2E
 
-- **Decision**: Playwright, cobrindo os fluxos críticos das User Stories 1 e 2 (cadastro →
-  análise → dashboard) através da UI real do frontend Vite/React.
+- **Decision**: Playwright, cobrindo os fluxos críticos através da UI real do frontend Vite/React.
+  *(Redação original: apenas US1 e US2. Implementado: um arquivo por user story — US1 a US5 — mais
+  a página inicial pública; 11 cenários. A suíte roda localmente, contra a aplicação completa, e
+  não faz parte do job de CI.)*
 - **Rationale**: Suporta TypeScript nativamente, integra-se bem a um frontend Vite, e é a opção
   mais usada atualmente para E2E em aplicações React.
 - **Alternatives considered**: Cypress — também viável; Playwright foi preferido por suporte
   nativo a múltiplos navegadores e melhor desempenho em pipelines de CI.
+
+## 11. Recuperação de senha (pós-MVP, 16/09/2026)
+
+- **Decision**: Token aleatório de 32 bytes enviado por e-mail, guardado apenas como hash SHA-256,
+  de uso único e com expiração de 60 min; e-mail transacional via Resend (API HTTP direta), com
+  fallback de log quando não há `RESEND_API_KEY`; envio em task Celery para não vazar informação
+  por tempo de resposta. Registro completo, alternativas e limitações (sandbox sem domínio
+  próprio) em `docs/adr/ADR-005-recuperacao-de-senha-via-email.md`.
+
+## 12. Camada de estilo do frontend (Tailwind desde o MVP; tema escuro em 03/11/2026)
+
+- **Decision**: Tailwind CSS 3 sobre React/Vite (adotado no MVP), com — a partir do redesign de
+  03/11/2026 — tokens semânticos de tema (`canvas`,
+  `surface`, `line`, `fg*`, `glow`) em variáveis CSS e tema escuro azul-navy como padrão. Sem novas
+  dependências de componentes; textos, labels e estruturas usados pelos testes foram preservados no
+  redesign.
+- **Rationale**: concentra o tema em um único lugar (um tema claro opcional fica viável) e mantém
+  os gauges, a semântica de cor de conformidade (verde/âmbar/vermelho — distinta do azul da marca)
+  e a acessibilidade (foco visível, `prefers-reduced-motion`, status nunca só por cor).
 
 ## Resumo das decisões
 
@@ -153,10 +176,12 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 | 3 | Complexidade/LOC/MI | Radon (Python) + tree-sitter com mesma fórmula (JS/TS) |
 | 4 | Acoplamento | Instabilidade de Módulo (Martin, 2002) via grafo de imports |
 | 5 | Duplicação | Shingling de tokens normalizados (estilo SonarQube) |
-| 6 | Cobertura de Testes | Leitura de artefatos publicados; "Não disponível" se ausente |
-| 7 | Performance/assincronia | Síncrono até ~8s; acima do limiar, Celery+Redis com polling |
+| 6 | Cobertura de Testes | Artifact do GitHub Actions (ADR-004) → artefatos versionados; "Não disponível" se ausente |
+| 7 | Performance/assincronia | Síncrono até o limite de tamanho (5000 KB); acima, Celery+Redis com polling |
 | 8 | Relatório PDF | ReportLab |
 | 9 | Autenticação | JWT (access curto + refresh longo) + bcrypt |
-| 10 | E2E | Playwright |
+| 10 | E2E | Playwright (US1–US5 + página inicial) |
+| 11 | Recuperação de senha *(pós-MVP)* | Token de uso único com hash SHA-256 + e-mail via Resend (ADR-005) |
+| 12 | Camada de estilo do frontend | Tailwind CSS 3 (MVP); tokens de tema em variáveis CSS e tema escuro *(pós-MVP)* |
 
 Nenhum item de Technical Context permanece como NEEDS CLARIFICATION após esta pesquisa.

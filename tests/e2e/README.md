@@ -13,9 +13,13 @@ um arquivo por user story:
 | `home.spec.ts` | Página inicial pública (apresentação + tutorial) | — |
 
 Os fluxos de US1–US4 cadastram e analisam `github.com/pypa/sampleproject` (pequeno,
-Python, estável) — a suíte bate na API real do GitHub sem autenticação, então respeita
-o limite de 60 requisições/hora por IP; `fullyParallel: false` no `playwright.config.ts`
-evita disparar essas chamadas em paralelo.
+Python, estável) — a suíte bate na API real do GitHub, sem autenticação se o backend não tiver
+`GITHUB_TOKEN`, então respeita o limite de 60 requisições/hora por IP; `fullyParallel: false` no
+`playwright.config.ts` evita disparar essas chamadas em paralelo. A suíte roda **localmente** e
+não faz parte do job de CI; se for incluída no CI, o `GITHUB_TOKEN` deve ser propagado a ela
+(IPs de runner são compartilhados e o limite anônimo se esgota fácil). A recuperação de senha
+(`/forgot-password`, `/reset-password`) é coberta por testes de integração e de componente, não
+por E2E.
 
 ## Pré-requisitos
 
@@ -35,7 +39,7 @@ reais; o path síncrono de análise não depende deles para um repositório pequ
 # backend, em um terminal (SQLite local em vez de Postgres)
 cd src/backend
 .venv/Scripts/activate  # Linux/Mac: source .venv/bin/activate
-DATABASE_URL=sqlite:///./e2e.db JWT_SECRET=<=32 chars> JWT_REFRESH_SECRET=<=32 chars> \
+DATABASE_URL=sqlite:///./e2e.db JWT_SECRET=<mín. 32 chars> JWT_REFRESH_SECRET=<mín. 32 chars> \
   alembic upgrade head
 DATABASE_URL=sqlite:///./e2e.db JWT_SECRET=<mesmo valor> JWT_REFRESH_SECRET=<mesmo valor> \
   uvicorn app.main:app --port 3001

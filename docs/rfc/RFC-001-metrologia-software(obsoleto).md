@@ -1,5 +1,9 @@
 # RFC-001: SoftMeter — Plataforma de Metrologia de Software
 
+> **⚠️ DOCUMENTO OBSOLETO — mantido apenas como registro histórico.** Esta é a primeira versão
+> da proposta (v1.0, 12/04/2026), anterior ao pivô de arquitetura (ADR-003). A versão vigente é a
+> [RFC-001 v2.1](RFC-001-SoftMeter-Avaliacao.md).
+
 **Engenharia de Software – Católica SC**
 
 ---
@@ -8,7 +12,7 @@
 
 - **Título do Projeto:** SoftMeter — Plataforma de Inspeção e Metrologia de Qualidade de Software
 - **Linha de Projeto (Direction):** Web App
-- **Autor:** [Seu Nome Completo]
+- **Autor:** Diego Cunha
 - **Data da Proposta:** 12/04/2026
 - **Versão:** 1.0
 

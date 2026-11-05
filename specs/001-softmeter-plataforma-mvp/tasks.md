@@ -217,7 +217,24 @@ próprio cadastrou.
 - [X] T069 [P] Teste de performance validando análise síncrona em até 10s p95 (Princípio IV) em `src/backend/tests/integration/test_analysis_performance.py`
 - [X] T070 [P] Endurecimento de segurança: validação de input (formato de URL, tamanho de payload) e rate limiting básico em `src/backend/app/main.py`
 - [X] T071 [P] Atualizar `README.md` e `specs/001-softmeter-plataforma-mvp/quickstart.md` com instruções finais da stack FastAPI
-- [X] T072 Executar a validação manual completa descrita em `quickstart.md` — validado via a suíte Playwright (T030/T046/T051/T058/T064) rodando contra a aplicação real (backend + frontend); executado localmente com SQLite em vez de `docker compose up` (equivalente para os fins desta validação, já que os modelos não usam tipos específicos do Postgres — ver `tests/e2e/README.md`)
+- [X] T072 Executar a validação manual completa descrita em `quickstart.md` — validado via a suíte Playwright (T030/T046/T051/T058/T064) rodando contra a aplicação real (backend + frontend); executado localmente com SQLite em vez de `docker compose up` (equivalente para os fins desta validação, já que os modelos não usam tipos específicos do Postgres — ver `tests/e2e/README.md`). *(Nota de 2026-11-05, após revisão por pares no PR #75: SQLite não é 100% equivalente ao PostgreSQL — UUID e timezone — e isso já exigiu um workaround em `auth.py`. As suítes E2E dos PRs #81, #83 e #84 foram executadas contra a stack Docker completa, com PostgreSQL.)*
+
+---
+
+## Phase 9: Pós-MVP — entregas posteriores à v2.0 do RFC *(registradas retroativamente em 2026-11-05)*
+
+**Purpose**: rastrear no `tasks.md` o que foi entregue depois do MVP (US1–US5) e o que ficou em aberto.
+
+- [X] T073 [US6] Recuperação de senha via e-mail (ADR-005): modelo `PasswordResetToken` + migration, endpoints `forgot-password`/`reset-password`, `EmailService` (Resend com fallback de log) e telas `ForgotPasswordPage`/`ResetPasswordPage` — PR #78
+- [X] T074 [US6] Endurecimento da recuperação após revisão por pares: envio do e-mail em task Celery (elimina side-channel de timing) e `/reset-password` na janela de rate limit — PR #79
+- [X] T075 Ler a cobertura de testes do artifact do GitHub Actions do repositório analisado (ADR-004) — commit `13130fa`
+- [X] T076 Seguir sem token quando o `GITHUB_TOKEN` é rejeitado pelo GitHub (401), em vez de HTTP 500 — PR #82
+- [X] T077 [P] Redesign visual do frontend (identidade azul, acessibilidade) e tema escuro azul-navy com bordas luminosas — PRs #81 e #83
+- [X] T078 [US7] Página inicial pública de apresentação, com tutorial em carrossel, e `tests/e2e/home.spec.ts` — PR #84
+- [ ] T079 Registrar domínio próprio e verificá-lo no Resend (SPF/DKIM); atualizar `EMAIL_FROM` — pré-requisito para entregar o e-mail de recuperação a usuários externos e para o deploy público (ADR-005)
+- [ ] T080 Revisão das métricas solicitada na orientação de 15/09/2026 — escopo a definir com o orientador (o catálogo `metrics_catalog.py` não muda desde 25/06/2026)
+- [ ] T081 Se a suíte E2E passar a rodar no CI, propagar o `GITHUB_TOKEN` a ela para não esbarrar no limite anônimo de 60 req/h (comentário do PR #75)
+- [ ] T082 Deploy em ambiente público (marco M10 do RFC-001)
 
 ---
 

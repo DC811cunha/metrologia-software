@@ -1,6 +1,6 @@
 # Quickstart: SoftMeter — Plataforma de Metrologia de Qualidade de Software
 
-**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24
+**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-05 (recuperação de senha, E2E)
 
 ## Pré-requisitos
 
@@ -36,6 +36,21 @@ A aplicação estará disponível em:
 6. Gerar um relatório PDF (US4) e confirmar que cada métrica inclui fórmula, fonte bibliográfica
    e limites.
 
+## Validação manual — recuperação de senha (ADR-005)
+
+1. Na tela de login, clicar em "Esqueci minha senha" (`/forgot-password`) e informar o e-mail
+   cadastrado — e, em outra tentativa, um e-mail inexistente: a mensagem exibida deve ser a mesma
+   nos dois casos.
+2. Sem `RESEND_API_KEY`, o link de redefinição aparece no log do worker Celery:
+   `docker compose logs celery-worker | grep reset-password`. Abrir o link
+   (`/reset-password?token=…`), definir uma nova senha (mín. 8 caracteres) e fazer login com ela.
+3. Reabrir o mesmo link: deve ser recusado ("Token inválido ou expirado") — o token é de uso único
+   e expira em 60 minutos.
+
+> O `.env` é opcional. `GITHUB_TOKEN` habilita a leitura de cobertura via artifact do GitHub
+> Actions (ADR-004) e `RESEND_API_KEY` o envio real do e-mail (ADR-005); sem eles, o sistema segue
+> funcionando com os fallbacks documentados.
+
 ## Rodando os testes
 
 ```bash
@@ -50,8 +65,11 @@ cd src/frontend
 npm install
 npm test
 
-# E2E (requer aplicação rodando em localhost:3000)
-npx playwright test tests/e2e/
+# E2E (requer a aplicação rodando em localhost:3000 — ver tests/e2e/README.md)
+cd tests/e2e
+npm install
+npx playwright install --with-deps chromium   # apenas na primeira vez
+npm test
 ```
 
 ## Critério de pronto (alinhado à Constitution Check do plan.md)

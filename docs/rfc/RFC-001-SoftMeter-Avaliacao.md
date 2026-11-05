@@ -19,10 +19,10 @@
   12/04/2026
 
 - **Data desta revisão:**
-  16/09/2026
+  05/11/2026
 
 - **Versão:**
-  2.0 — revisão pós-implementação do MVP (v1.0 avaliada pelo comitê em anexo, seção 10)
+  2.1 — atualização pós-v2.0 (recuperação de senha, nova identidade visual, página inicial pública, endurecimento de segurança). A v2.0 (16/09/2026) foi a revisão pós-implementação do MVP; a v1.0 foi avaliada pelo comitê (anexo, seção 10)
 
 ---
 
@@ -51,6 +51,27 @@ Esta revisão também substitui as descrições textuais de tela por **capturas 
 aplicação em execução** (seção 4), e todo o conteúdo técnico (requisitos, modelo de dados,
 arquitetura, cronograma) passa a refletir o que está de fato implementado e testado — não mais
 uma proposta.
+
+---
+
+# Nota sobre a revisão v2.1 (05/11/2026)
+
+Entre a v2.0 (16/09) e esta revisão, o produto recebeu cinco mudanças relevantes, todas
+entregues por Pull Request com CI verde na `main`:
+
+| Mudança | PRs | Onde aparece neste RFC |
+|---|---|---|
+| **Recuperação de senha via e-mail** (token de uso único, hash SHA-256, e-mail transacional via Resend com fallback de log) — ADR-005 | #78 | RF16, RN08–RN09, 3.1–3.2, 5.2, 6.1 |
+| **Endurecimento da recuperação de senha** após revisão por pares: envio do e-mail movido para task Celery (elimina side-channel de timing) e `/reset-password` incluído no rate limit | #79 | RNF07, RNF10, 6.1 |
+| **Fallback quando o `GITHUB_TOKEN` é rejeitado** pelo GitHub (token expirado deixava o sistema pior que sem token: HTTP 500 no cadastro) | #82 | RNF12, 3.2, 4.8 |
+| **Nova identidade visual** — redesign em azul e, em seguida, tema escuro azul-navy com bordas luminosas; foco em acessibilidade | #81, #83 | RNF11, seção 4 (todas as capturas foram refeitas) |
+| **Página inicial pública** de apresentação (hero, "como funciona", catálogo das 6 métricas, FAQ e tutorial em carrossel) | #84 | RF17, 4.2 |
+
+Também foram atualizados os KPIs (seção 1.6) com números **verificados no artifact de CI do
+último merge**, o modelo de dados (6ª tabela), a arquitetura (novo sistema externo: Resend), o
+cronograma (seção 7) e foi adicionada a seção **"Revisões desde a v2.0"** (após a resposta ao
+parecer), que registra a orientação de 15/09/2026 e a revisão por pares, ponto a ponto — inclusive
+o que **continua em aberto** (em especial, a revisão das métricas).
 
 ---
 
@@ -232,12 +253,15 @@ Desenvolver o **SoftMeter**, uma plataforma web que implementa o framework de Me
 
 *(Atualizado na v2.0: o KPI "redução de 50% no tempo de documentação de QA" da v1.0 foi removido — o parecer do comitê identificou corretamente que ele não tinha método de medição definido nem baseline. Os KPIs abaixo são objetivos, mensuráveis e já verificados nesta revisão.)*
 
+*(Atualizado na v2.1: números extraídos dos artifacts de cobertura e do resultado do CI do último
+merge na `main` — execução de 03/11/2026, PR #84, todos os jobs verdes.)*
+
 | KPI | Meta | Resultado verificado nesta revisão |
 |---|---|---|
-| Cobertura de testes automatizados (backend) | ≥ 80% | **92%** (145 testes, pytest) |
-| Cobertura de testes automatizados (frontend) | ≥ 80% | **86%** (28 testes, Jest) |
+| Cobertura de testes automatizados (backend) | ≥ 80% | **92,2%** de linhas (161 testes, pytest) — v2.0: 92% / 145 testes |
+| Cobertura de testes automatizados (frontend) | ≥ 80% | **91,2%** de *statements* (46 testes, Jest) — v2.0: 86% / 28 testes |
 | Tempo de análise síncrona (repositório pequeno/médio) | < 10s (p95) | Verificado por teste de performance dedicado; repositórios acima do limiar usam fila assíncrona (Celery/Redis) sem bloquear a interface |
-| Cenários E2E cobertos (Playwright) | 1 por user story | **8/8** cenários passando, cobrindo as 5 user stories |
+| Cenários E2E cobertos (Playwright) | 1 por user story | **11/11** cenários passando: 8 cobrindo as 5 user stories + 3 da página inicial pública (v2.0: 8/8) |
 | Métricas com fórmula, unidade e fonte bibliográfica documentadas | 6/6 | **6/6** (catálogo completo, Princípio V) |
 | Pipeline CI/CD executando a cada push | Sim | Sim — GitHub Actions, jobs de lint + type-check + testes para backend e frontend |
 
@@ -289,10 +313,12 @@ especificação completa e versionada vive em `specs/001-softmeter-plataforma-mv
 5. Consultar o histórico de análises e a tendência de cada métrica
 6. Gerar um Laudo de Conformidade em PDF, para uma análise individual ou para o histórico completo
 7. Remover um repositório cadastrado
+8. Recuperar o acesso à conta quando a senha é esquecida (v2.1)
+9. Conhecer a plataforma, sem conta, pela página inicial pública (v2.1)
 
 **Fluxo principal:**
 ```
-Cadastro/Login → Repositórios → Cadastrar URL do GitHub → Executar análise
+Página inicial → Cadastro/Login → Repositórios → Cadastrar URL do GitHub → Executar análise
 → Dashboard de Gauges → Histórico e Tendências → Gerar Relatório PDF
 ```
 
@@ -300,7 +326,7 @@ Cadastro/Login → Repositórios → Cadastrar URL do GitHub → Executar análi
 
 ## 2.3 Requisitos Funcionais (RF)
 
-*(Correspondem 1:1 a FR-001–FR-015 de `specs/001-softmeter-plataforma-mvp/spec.md`, implementados e cobertos por teste de integração)*
+*(Correspondem, em conteúdo, aos FR-001–FR-015 de `specs/001-softmeter-plataforma-mvp/spec.md` — a numeração é diferente e o RF14 foi acrescentado na v2.0 —, implementados e cobertos por teste de integração)*
 
 **Autenticação**
 
@@ -342,6 +368,16 @@ RF14 — O relatório deve incluir um resumo interpretativo automático (pontos 
 
 RF15 — O sistema deve definir, para cada métrica, limites de especificação fixos baseados em literatura reconhecida, sem permitir customização por usuário nesta versão.
 
+**Recuperação de acesso e apresentação pública (adicionados na v2.1)**
+
+*(RF16 e RF17 foram implementados depois da especificação do MVP e correspondem a FR-016 e FR-017
+de `spec.md`, adicionados em 05/11/2026 junto com as user stories US6 e US7; RF16 está documentado
+em `docs/adr/ADR-005-recuperacao-de-senha-via-email.md`.)*
+
+RF16 — O sistema deve permitir que um usuário que esqueceu a senha solicite um link de redefinição informando seu e-mail e defina uma nova senha por esse link, sempre com a mesma resposta genérica à solicitação, exista ou não uma conta com aquele e-mail (sem enumeração de contas).
+
+RF17 — O sistema deve disponibilizar na raiz (`/`) uma página inicial pública de apresentação — o que é o produto, como funciona, catálogo das 6 métricas, perguntas frequentes e tutorial com capturas reais — com acesso direto a "Criar conta" e "Entrar" (ou "Ir para a plataforma", se já autenticado).
+
 ---
 
 ## 2.4 Requisitos Não Funcionais (RNF)
@@ -358,11 +394,19 @@ RNF05 — O sistema deve ter pipeline CI/CD configurado via GitHub Actions, com 
 
 RNF06 — O sistema deve utilizar banco de dados PostgreSQL e ser executável via Docker Compose em ambiente local idêntico ao de CI.
 
-RNF07 — O sistema deve limitar tentativas de login (rate limiting) para mitigar força bruta na autenticação.
+RNF07 — O sistema deve limitar tentativas nos endpoints de autenticação (rate limiting de 10 requisições/minuto por IP em `/login`, `/forgot-password` e `/reset-password`) para mitigar força bruta e disparo abusivo de e-mails. *(v2.1: ampliado de apenas `/login`.)*
 
 RNF08 — O dashboard deve usar um único componente de gauge reutilizável para as 6 métricas, com faixas de cor consistentes com a classificação de conformidade do projeto.
 
 RNF09 — Nenhuma métrica pode ser exibida em tela ou relatório sem que sua fórmula, unidade e fonte bibliográfica estejam documentadas no catálogo (rastreabilidade metrológica não-negociável).
+
+*(RNF10–RNF12 adicionados na v2.1.)*
+
+RNF10 — As respostas dos endpoints de recuperação de senha não podem revelar, nem pelo conteúdo nem pelo tempo de resposta, se um e-mail está cadastrado: o envio do e-mail é feito de forma assíncrona (task Celery), de modo que os caminhos "e-mail existe" e "e-mail não existe" respondem em tempo equivalente (medido: ~0,11 s em ambos).
+
+RNF11 — A interface deve seguir diretrizes de acessibilidade: foco visível, *skip-link*, respeito a `prefers-reduced-motion`, alvos de toque de 44 px, status de conformidade nunca indicado apenas por cor, estados de carregamento/vazio/erro em todas as telas, carrossel sem rotação automática (WCAG 2.2, critério 2.2.2) e layout validado em 1024 px e 375 px. *(Diretrizes aplicadas e verificadas visualmente; não há auditoria formal de conformidade WCAG.)*
+
+RNF12 — Dependências externas opcionais não podem quebrar o caminho principal quando ausentes ou inválidas: sem `RESEND_API_KEY` o link de recuperação é registrado em log (ADR-005); com `GITHUB_TOKEN` expirado ou revogado (HTTP 401) o sistema repete a requisição sem credenciais e segue anonimamente, com limite de 60 req/h em vez de 5000 req/h (ADR-004).
 
 > **Nota sobre `RNF02 — Disponibilidade em produção` da v1.0:** este RFC não afirma mais um
 > requisito de deploy em ambiente de produção público. Até esta revisão, a aplicação roda em
@@ -384,6 +428,12 @@ RN04 — Apenas o usuário proprietário de um repositório pode cadastrá-lo, a
 
 RN05 — A mesma URL de repositório não pode ser cadastrada duas vezes pela mesma conta.
 
+*(RN06 e RN07 permanecem reservadas aos itens históricos da v1.0, discutidos abaixo e na resposta ao parecer; as regras novas da v2.1 começam em RN08.)*
+
+RN08 — O token de redefinição de senha é de uso único, expira em 60 minutos (configurável) e é armazenado apenas como hash SHA-256 — o valor bruto existe somente no e-mail enviado ao usuário.
+
+RN09 — Uma solicitação de redefinição para e-mail não cadastrado não gera token nem e-mail, mas recebe exatamente a mesma resposta de uma solicitação válida.
+
 > **Nota sobre `RN06` da v1.0 (peso por criticidade):** a v1.0 previa que uma métrica de
 > criticidade "Crítica" reprovada forçasse Não-Conforme independentemente do índice geral. O
 > catálogo de métricas implementado **não distingue criticidade entre as 6 métricas** — todas
@@ -401,6 +451,8 @@ RN05 — A mesma URL de repositório não pode ser cadastrada duas vezes pela me
 - Agendamento automático de análises em segundo plano (toda análise é disparada sob demanda)
 - Colaboração multiusuário sobre o mesmo repositório (cada repositório pertence exclusivamente a quem o cadastrou — ver limitação discutida na resposta ao parecer)
 - Execução da suíte de testes do repositório analisado (decisão de segurança — ver `research.md` item 6 e ADR-004)
+- Entrega do e-mail de recuperação de senha a destinatários externos: sem domínio próprio verificado, o Resend opera em modo sandbox e só entrega à caixa da conta dona da chave (ADR-005) — pré-requisito do deploy público
+- Verificação de e-mail no cadastro e exclusão de conta por autoatendimento
 - Aplicativo mobile nativo (iOS/Android)
 - Suporte a múltiplos idiomas (apenas português brasileiro)
 
@@ -415,7 +467,10 @@ Esta seção demonstra **como o sistema funciona**.
 ## 3.1 Fluxo Principal do Usuário
 
 ```
-[Cadastro / Login]
+[Página inicial pública]  →  "Criar conta" / "Entrar"
+        ↓
+[Cadastro / Login]  ──(esqueci minha senha)──▶ [Informar e-mail] → [E-mail com link]
+        │                                        → [Nova senha] → volta ao Login
         ↓
 [Repositórios — lista de repositórios cadastrados pelo usuário]
         ↓
@@ -449,6 +504,18 @@ A métrica é exibida como "Não disponível" no dashboard e excluída do cálcu
 **Tentativa de acesso sem autenticação:**
 Qualquer rota protegida da API retorna HTTP 401. O frontend redireciona automaticamente para a tela de login.
 
+**Esqueci minha senha — e-mail não cadastrado:**
+A resposta é idêntica à de um e-mail cadastrado ("Se este e-mail estiver cadastrado, você receberá um link de recuperação em instantes.") e no mesmo tempo de resposta — nenhum token é criado e nenhum e-mail é enviado, mas ninguém consegue descobrir, pela resposta, quais e-mails têm conta (RN09, RNF10).
+
+**Link de redefinição inválido, expirado ou já utilizado:**
+A redefinição é recusada com HTTP 400 e a mensagem "Token inválido ou expirado" (a mesma nos três casos, para não distinguir token inexistente de vencido) e o usuário pode solicitar um novo link; um token usado uma vez nunca é aceito de novo (RN08).
+
+**Envio de e-mail sem provedor configurado (desenvolvimento/CI):**
+Sem `RESEND_API_KEY`, o link de redefinição é registrado no log do backend em vez de enviado — o fluxo continua testável de ponta a ponta sem serviço externo (ADR-005).
+
+**`GITHUB_TOKEN` expirado ou revogado:**
+O GitHub responde 401 "Bad credentials"; o sistema registra um aviso (sem expor o valor do token), repete a chamada sem credenciais e segue anonimamente (60 req/h) em vez de falhar com erro 500. A leitura de cobertura via artifacts do GitHub Actions, que exige autenticação, passa a retornar "Não disponível" (RNF12, PR #82).
+
 **Análise assíncrona travada por falha de infraestrutura:**
 Corrigido nesta revisão — dois bugs reais no caminho assíncrono (worker Celery não registrava a tarefa; resolução de mapeamento SQLAlchemy dependente de ordem de import) foram identificados por teste manual, corrigidos na raiz e cobertos por testes de regressão que reproduzem o isolamento de processo do worker.
 
@@ -458,53 +525,89 @@ Corrigido nesta revisão — dois bugs reais no caminho assíncrono (worker Cele
 
 *(Substituída integralmente na v2.0 — a v1.0 apresentava apenas descrições textuais de tela, o
 que o parecer do comitê identificou corretamente como uma lacuna para um projeto com conceito
-visual forte. As imagens abaixo são capturas reais da aplicação em execução, geradas nesta
-revisão.)*
+visual forte. As imagens abaixo são capturas reais da aplicação em execução.)*
+
+*(Atualizada na v2.1: com o redesign (PRs #81 e #83) e a página inicial pública (PR #84), as
+capturas de login, repositórios, dashboard e histórico da v2.0 — tema claro — foram substituídas
+por capturas do tema atual (escuro azul-navy), feitas em 03/11/2026; a página inicial e as telas
+de recuperação de senha são novas. O laudo em PDF (4.7) não mudou.)*
 
 ## 4.1 Fluxo de Navegação Real
 
 ```
+/                                                   → página inicial pública (v2.1)
 /login                                              → autenticação
 /register                                           → criação de conta
+/forgot-password                                    → solicitar link de redefinição (v2.1)
+/reset-password?token=…                             → definir nova senha (v2.1)
 /repositories                                       → lista + cadastro de repositórios
 /repositories/:repositoryId/analyses/:analysisId    → Dashboard de Conformidade (6 gauges)
 /repositories/:repositoryId/history                 → Histórico e Tendências
 ```
 
-## 4.2 Tela — Autenticação
+## 4.2 Tela — Página Inicial Pública (v2.1)
 
-![Tela de login](images/screenshots/01_login.png)
+![Página inicial pública](images/screenshots/00_home.png)
 
-Formulário mínimo (e-mail e senha). Ao criar uma conta, o usuário é autenticado automaticamente
-e redirecionado para a lista de repositórios.
+Primeira dobra da página `/`: proposta de valor, chamadas "Começar agora" / "Já tenho conta" /
+"Ver o tutorial" e o dashboard real em perspectiva. Abaixo da dobra: a analogia da metrologia
+(instrumento → motor de métricas; tolerância → limiares; certificado → relatório PDF), as etapas
+"Como funciona", os 6 cards de métricas — cujas faixas são geradas do mesmo catálogo usado pelos
+gauges, sem duplicar valores —, diferenciais, FAQ e um tutorial em carrossel de 6 passos com
+capturas reais da aplicação. A página não é um requisito da v1.0: foi adicionada para que o
+produto seja compreensível a quem ainda não tem conta (RF17).
 
-## 4.3 Tela — Repositórios
+## 4.3 Telas — Autenticação e Recuperação de Senha
 
-![Lista de repositórios](images/screenshots/02_repositorios.png)
+![Tela de login](images/screenshots/01_login.jpg)
+
+Formulário mínimo (e-mail e senha, com alternância de visibilidade da senha) e o atalho
+"Esqueci minha senha". Ao criar uma conta, o usuário é autenticado automaticamente e redirecionado
+para a lista de repositórios.
+
+![Solicitação de link de recuperação](images/screenshots/06_esqueci_senha.png)
+
+*Esqueceu sua senha?* — o usuário informa o e-mail; a resposta é sempre a mesma mensagem
+genérica, exista ou não a conta (RF16, RN09).
+
+![Definição da nova senha](images/screenshots/07_redefinir_senha.png)
+
+*Redefinir senha* — aberta pelo link recebido por e-mail (`/reset-password?token=…`); token de
+uso único com validade de 60 minutos (RN08). As duas capturas acima foram feitas com o frontend
+em execução e sem backend, por isso mostram apenas o estado inicial das telas.
+
+## 4.4 Tela — Repositórios
+
+![Lista de repositórios](images/screenshots/02_repositorios.jpg)
 
 Cada repositório mostra a(s) linguagem(ns) detectada(s) automaticamente pela API do GitHub e o
 status da última análise. As ações "Ver dashboard", "Executar análise" e "Remover" ficam
 disponíveis por repositório.
 
-## 4.4 Tela — Dashboard de Conformidade
+## 4.5 Tela — Dashboard de Conformidade
 
-![Dashboard com os 6 gauges](images/screenshots/03_dashboard.png)
+![Dashboard com os 6 gauges](images/screenshots/03_dashboard.jpg)
 
-Captura real de uma análise do repositório `abritinthebay/datejs`: os 6 gauges usam sempre o
-mesmo componente visual, com a mesma paleta de cores por status (verde/laranja/vermelho),
-garantindo consistência de leitura entre métricas (Princípio III da constituição do projeto).
-Nesta captura, a Cobertura de Testes aparece preenchida (82,50%) — lida automaticamente do
-arquivo `lcov.info` já versionado no repositório analisado.
+Captura real de uma análise executada em 03/11/2026: um banner-resumo com a conformidade geral
+(**Condicional**), contadores por status (4 Conformes, 0 Condicionais, 1 Não-Conforme, 1 Sem
+dados) e os 6 gauges. Todos usam o mesmo componente visual, com a mesma paleta por status
+(verde/âmbar/vermelho — distinta do azul da marca) e o status sempre escrito no selo, nunca
+indicado só por cor, garantindo consistência de leitura entre métricas (Princípio III da
+constituição do projeto). Nesta análise o Score de Duplicação (28,15%) está Não-Conforme e a
+Cobertura de Testes aparece como "Não disponível" (RN03) — o índice resultante é
+(4 × 100 + 1 × 0) ÷ 5 métricas avaliáveis = 80%, Condicional (RN01–RN02). Os valores são
+formatados em pt-BR (ex.: `3,25`).
 
-## 4.5 Tela — Histórico e Tendências
+## 4.6 Tela — Histórico e Tendências
 
-![Histórico com tendência](images/screenshots/04_historico.png)
+![Histórico com tendência](images/screenshots/04_historico.jpg)
 
-Duas análises reais do repositório `SandroMachiniski-SE/Viaje-Mais`, com a tendência calculada
-automaticamente ("Estável", já que o código não mudou entre as duas execuções) e o gráfico de
-série temporal por métrica selecionável.
+Três análises reais executadas em sequência em 03/11/2026 (10:07, 10:08 e 10:09), com a tendência
+calculada automaticamente ("Estável", já que o código não mudou entre as execuções) e o gráfico
+de série temporal por métrica selecionável. O rótulo do eixo X inclui a hora para distinguir
+análises feitas no mesmo dia.
 
-## 4.6 Documento — Laudo de Conformidade em PDF
+## 4.7 Documento — Laudo de Conformidade em PDF
 
 ![Primeira página do laudo gerado](images/screenshots/05_laudo.png)
 
@@ -515,15 +618,25 @@ bibliográfica de cada uma das 6 métricas.
 
 ---
 
-## 4.7 Feedback Registrado durante o Uso Real
+## 4.8 Feedback Registrado durante o Uso Real
 
-Durante a validação desta revisão, o próprio uso da aplicação gerou um achado de UX real: a tela
+**Achado da v2.0.** Durante a validação daquela revisão, o próprio uso da aplicação gerou um achado de UX real: a tela
 de Histórico exibia um gráfico vazio, sem mensagem, quando a métrica selecionada não tinha
 nenhum valor disponível em nenhuma análise (ex.: Cobertura de Testes sem fonte). A causa era uma
 condição que verificava apenas "a série tem itens" em vez de "a série tem algum valor plotável".
 Corrigido e coberto por teste de regressão. Este é um exemplo concreto de como o uso real da
 aplicação (e não apenas a leitura da especificação) revela lacunas que nenhuma etapa de design
 havia previsto.
+
+**Achado da v2.1.** Na validação visual do redesign (PR #81), o cadastro de um repositório público
+falhou com erro genérico. O log do backend mostrou `401 Unauthorized` vindo do GitHub: o
+`GITHUB_TOKEN` configurado no ambiente havia expirado, e o sistema — que só enviava o token em um
+header fixo do cliente HTTP — respondia HTTP 500 (`HTTPStatusError` não tratado), embora
+repositórios públicos funcionem sem autenticação. Ou seja, **um token inválido deixava o sistema
+pior do que a ausência de token**. Corrigido no PR #82 (token enviado por requisição, repetição
+sem credenciais após 401, aviso em log sem vazar o valor) e coberto por 6 testes novos; a validação
+ao vivo, com o token expirado real, passou de HTTP 500 para 201. Reforça o ponto anterior: nenhum
+teste automatizado havia previsto a combinação "token configurado, porém inválido".
 
 ---
 
@@ -550,11 +663,16 @@ pivô para a stack abaixo antes da implementação do MVP.
 │                  ┌──────────────────┐        ┌─────────────────┐ │
 │                  │   SoftMeter      │───────▶│  API do GitHub   │ │
 │                  │   (Web App)      │        │  (código-fonte,  │ │
-│                  └──────────────────┘        │  artifacts de CI)│ │
-│                                                └─────────────────┘│
-│  Atores: usuários autenticados via browser                       │
+│                  └────────┬─────────┘        │  artifacts de CI)│ │
+│                           │                  └─────────────────┘ │
+│                           │                  ┌─────────────────┐ │
+│                           └─────────────────▶│  Resend (e-mail  │ │
+│                                              │  transacional)   │ │
+│                                              └─────────────────┘ │
+│  Atores: usuários (visitantes e autenticados) via browser        │
 │  Sistema: SoftMeter (backend API + frontend SPA)                 │
-│  Sistema externo: GitHub (repositórios públicos analisados)      │
+│  Sistemas externos: GitHub (repositórios públicos analisados) e  │
+│  Resend (e-mail de recuperação de senha — v2.1)                  │
 │                                                                  │
 └──────────────────────────────────────────────────────────────────┘
 ```
@@ -564,7 +682,9 @@ pivô para a stack abaixo antes da implementação do MVP.
 - **Analista de QA:** consulta dashboards e gera laudos para revisão de entregas
 - **Orientador/Avaliador:** consulta laudos como evidência técnica objetiva
 
-**Sistema externo:** API do GitHub — único sistema externo integrado (linguagens, código-fonte via zipball, artifacts de CI)
+**Sistemas externos:**
+- **API do GitHub** — linguagens, código-fonte via zipball, artifacts de CI
+- **Resend** *(novo na v2.1)* — envio do e-mail de recuperação de senha, via API HTTP direta (sem SDK). Opcional: sem `RESEND_API_KEY` o sistema registra o link em log (ADR-005). Em modo sandbox (sem domínio próprio verificado), só entrega à caixa da conta dona da chave
 
 ---
 
@@ -596,10 +716,16 @@ pivô para a stack abaixo antes da implementação do MVP.
 │                 │ Celery Worker              │                       │
 │                 │ Análise assíncrona (repos  │                       │
 │                 │ grandes) — mesmo motor de  │                       │
-│                 │ métricas do backend        │                       │
+│                 │ métricas do backend; e     │                       │
+│                 │ envio de e-mail (v2.1)     │                       │
 │                 └────────────────────────────┘                       │
 └────────────────────────────────────────────────────────────────────┘
 ```
+
+*(v2.1: o worker Celery passou a executar também a task `send_password_reset_email_task`, que
+chama a API do Resend — é isso que mantém os caminhos "e-mail existe" e "e-mail não existe" do
+`/forgot-password` com tempo de resposta equivalente. No frontend, o redesign de 03/11/2026
+manteve o Tailwind CSS 3 do MVP e passou a concentrar o tema em tokens semânticos de variáveis CSS.)*
 
 ---
 
@@ -609,7 +735,7 @@ pivô para a stack abaixo antes da implementação do MVP.
 Backend API (FastAPI)
 │
 ├── api/
-│   ├── auth.py            → registro, login, refresh, logout (JWT)
+│   ├── auth.py            → registro, login, refresh, logout (JWT) + forgot/reset-password (v2.1)
 │   ├── repositories.py    → CRUD de repositórios + validação de linguagem
 │   ├── analyses.py        → disparo de análise, consulta, histórico/tendência
 │   └── reports.py         → geração e download de relatório PDF
@@ -622,26 +748,33 @@ Backend API (FastAPI)
 │   └── coverage_reader.py     → artifact de CI → arquivo versionado → badge (cascata)
 │
 ├── services/
-│   ├── github_service.py      → integração com a API do GitHub
+│   ├── github_service.py      → integração com a API do GitHub (fallback sem token, v2.1)
+│   ├── email_service.py       → envio do e-mail de recuperação (Resend ou log) — v2.1
 │   ├── analysis_runner.py     → orquestra download + 6 métricas + persistência
 │   ├── conformity_service.py  → classifica medições, calcula índice agregado
 │   ├── trend_service.py       → tendência entre as duas análises mais recentes
 │   └── report_service.py      → monta o PDF (ReportLab) com resumo interpretativo
 │
 ├── workers/
-│   └── analysis_tasks.py      → task Celery para análise assíncrona
+│   ├── analysis_tasks.py      → task Celery para análise assíncrona
+│   └── email_tasks.py         → task Celery send_password_reset_email_task (v2.1)
 │
-└── models/  → User, Repository, Analysis, Measurement, Report (SQLAlchemy)
+└── models/  → User, Repository, Analysis, Measurement, Report,
+               PasswordResetToken (SQLAlchemy)
 ```
 
 ---
 
 ## 5.2 Modelo de Dados
 
-**Esquema relacional — 5 tabelas** (substitui as 6 tabelas genéricas da v1.0):
+**Esquema relacional — 6 tabelas** (5 do MVP + `password_reset_tokens`, adicionada na v2.1;
+substitui as 6 tabelas genéricas da v1.0):
 
 ```
 users (id, email, senha_hash, criado_em)
+
+password_reset_tokens (id, usuario_id FK, token_hash UNIQUE, expira_em,
+                       usado_em NULL, criado_em)
 
 repositories (id, usuario_id FK, url, owner_nome, linguagens_detectadas,
               status_acesso, criado_em)
@@ -659,6 +792,7 @@ reports (id, usuario_id FK, repositorio_id FK, analise_id FK NULL,
 
 **Relacionamentos:**
 - `users` (1) → (N) `repositories`
+- `users` (1) → (N) `password_reset_tokens`
 - `repositories` (1) → (N) `analyses`
 - `analyses` (1) → (N) `measurements`
 - `repositories` (1) → (N) `reports`
@@ -674,7 +808,8 @@ métrica pode ser exibida sem que fórmula, unidade e fonte bibliográfica já e
 
 | Componente | Responsabilidade |
 |---|---|
-| GithubService | Detecção de linguagem, download do código-fonte, leitura de artifacts de CI (ADR-004) |
+| GithubService | Detecção de linguagem, download do código-fonte, leitura de artifacts de CI (ADR-004); segue sem token quando o `GITHUB_TOKEN` é rejeitado (v2.1) |
+| EmailService + task Celery *(v2.1)* | Envio do e-mail de recuperação de senha via Resend, com fallback de log (ADR-005); executado em segundo plano para não vazar informação por tempo de resposta |
 | Metric Engine (Radon + tree-sitter) | Complexidade Ciclomática, LOC e Índice de Manutenibilidade |
 | Coupling / Duplication (parser AST próprio) | Acoplamento (Instabilidade de Módulo) e Score de Duplicação |
 | Coverage Reader | Cascata de 4 fontes para Cobertura de Testes (artifact de CI → arquivo versionado → badge) |
@@ -715,6 +850,16 @@ Biblioteca de interface padrão de mercado; Vite como build tool.
 Biblioteca de gráficos React madura, usada tanto nos gauges metrológicos quanto no gráfico de
 tendência do histórico.
 
+**Tailwind CSS 3**
+Camada de estilo do frontend, adotada no MVP e omitida nas versões anteriores desta seção. No
+redesign da v2.1 (PRs #81 e #83), sem novas dependências de componentes, o tema passou a usar
+tokens semânticos (`canvas`, `surface`, `line`, `fg*`, `glow`) em variáveis CSS, o que concentra o
+tema escuro em um único lugar e deixa um tema claro opcional viável no futuro. Tipografia Inter.
+
+**Resend** *(v2.1)*
+E-mail transacional da recuperação de senha, chamado por API HTTP direta (sem SDK) — mais simples
+de auditar e de trocar. Decisão e limitações (sandbox sem domínio próprio) em ADR-005.
+
 **ReportLab**
 Geração de PDF nativa em Python, sem dependência de serviços externos de renderização.
 
@@ -726,8 +871,8 @@ Ambiente de desenvolvimento consistente e portável — sobe PostgreSQL, Redis, 
 Celery e frontend com um único comando.
 
 **pytest + Jest + Playwright**
-TDD full-stack. 145 testes unitários/integração no backend (pytest), 28 no frontend (Jest), 8
-cenários E2E ponta a ponta (Playwright), um por user story.
+TDD full-stack. 161 testes unitários/integração no backend (pytest), 46 no frontend (Jest), 11
+cenários E2E ponta a ponta (Playwright): 8 cobrindo as user stories e 3 da página inicial pública.
 
 **GitHub Actions**
 Pipeline configurado para lint, checagem de tipos e testes a cada push nas branches protegidas.
@@ -750,7 +895,11 @@ Pipeline configurado para lint, checagem de tipos e testes a cada push nas branc
 
 **Proteção contra ataques OWASP Top 10:**
 - Injeção SQL: ORM (SQLAlchemy) com queries parametrizadas, sem concatenação de strings
-- Rate limiting de login: **implementado nesta versão** (10 tentativas/minuto/IP) — item que a v1.0 registrava como "a implementar" e o parecer do comitê apontou como pendência de segurança relevante
+- Rate limiting de autenticação: **implementado na v2.0** para `/login` (10 tentativas/minuto/IP) — item que a v1.0 registrava como "a implementar" e o parecer do comitê apontou como pendência de segurança relevante — e **ampliado na v2.1** para `/forgot-password` (PR #78) e `/reset-password` (PR #79, após revisão por pares: o endpoint de redefinição havia ficado sem limite)
+- Recuperação de senha (ADR-005, v2.1): token aleatório de 32 bytes (`secrets.token_urlsafe`), guardado **apenas como hash SHA-256** (um vazamento do banco não permite redefinir a senha de ninguém), de uso único e com expiração de 60 minutos; mensagem genérica em `/forgot-password` contra enumeração de contas (OWASP); recusa uniforme "Token inválido ou expirado" em `/reset-password`
+- **Sem side-channel de timing na recuperação** (PR #79): o envio do e-mail, que no modo Resend é uma chamada HTTP síncrona de até 10 s, foi movido para uma task Celery. Antes, o caminho "e-mail cadastrado" demorava muito mais que o "não cadastrado" e a latência revelava quais e-mails têm conta, anulando a mensagem genérica; depois, ambos respondem em ~0,11 s
+- Falha de envio de e-mail nunca propaga: erros de rede ou resposta não-2xx do Resend são capturados e registrados em log, sem derrubar a autenticação nem vazar detalhes ao usuário
+- Degradação graciosa de segredos externos: `GITHUB_TOKEN` rejeitado (401) não quebra o sistema nem é registrado em log (PR #82)
 - Limite de tamanho de payload: requisições acima de 64 KB são rejeitadas (mitiga payload flooding)
 - CORS restrito às origens configuradas
 - Validação de entrada: URL de repositório validada por padrão restrito a `github.com/owner/repo`, evitando SSRF via URL arbitrária
@@ -764,7 +913,7 @@ Pipeline configurado para lint, checagem de tipos e testes a cada push nas branc
 ## 6.2 Privacidade e LGPD
 
 **Dados coletados:**
-- E-mail e hash de senha do usuário (cadastro)
+- E-mail e hash de senha do usuário (cadastro). Desde a v2.1, o e-mail também é repassado ao provedor de e-mail transacional (Resend) no momento do envio do link de recuperação — único dado pessoal que sai do sistema. O hash do token de redefinição é guardado até expirar ou ser usado
 - URLs de repositórios GitHub públicos cadastrados voluntariamente
 - Valores de métricas calculados automaticamente a partir de código-fonte público — nenhum dado pessoal de terceiros é coletado
 
@@ -792,15 +941,19 @@ Pipeline configurado para lint, checagem de tipos e testes a cada push nas branc
 | M6 — Autenticação completa (US5) | Telas de login/registro + proteção de rotas | ✅ Concluído |
 | M7 — Testes E2E | 8 cenários Playwright cobrindo as 5 user stories | ✅ Concluído |
 | M8 — Cobertura de Testes via CI (ADR-004) | Leitura de artifacts do GitHub Actions | ✅ Concluído |
-| M9 — Colaboração no repositório | 2 colaboradores adicionados, branch `main` protegida | ✅ Concluído |
-| M10 — Deploy em produção pública | Ambiente acessível via URL pública | ⏳ Pendente |
+| M9 — Colaboração no repositório | 2 colaboradores convidados (1 já ativo e revisando PRs; 1 convite ainda pendente), branch `main` protegida | ✅ Concluído |
+| M10 — Deploy em produção pública | Ambiente acessível via URL pública | ⏳ Pendente — bloqueado por domínio próprio (ver ADR-005) |
 | M11 — Poster + Demo Day | Entrega final do Portfólio | ⏳ Pendente |
+| M12 — Orientação de 15/09 *(v2.1)* | Recuperação de senha, melhorias de front-end e correção da medição de testes apontadas pelo orientador | ✅ Concluído, exceto a revisão das métricas (⏳ em aberto) — ver "Revisões desde a v2.0" |
+| M13 — Recuperação de senha *(v2.1)* | Fluxo completo + endurecimento (ADR-005; PRs #78, #79) | ✅ Concluído (entrega a e-mails externos depende de domínio) |
+| M14 — Nova identidade visual e página inicial *(v2.1)* | Tema escuro azul, acessibilidade, landing pública (PRs #81, #83, #84) | ✅ Concluído |
+| M15 — Domínio próprio e e-mail verificado | Registro de domínio, SPF/DKIM no Resend, atualização de `EMAIL_FROM` | ⏳ Pendente (pré-requisito de M10) |
 
-> **Status atual:** MVP completo e validado com dados reais — 4 repositórios de terceiros
-> analisados de ponta a ponta durante esta revisão (incluindo o próprio SoftMeter), cobrindo os
-> quatro cenários possíveis da métrica de Cobertura de Testes. 145 testes de backend (92% de
-> cobertura), 28 de frontend (86%), 8 cenários E2E, pipeline de CI ativo com branch `main`
-> protegida. Deploy em produção pública ainda não realizado.
+> **Status atual (05/11/2026):** MVP completo e validado com dados reais, agora com recuperação
+> de senha, página inicial pública e nova identidade visual. Verificado no CI do último merge:
+> 161 testes de backend (92,2% de cobertura de linhas), 46 de frontend (91,2% de *statements*), 11
+> cenários E2E, pipeline de CI ativo com branch `main` protegida. Deploy em produção pública ainda
+> não realizado.
 
 ---
 
@@ -828,6 +981,8 @@ diretamente em `metrics_catalog.py` e no Laudo de Conformidade gerado pelo siste
 - WINCK, Diogo Vinícius. **Mais Que Código: Um Manifesto para Projetos de Conclusão de Curso**. Medium, fev. 2026.
 
 - OWASP Foundation. **OWASP Top Ten**. Disponível em: https://owasp.org/www-project-top-ten/.
+
+- W3C. **Web Content Accessibility Guidelines (WCAG) 2.2**. Disponível em: https://www.w3.org/TR/WCAG22/. — referência das diretrizes de acessibilidade aplicadas na v2.1 (RNF11).
 
 ---
 
@@ -862,7 +1017,7 @@ diretamente em `metrics_catalog.py` e no Laudo de Conformidade gerado pelo siste
 | Score de Duplicação | ≤ 5% / ≤ 15% | 49,70% | ✘ Não-Conforme |
 
 **Índice de Conformidade: 80% → Classificação: ⚠️ Condicional**
-*(dado real, ver captura de tela completa na seção 4.6)*
+*(dado real, ver captura de tela completa na seção 4.7)*
 
 ---
 
@@ -872,7 +1027,7 @@ diretamente em `metrics_catalog.py` e no Laudo de Conformidade gerado pelo siste
 - **Ambiente local — Frontend:** http://localhost:3000
 - **Ambiente local — API (Swagger):** http://localhost:3001/docs
 - **Branch `main`:** protegida (Pull Request + CI obrigatórios, `enforce_admins` ativo)
-- **Colaboradores:** 2 adicionados nesta revisão (permissão Write)
+- **Colaboradores:** 2 convidados com permissão Write — 1 ativo (revisões nos PRs #75, #76 e #78) e 1 convite pendente de aceite (situação em 05/11/2026)
 
 ---
 
@@ -905,8 +1060,9 @@ mesma forma sobre o mesmo commit, independentemente de onde o código é executa
 métrica não depende mais dela.
 
 **"Rate limiting marcado como 'a implementar' [...] deveria estar no cronograma com prazo definido."**
-Implementado nesta versão: 10 tentativas de login por minuto por IP (`main.py`), coberto por
-teste de integração dedicado.
+Implementado na v2.0: 10 tentativas de login por minuto por IP (`main.py`), coberto por teste de
+integração dedicado. Na v2.1 a mesma janela passou a proteger também `/forgot-password` e
+`/reset-password`.
 
 **"Comparação entre laudos (RF12) não está modelada no banco [...] requisito sem sustentação na arquitetura."**
 O histórico de análises (`analyses`) e o serviço de tendência (`trend_service.py`) têm modelo de
@@ -952,6 +1108,38 @@ em nuvem pública é item pendente do cronograma (seção 7).
 
 ---
 
+# Revisões desde a v2.0 (orientação e revisão por pares)
+
+*(Seção nova na v2.1. Registra, ponto a ponto, o que foi levantado depois da v2.0 e o que foi
+feito — incluindo o que continua em aberto.)*
+
+## Orientação de 15/09/2026 — Prof. Diogo Vinícius Winck
+
+Na reunião de 15/09/2026 o projeto foi apresentado ao orientador; o registro é o e-mail
+"1º Orientação" enviado a ele no mesmo dia (20:31), listando os quatro pontos abaixo.
+
+| Ponto levantado | O que foi feito | Status |
+|---|---|---|
+| Possível falha na medição de testes dos repositórios (necessita revisão) | A leitura do artifact de cobertura publicado pelo GitHub Actions do repositório analisado (implementada em 16/09 no commit `13130fa`; decisão registrada no ADR-004, incluído no PR #76) passou a ser a primeira fonte da cascata de Cobertura de Testes; com `GITHUB_TOKEN` inválido o sistema segue sem token (PR #82). Quando nenhuma fonte existe, a métrica continua "Não disponível" e fora do índice (RN03) — nunca conta como reprovação | ✅ Implementado; validação pelo orientador pendente |
+| Melhorias no front end | Telas de recuperação de senha (PR #78), redesign visual com foco em acessibilidade (PRs #81 e #83) e página inicial pública (PR #84) | ✅ Implementado |
+| Adicionar recuperação de senha | ADR-005; fluxo completo no PR #78 e endurecimento no PR #79 | ✅ Implementado — entrega a e-mails externos depende de domínio próprio (M15) |
+| Revisão das métricas | O catálogo das 6 métricas (`metrics_catalog.py` — fórmulas, limites e fontes) **não foi alterado desde 25/06/2026**; a revisão deste RFC (v2.0/v2.1) documenta as métricas, mas não é a revisão pedida | ⏳ **Em aberto** — escopo a definir com o orientador (limites, fórmulas, fontes ou novas métricas) |
+
+## Revisão por pares — Sandro Machiniski (18/09/2026)
+
+Colega de squad e colaborador do repositório, deixou 5 comentários de código em 3 Pull Requests
+(#75, #76 e #78).
+
+| Comentário | Resposta | Status |
+|---|---|---|
+| PR #78 — side-channel de timing em `/forgot-password` (envio síncrono do e-mail só no caminho "e-mail cadastrado") | PR #79: envio movido para task Celery; ~0,11 s nos dois caminhos | ✅ Resolvido |
+| PR #78 — `/reset-password` fora da janela de rate limit | PR #79: endpoint incluído na mesma janela (10/min/IP); o 429 na 11ª chamada foi verificado manualmente | ✅ Resolvido |
+| PR #76 — ADR-004 e um fix de mapeamento bundlados em um PR cujo título trata só do RFC (rastreabilidade em `git blame`/`bisect`) | Aceito: os PRs seguintes passaram a ter um único assunto (feature, fix ou decisão) | ✅ Prática adotada |
+| PR #75 — tarefa T072 fechada com validação em SQLite, que não é equivalente ao PostgreSQL (UUID, timezone) | As suítes E2E dos PRs #81, #83 e #84 foram executadas contra a stack Docker completa (PostgreSQL); o texto de T072 em `tasks.md` ainda cita SQLite e precisa ser atualizado | 🟡 Atendido na prática; documentação pendente |
+| PR #75 — propagar o `GITHUB_TOKEN` para a suíte E2E (limite anônimo de 60 req/h pode torná-la instável no CI) | A suíte E2E hoje roda localmente e não faz parte do job de CI, então o risco ainda não se materializou; ao incluí-la no CI, o token deve ser propagado | ⏳ Em aberto (condicionado) |
+
+---
+
 # 10. Parecer do Comitê de Avaliação
 
 ## Parecer da v1.0 (histórico — proposta original, modelo de Sistemas/Requisitos/Ciclos manuais)
@@ -992,7 +1180,7 @@ Observações:
 
 ---
 
-## Parecer da v2.0 (esta revisão)
+## Parecer da v2.0 / v2.1 (revisão atual)
 
 *(A ser preenchido pelos professores)*
 
