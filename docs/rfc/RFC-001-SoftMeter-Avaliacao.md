@@ -1125,7 +1125,7 @@ Na reunião de 15/09/2026 o projeto foi apresentado ao orientador; o registro é
 | Adicionar recuperação de senha | ADR-005; fluxo completo no PR #78 e endurecimento no PR #79 | ✅ Implementado — entrega a e-mails externos depende de domínio próprio (M15) |
 | Revisão das métricas | O catálogo das 6 métricas (`metrics_catalog.py` — fórmulas, limites e fontes) **não foi alterado desde 25/06/2026**; a revisão deste RFC (v2.0/v2.1) documenta as métricas, mas não é a revisão pedida | ⏳ **Em aberto** — escopo a definir com o orientador (limites, fórmulas, fontes ou novas métricas) |
 
-## Revisão por pares — Sandro Machiniski (18/09/2026)
+## Revisão por pares — Sandro Machiniski (17/09/2026)
 
 Colega de squad e colaborador do repositório, deixou 5 comentários de código em 3 Pull Requests
 (#75, #76 e #78).
