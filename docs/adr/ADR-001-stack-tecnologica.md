@@ -2,7 +2,12 @@
 
 **Data:** 12/04/2026
 **Status:** Aceito
-**Autor:** [Seu Nome]
+**Autor:** Diego Cunha
+
+> **Nota (05/11/2026):** registro histórico, mantido sem alteração de status. A camada de backend
+> (Node.js + Express + Jest) foi substituída por FastAPI/Python pelo
+> [ADR-003](ADR-003-stack-backend-fastapi.md); PostgreSQL, React 18 + TypeScript, Docker e GitHub
+> Actions seguem vigentes. A stack atual está no ADR-003 e na seção 5.4 do RFC-001.
 
 ---
 

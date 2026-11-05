@@ -55,6 +55,9 @@ próprio produto e para atingir qualquer caixa de entrada de destino.
 - Qualquer erro de rede (`httpx.HTTPError`) ou resposta não-2xx do Resend é capturado e logado,
   nunca propagado — uma falha no envio de e-mail não pode derrubar o fluxo de autenticação nem
   vazar detalhes internos ao usuário final.
+- O envio é feito **de forma assíncrona**, por uma task Celery (`send_password_reset_email_task`,
+  em `app/workers/email_tasks.py`) que chama `send_password_reset_email`. O endpoint apenas
+  enfileira a task e responde — ver "Atualização de 18/09/2026" abaixo.
 
 ## Justificativa
 
@@ -86,4 +89,22 @@ próprio produto e para atingir qualquer caixa de entrada de destino.
   `PASSWORD_RESET_TOKEN_EXPIRES_MINUTES` no ambiente do backend e do worker Celery, seguindo o
   mesmo padrão já usado para `GITHUB_TOKEN`.
 - Em ambiente de desenvolvimento/CI, sem `RESEND_API_KEY` configurada, o fluxo continua
-  inteiramente testável — o link de redefinição aparece no log do backend em vez de um e-mail real.
+  inteiramente testável — o link de redefinição aparece no log do worker Celery (que executa o
+  envio) em vez de um e-mail real.
+
+## Atualização de 18/09/2026 (PR #79, após revisão por pares no PR #78)
+
+Dois pontos desta decisão não estavam corretos na primeira implementação (PR #78) e foram
+corrigidos no PR #79:
+
+- **Side-channel de timing.** O envio via Resend era uma chamada HTTP síncrona (timeout de até
+  10 s) feita só no caminho "e-mail cadastrado"; o caminho "e-mail inexistente" respondia na hora.
+  A mensagem era idêntica, mas a diferença de latência permitia inferir se um e-mail tem conta —
+  anulando o objetivo da mensagem genérica. O envio foi movido para uma task Celery, aproveitando
+  o worker que já existia para as análises assíncronas; medição manual após a correção: ~0,11 s
+  nos dois caminhos.
+- **Rate limit incompleto.** A seção "Decisão" já afirmava que `forgot-password` **e**
+  `reset-password` entravam na janela de rate limit, mas a implementação cobria apenas `/login` e
+  `/forgot-password`. `/reset-password` foi incluído (10 tentativas/minuto por IP; a 11ª chamada
+  retorna 429). O token tem 256 bits de entropia, então o ganho é defesa em profundidade e
+  proteção contra varredura automatizada do banco, não a mitigação de um ataque viável.

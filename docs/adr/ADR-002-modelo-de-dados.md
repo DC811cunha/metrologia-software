@@ -1,8 +1,16 @@
 # ADR-002: Modelo de Dados Relacional Inspirado em Metrologia Industrial
 
 **Data:** 12/04/2026
-**Status:** Aceito
-**Autor:** [Seu Nome]
+**Status:** Substituído (modelo de dados da proposta original)
+**Autor:** Diego Cunha
+
+> **Nota (05/11/2026):** este ADR registra o modelo da RFC v1.0 (sistemas, requisitos, ciclos de
+> teste, medições e laudos digitados manualmente). Com o pivô de arquitetura (ADR-003) o produto
+> passou a analisar repositórios GitHub automaticamente, e o modelo vigente tem 6 tabelas —
+> `users`, `repositories`, `analyses`, `measurements`, `reports` e `password_reset_tokens`
+> (esta última do ADR-005). Ver `specs/001-softmeter-plataforma-mvp/data-model.md` e a seção 5.2
+> do RFC-001. Mantido como registro histórico; os princípios de UUID como chave primária e de
+> rastreabilidade entre medição e resultado continuam valendo.
 
 ---
 
