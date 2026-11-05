@@ -955,6 +955,31 @@ Pipeline configurado para lint, checagem de tipos e testes a cada push nas branc
 > cenários E2E, pipeline de CI ativo com branch `main` protegida. Deploy em produção pública ainda
 > não realizado.
 
+## 7.1 Trabalhos Futuros
+
+Itens identificados e **não incluídos no escopo desta versão**. Os demais itens já estão registrados
+nas seções 2.6 (Fora do Escopo) e 6.2 (exclusão de conta) e na "Resposta ao Parecer do Prof.
+Manseira" (colaboração em equipe e índice ponderado por criticidade).
+
+### Laudo de Conformidade como artefato de validação contínua (metodologias ágeis)
+
+- **Origem:** issue #1 deste repositório, aberta por Sandro Machiniski em 12/04/2026 — sugere
+  explorar como o Laudo de Conformidade poderia funcionar, em metodologias ágeis, como artefato de
+  validação contínua em cada sprint, ampliando a utilidade do SoftMeter tanto no meio acadêmico
+  quanto no mercado. Respondida em 05/11/2026.
+- **Ideia:** o SoftMeter já guarda o histórico de análises, calcula a tendência de cada métrica entre
+  execuções (`trend_service`) e gera o laudo de uma análise ou do histórico completo. Rodar a análise
+  ao final de cada sprint — ou a cada Pull Request, pelo CI do repositório analisado — e comparar
+  com a execução anterior transformaria o laudo em um registro objetivo, sprint a sprint, de que a
+  qualidade do código não piorou.
+- **O que falta para viabilizar:** hoje toda análise é disparada sob demanda, por ação explícita do
+  usuário (FR-012; seção 2.6). Seria preciso, entre outros pontos a avaliar: um gatilho automático
+  (por exemplo, uma chamada de API feita por uma GitHub Action) com uma forma de autenticação
+  adequada a esse uso; um critério de aceite por sprint (por exemplo, "o índice de conformidade não
+  pode ficar abaixo do da análise anterior"); e um resumo do laudo por sprint.
+- **Situação:** ideia registrada para avaliação; não iniciada e sem compromisso de entrega nesta
+  versão.
+
 ---
 
 # 8. Referências
