@@ -172,44 +172,63 @@ class GithubService:
             root_entry = archive.namelist()[0].split("/")[0]
         return dest_dir / root_entry
 
-    def fetch_latest_coverage_artifact_zip(self, owner: str, repo: str) -> bytes | None:
-        """Baixa o artifact de cobertura mais recente publicado pelo GitHub Actions do
-        repositório (research.md item 6) — o CI de terceiros já rodou os testes; isto
-        só lê o resultado, sem executar nada. Sempre "melhor esforço": qualquer falha
-        (sem token configurado, API indisponível, nenhum artifact de cobertura,
-        artifact expirado) retorna `None` silenciosamente e o chamador cai para os
-        métodos que leem artefatos versionados no próprio código-fonte.
+    def fetch_latest_coverage_artifact_zips(self, owner: str, repo: str) -> list[bytes]:
+        """Baixa os artifacts de cobertura do run de CI mais recente do repositório (research.md
+        item 6) — o CI de terceiros já rodou os testes; isto só lê o resultado, sem executar nada.
 
-        A API de artifacts do GitHub Actions exige autenticação mesmo em
-        repositórios públicos — sem `settings.github_token`, a chamada sempre
-        falharia, então nem tentamos — e um token rejeitado pelo GitHub (401) também
-        resulta em `None`, não em erro.
+        Em monorepos o CI costuma publicar um artifact por parte (ex.: `backend-coverage` e
+        `frontend-coverage`) no mesmo run, então são baixados **todos os artifacts de cobertura do
+        mesmo run** (até `max_coverage_artifacts`) para o leitor combinar por linhas — pegar só o
+        primeiro faria a cobertura depender de qual parte terminou de subir por último.
+
+        Sempre "melhor esforço": sem token, API indisponível, nenhum artifact, artifact expirado ou
+        grande demais resultam em lista vazia (ou só nos artifacts que deram certo), e o chamador
+        cai para os relatórios versionados no código. A API de artifacts exige autenticação mesmo em
+        repositórios públicos, então sem `settings.github_token` nem tentamos; um token rejeitado
+        (401) também resulta em lista vazia, não em erro.
         """
         if not self._token:
-            return None
+            return []
         try:
             response = self._get(f"/repos/{owner}/{repo}/actions/artifacts", params={"per_page": 100})
             response.raise_for_status()
-            artifacts = response.json()["artifacts"]
-            match = next(
-                (
-                    a
-                    for a in artifacts
-                    if not a["expired"] and "coverage" in a["name"].lower()
-                ),
-                None,
-            )
-            if match is None:
-                return None
-            max_bytes = settings.max_artifact_mb * 1024 * 1024
+            candidates = [
+                artifact
+                for artifact in response.json()["artifacts"]
+                if not artifact["expired"] and "coverage" in artifact["name"].lower()
+            ]
+        except httpx.HTTPError:
+            return []
+        if not candidates:
+            return []
+
+        # A API lista do mais novo para o mais antigo: o primeiro define o run.
+        latest_run = (candidates[0].get("workflow_run") or {}).get("id")
+        if latest_run is None:
+            selected = candidates[:1]
+        else:
+            selected = [a for a in candidates if (a.get("workflow_run") or {}).get("id") == latest_run]
+        selected = selected[: settings.max_coverage_artifacts]
+
+        zips: list[bytes] = []
+        for artifact in selected:
+            data = self._download_artifact(owner, repo, artifact["id"])
+            if data is not None:
+                zips.append(data)
+        return zips
+
+    def _download_artifact(self, owner: str, repo: str, artifact_id: int) -> bytes | None:
+        try:
             download = self._get(
-                f"/repos/{owner}/{repo}/actions/artifacts/{match['id']}/zip",
+                f"/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/zip",
                 stream=True,
                 follow_redirects=True,
             )
             try:
                 download.raise_for_status()
-                with self._read_capped(download, max_bytes, "Artifact de cobertura") as buffer:
+                with self._read_capped(
+                    download, settings.max_artifact_mb * 1024 * 1024, "Artifact de cobertura"
+                ) as buffer:
                     return buffer.read()
             finally:
                 download.close()

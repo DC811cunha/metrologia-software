@@ -51,7 +51,5 @@ arquivo escolhido sem critério:
 - **`pypa/sampleproject`** passa a mostrar Acoplamento "Não disponível": seus dois módulos de produção não
   importam um ao outro, e sem nenhuma aresta resolvida não dá para distinguir isso de "não consegui resolver"
   (ADR-010). É o preço de nunca mais mostrar um falso "Conforme".
-- **Limitação conhecida:** os *artifacts* de CI continuam sendo lidos um por vez (o mais recente com
-  "coverage" no nome); só os relatórios versionados no código são combinados. Em monorepo com vários
-  artifacts de cobertura, a escolha ainda depende do que o CI publicou por último.
-- Aliases de `tsconfig` via `extends` e a convenção de nome de testes de outras linguagens ficam fora.
+- **Limitações tratadas depois:** os artifacts de cobertura de monorepo e o `extends` do `tsconfig` (ver ADR-012).
+- A convenção de nome de testes de outras linguagens fica fora.

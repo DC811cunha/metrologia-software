@@ -51,6 +51,15 @@ class MetricDefinition:
         return ConformityStatus.NAO_CONFORME
 
 
+# Escopo da medição (ADR-011), exibido ao usuário no relatório PDF e no dashboard — o texto do
+# dashboard fica em `frontend/src/metricsCatalog.ts` e deve acompanhar este.
+SCOPE_NOTE = (
+    "Escopo da medição: as métricas de código (complexidade ciclomática, LOC, índice de "
+    "manutenibilidade, acoplamento e duplicação) consideram apenas o código-fonte de produção. "
+    "Arquivos de teste, dependências e arquivos gerados ou minificados não entram nelas. "
+    "A cobertura de testes é lida dos relatórios publicados pelo próprio repositório."
+)
+
 METRICS_CATALOG: dict[str, MetricDefinition] = {
     "complexidade_ciclomatica": MetricDefinition(
         chave="complexidade_ciclomatica",

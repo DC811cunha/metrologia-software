@@ -22,8 +22,8 @@ class _FakeGithubService(GithubService):
     def __init__(self, artifact_zip: bytes | None) -> None:
         self._artifact_zip = artifact_zip
 
-    def fetch_latest_coverage_artifact_zip(self, owner: str, repo: str) -> bytes | None:
-        return self._artifact_zip
+    def fetch_latest_coverage_artifact_zips(self, owner: str, repo: str) -> list[bytes]:
+        return [self._artifact_zip] if self._artifact_zip is not None else []
 
 
 class TestReadCoverage:

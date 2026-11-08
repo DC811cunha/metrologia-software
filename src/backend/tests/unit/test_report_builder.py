@@ -155,3 +155,36 @@ class TestBuildHistoryReport:
         text = _extract_text(pdf_bytes)
         assert "Resumo da análise" in text
         assert "Pontos de atenção" in text
+
+
+class TestScopeNote:
+    """O usuário precisa saber que testes e arquivos gerados não entram nas métricas (ADR-011)."""
+
+    def test_single_report_states_the_measurement_scope(self):
+        pdf = build_single_analysis_report(
+            repository_url="https://github.com/octocat/Hello-World",
+            analysis_id="a-1",
+            concluida_em=datetime(2026, 6, 1, tzinfo=timezone.utc),
+            measurements=MEASUREMENTS,
+            overall_status="Conforme",
+        )
+
+        text = _extract_text(pdf)
+
+        assert "Escopo da medição" in text
+        assert "Arquivos de teste, dependências e arquivos gerados" in text
+
+    def test_history_report_states_the_measurement_scope(self):
+        pdf = build_history_report(
+            repository_url="https://github.com/octocat/Hello-World",
+            analyses=[
+                {
+                    "id": "a-1",
+                    "concluida_em": datetime(2026, 6, 1, tzinfo=timezone.utc),
+                    "measurements": MEASUREMENTS,
+                    "status_conformidade_geral": "Conforme",
+                }
+            ],
+        )
+
+        assert "Escopo da medição" in _extract_text(pdf)
