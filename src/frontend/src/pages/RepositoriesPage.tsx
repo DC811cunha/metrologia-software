@@ -18,6 +18,14 @@ import {
   listRepositories,
 } from '../services/repositoryService';
 
+/** Mensagem em português devolvida pelo backend (cota do GitHub, indisponibilidade, repositório grande demais…). */
+function serverDetail(err: unknown): string | null {
+  if (isAxiosError(err) && typeof err.response?.data?.detail === 'string') {
+    return err.response.data.detail;
+  }
+  return null;
+}
+
 function RepositoryAvatar({ name }: { name: string }) {
   const repoName = name.split('/').pop() ?? name;
   return (
@@ -84,6 +92,8 @@ function RepositoriesPage() {
         setError('Este repositório já está cadastrado.');
       } else if (isAxiosError(err) && err.response?.status === 422) {
         setError('URL inválida, repositório inacessível ou linguagem não suportada (Python/JS/TS).');
+      } else if (isAxiosError(err) && (err.response?.status === 429 || err.response?.status === 502)) {
+        setError(serverDetail(err) ?? 'O GitHub não respondeu agora. Tente novamente em instantes.');
       } else {
         setError('Não foi possível cadastrar o repositório.');
       }
@@ -115,8 +125,10 @@ function RepositoriesPage() {
         );
       }
       await loadRepositories();
-    } catch {
-      setError('Não foi possível executar a análise.');
+    } catch (err) {
+      const status = isAxiosError(err) ? err.response?.status : undefined;
+      const explainable = status !== undefined && [409, 422, 429, 502, 503].includes(status);
+      setError((explainable ? serverDetail(err) : null) ?? 'Não foi possível executar a análise.');
     } finally {
       setAnalyzingId(null);
     }

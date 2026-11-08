@@ -20,8 +20,14 @@ from app.schemas.analysis import (
     MetricSeriesPointResponse,
     MetricTrendResponse,
 )
-from app.services.analysis_runner import dispatch_async_analysis, run_full_analysis
-from app.services.github_service import GithubService, RepositoryAccessError, parse_repo_url
+from app.services.analysis_runner import dispatch_async_analysis, rate_limit_message, run_full_analysis
+from app.services.github_service import (
+    GithubRateLimitError,
+    GithubService,
+    GithubUnavailableError,
+    RepositoryAccessError,
+    parse_repo_url,
+)
 from app.services.trend_service import calculate_trend
 
 router = APIRouter(prefix="/api/v1/repositories/{repository_id}/analyses", tags=["analyses"])
@@ -34,6 +40,12 @@ def _get_owned_repository(db: Session, repository_id: uuid.UUID, user: User) -> 
     return repository
 
 
+def _fail_analysis(db: Session, analysis: Analysis, message: str) -> None:
+    analysis.status = AnalysisStatus.FALHOU
+    analysis.motivo_falha = message
+    db.commit()
+
+
 @router.post("")
 def trigger_analysis(
     repository_id: uuid.UUID,
@@ -41,10 +53,6 @@ def trigger_analysis(
     user: User = Depends(get_current_user),
 ):
     repository = _get_owned_repository(db, repository_id, user)
-    if repository.status_acesso == AccessStatus.INACESSIVEL:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail="Repositório inacessível"
-        )
 
     analysis = Analysis(repositorio_id=repository.id, status=AnalysisStatus.PENDENTE)
     db.add(analysis)
@@ -52,15 +60,39 @@ def trigger_analysis(
     db.refresh(analysis)
 
     github_service = GithubService()
+    try:
+        return _run_trigger(db, analysis, repository, github_service)
+    finally:
+        github_service.close()
+
+
+def _run_trigger(db: Session, analysis: Analysis, repository: Repository, github_service: GithubService):
     owner, repo = parse_repo_url(repository.url)
     try:
         size_kb = github_service.fetch_repo_size_kb(owner, repo)
     except RepositoryAccessError as exc:
         repository.status_acesso = AccessStatus.INACESSIVEL
-        analysis.status = AnalysisStatus.FALHOU
-        analysis.motivo_falha = f"Repositório inacessível: {exc}"
-        db.commit()
+        _fail_analysis(db, analysis, f"Repositório inacessível: {exc}")
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except GithubRateLimitError as exc:
+        # Cota esgotada é temporária: a análise falha com o motivo, mas o repositório segue ativo.
+        message = rate_limit_message(exc.retry_after)
+        _fail_analysis(db, analysis, message)
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=message,
+            headers={"Retry-After": str(exc.retry_after)} if exc.retry_after else None,
+        ) from exc
+    except GithubUnavailableError as exc:
+        message = "O GitHub está indisponível no momento. Tente novamente em instantes."
+        _fail_analysis(db, analysis, message)
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=message) from exc
+
+    # O repositório respondeu: se estava marcado como inacessível (ex.: por uma resposta temporária
+    # antiga), volta a ficar ativo — nada mais fazia essa transição.
+    if repository.status_acesso == AccessStatus.INACESSIVEL:
+        repository.status_acesso = AccessStatus.ATIVO
+        db.commit()
 
     if size_kb > settings.max_repo_size_kb:
         # Recusa em vez de só mudar para o modo assíncrono: um repositório gigante enche o disco do
@@ -69,9 +101,7 @@ def trigger_analysis(
             f"Repositório grande demais para análise ({size_kb // 1024} MB; "
             f"máximo {settings.max_repo_size_kb // 1024} MB)"
         )
-        analysis.status = AnalysisStatus.FALHOU
-        analysis.motivo_falha = message
-        db.commit()
+        _fail_analysis(db, analysis, message)
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=message)
 
     analysis.status = AnalysisStatus.PROCESSANDO
@@ -83,7 +113,12 @@ def trigger_analysis(
         body = jsonable_encoder(AnalysisResponse.model_validate(analysis))
         return JSONResponse(status_code=status.HTTP_201_CREATED, content=body)
 
-    dispatch_async_analysis(analysis.id)
+    try:
+        dispatch_async_analysis(analysis.id)
+    except Exception as exc:  # noqa: BLE001 - fila fora do ar (Redis/broker) não pode deixar a análise "processando"
+        message = "Não foi possível enfileirar a análise agora. Tente novamente em instantes."
+        _fail_analysis(db, analysis, message)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=message) from exc
     body = jsonable_encoder(
         AnalysisAcceptedResponse(id=analysis.id, status=AnalysisStatus.PROCESSANDO.value)
     )

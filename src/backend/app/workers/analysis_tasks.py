@@ -24,6 +24,10 @@ def run_analysis_task(analysis_id: str) -> None:
         repository = db.get(Repository, analysis.repositorio_id)
         if repository is None:
             return
-        run_full_analysis(db, analysis, repository, GithubService())
+        github_service = GithubService()
+        try:
+            run_full_analysis(db, analysis, repository, github_service)
+        finally:
+            github_service.close()
     finally:
         db.close()

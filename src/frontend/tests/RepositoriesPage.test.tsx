@@ -20,6 +20,18 @@ jest.mock('../src/services/analysisService', () => ({
   triggerAnalysis: jest.fn(),
 }));
 
+function axiosErrorWithDetail(statusCode: number, detail: string) {
+  const error = new AxiosError('Request failed');
+  error.response = {
+    status: statusCode,
+    data: { detail },
+    statusText: '',
+    headers: {},
+    config: {} as never,
+  };
+  return error;
+}
+
 function axiosErrorWithStatus(statusCode: number) {
   const error = new AxiosError('Request failed');
   error.response = { status: statusCode, data: {}, statusText: '', headers: {}, config: {} as never };
@@ -94,6 +106,51 @@ describe('RepositoriesPage', () => {
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent('Este repositório já está cadastrado.'),
+    );
+  });
+
+  it('shows the GitHub rate-limit message when registering a repository', async () => {
+    (listRepositories as jest.Mock).mockResolvedValueOnce([]);
+    (createRepository as jest.Mock).mockRejectedValueOnce(
+      axiosErrorWithDetail(429, 'Limite de requisições do GitHub atingido. Tente novamente em cerca de 10 min.'),
+    );
+
+    render(<MemoryRouter><RepositoriesPage /></MemoryRouter>);
+    await waitFor(() => expect(listRepositories).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText('URL do repositório GitHub'), {
+      target: { value: 'https://github.com/octocat/Hello-World' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /cadastrar/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('cerca de 10 min'));
+  });
+
+  it.each([
+    [429, 'Limite de requisições do GitHub atingido. Tente novamente em cerca de 30 min.'],
+    [502, 'O GitHub está indisponível no momento. Tente novamente em instantes.'],
+    [422, 'Repositório grande demais para análise (900 MB; máximo 195 MB)'],
+    [503, 'Não foi possível enfileirar a análise agora. Tente novamente em instantes.'],
+  ])('explains a %i failure when running an analysis', async (status, detail) => {
+    (listRepositories as jest.Mock).mockResolvedValue([SAMPLE_REPOSITORY]);
+    (triggerAnalysis as jest.Mock).mockRejectedValueOnce(axiosErrorWithDetail(status, detail));
+
+    render(<MemoryRouter><RepositoriesPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('octocat/Hello-World')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /executar análise/i }));
+
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(detail));
+  });
+
+  it('keeps the generic message for unexpected analysis errors', async () => {
+    (listRepositories as jest.Mock).mockResolvedValue([SAMPLE_REPOSITORY]);
+    (triggerAnalysis as jest.Mock).mockRejectedValueOnce(axiosErrorWithDetail(500, 'Traceback interno'));
+
+    render(<MemoryRouter><RepositoriesPage /></MemoryRouter>);
+    await waitFor(() => expect(screen.getByText('octocat/Hello-World')).toBeInTheDocument());
+    fireEvent.click(screen.getByRole('button', { name: /executar análise/i }));
+
+    await waitFor(() =>
+      expect(screen.getByRole('alert')).toHaveTextContent('Não foi possível executar a análise.'),
     );
   });
 
