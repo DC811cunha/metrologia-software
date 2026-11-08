@@ -47,6 +47,16 @@ class Settings(BaseSettings):
 
     reports_dir: str = "generated_reports"
 
+    # Limites de custo ao baixar e analisar repositórios de terceiros (issue #99). O `size` da API
+    # do GitHub mede o repositório compactado pelo git; o conteúdo extraído pode ser bem maior.
+    max_repo_size_kb: int = 200_000
+    max_download_mb: int = 100
+    max_extracted_mb: int = 400
+    max_extracted_files: int = 30_000
+    max_source_file_kb: int = 1024
+    max_artifact_mb: int = 20
+    analysis_time_limit_s: int = 300
+
     # Rate limit (issue #98): "redis" compartilha o contador entre processos/réplicas; "memory" vale
     # por processo. Os limites abaixo só são aplicados com ENVIRONMENT=production (login e
     # recuperação de senha são sempre limitados a 10/minuto por IP).

@@ -12,11 +12,18 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from app.analysis import coupling, duplication, metric_engine
+from app.analysis.limits import analysis_deadline
 from app.analysis.coverage_reader import read_coverage_from_artifact_zip, read_coverage_percentage
+from app.core.config import settings
 from app.models.analysis import Analysis, AnalysisStatus, Measurement
 from app.models.repository import AccessStatus, Repository
 from app.services.conformity_service import calculate_overall_status, classify_measurements
-from app.services.github_service import GithubService, RepositoryAccessError, parse_repo_url
+from app.services.github_service import (
+    GithubService,
+    RepositoryAccessError,
+    RepositoryTooLargeError,
+    parse_repo_url,
+)
 
 
 def _read_coverage(service: GithubService, owner: str, repo: str, root: Path) -> float | None:
@@ -85,10 +92,13 @@ def run_full_analysis(
     owner, repo = parse_repo_url(repository.url)
 
     try:
-        with tempfile.TemporaryDirectory() as tmp_dir:
+        with tempfile.TemporaryDirectory() as tmp_dir, analysis_deadline(settings.analysis_time_limit_s):
             root = service.download_and_extract(owner, repo, Path(tmp_dir))
             values = _compute_metric_values(service, owner, repo, root, repository.linguagens_detectadas)
         _persist_success(db, analysis, values)
+    except RepositoryTooLargeError as exc:
+        # Não é falta de acesso: o repositório existe, só é grande demais — não marca como inacessível.
+        _persist_failure(db, analysis, f"Repositório grande demais para análise: {exc}")
     except RepositoryAccessError as exc:
         repository.status_acesso = AccessStatus.INACESSIVEL
         db.commit()

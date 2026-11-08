@@ -13,6 +13,7 @@ import ast
 import re
 from pathlib import Path
 
+from app.analysis.limits import check_deadline
 from app.analysis.metric_engine import (
     JAVASCRIPT_EXTENSIONS,
     PYTHON_EXTENSIONS,
@@ -41,7 +42,7 @@ def _python_module_dotted_name(path: Path, root: Path) -> str:
 def _python_imports(path: Path, root: Path) -> set[str]:
     try:
         tree = ast.parse(path.read_text(encoding="utf-8", errors="ignore"))
-    except SyntaxError:
+    except (SyntaxError, RecursionError, ValueError):
         return set()
 
     package_parts = list(path.relative_to(root).with_suffix("").parts[:-1])
@@ -138,6 +139,7 @@ def calculate_average_instability(root: Path, languages: list[str]) -> float | N
     efferent: dict[str, set[str]] = {key: set() for key in modules_by_key.values()}
 
     for path in python_files:
+        check_deadline()
         own_key = _module_key(path, root)
         for dotted_name in _python_imports(path, root):
             target = _resolve_python_import(dotted_name, modules_by_dotted_name)
@@ -145,6 +147,7 @@ def calculate_average_instability(root: Path, languages: list[str]) -> float | N
                 efferent[own_key].add(target)
 
     for path in js_ts_files:
+        check_deadline()
         own_key = _module_key(path, root)
         for source in _js_ts_import_sources(path):
             target = _resolve_js_ts_import(source, path, root, modules_by_key)

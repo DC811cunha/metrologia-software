@@ -18,6 +18,9 @@ from tree_sitter import Language, Node, Parser
 import tree_sitter_javascript as ts_javascript
 import tree_sitter_typescript as ts_typescript
 
+from app.analysis.limits import check_deadline
+from app.core.config import settings
+
 PYTHON_EXTENSIONS = {".py"}
 JAVASCRIPT_EXTENSIONS = {".js", ".jsx", ".mjs", ".cjs"}
 TYPESCRIPT_EXTENSIONS = {".ts", ".tsx"}
@@ -119,11 +122,16 @@ def compute_maintainability_index(halstead_volume: float, complexity: float, slo
 
 
 def iter_source_files(root: Path, extensions: set[str]) -> list[Path]:
+    max_bytes = settings.max_source_file_kb * 1024
     files: list[Path] = []
     for path in root.rglob("*"):
+        check_deadline()
         if not path.is_file() or path.suffix not in extensions:
             continue
         if IGNORED_DIR_NAMES & set(path.relative_to(root).parts[:-1]):
+            continue
+        # Arquivo enorme é quase sempre gerado/minificado/dados: custo alto e valor ~nulo.
+        if path.stat().st_size > max_bytes:
             continue
         files.append(path)
     return files
@@ -160,9 +168,13 @@ def parser_for(extension: str) -> Parser:
 
 
 def walk_tree(node: Node):
-    yield node
-    for child in node.children:
-        yield from walk_tree(child)
+    """Percorre a árvore em pré-ordem de forma iterativa: a versão recursiva estourava o limite de
+    recursão do Python em arquivos com aninhamento muito profundo."""
+    stack = [node]
+    while stack:
+        current = stack.pop()
+        yield current
+        stack.extend(reversed(current.children))
 
 
 def _count_decision_points(node: Node, *, is_root: bool = True) -> int:
@@ -247,9 +259,10 @@ def analyze_repository(root: Path, languages: list[str]) -> RepoMetrics:
 
     if "python" in languages:
         for path in iter_source_files(root, PYTHON_EXTENSIONS):
+            check_deadline()
             try:
                 analyze_python_file(path.read_text(encoding="utf-8", errors="ignore"), metrics)
-            except SyntaxError:
+            except (SyntaxError, RecursionError, ValueError):
                 continue
 
     js_ts_extensions: set[str] = set()
@@ -258,6 +271,11 @@ def analyze_repository(root: Path, languages: list[str]) -> RepoMetrics:
     if "typescript" in languages:
         js_ts_extensions |= TYPESCRIPT_EXTENSIONS
     for path in iter_source_files(root, js_ts_extensions):
-        analyze_js_ts_file(path.read_text(encoding="utf-8", errors="ignore"), path.suffix, metrics)
+        check_deadline()
+        try:
+            analyze_js_ts_file(path.read_text(encoding="utf-8", errors="ignore"), path.suffix, metrics)
+        except RecursionError:
+            # Expressões aninhadas em excesso: ignora só este arquivo, não a análise inteira.
+            continue
 
     return metrics

@@ -15,6 +15,7 @@ import keyword
 import tokenize
 from pathlib import Path
 
+from app.analysis.limits import check_deadline
 from app.analysis.metric_engine import (
     JAVASCRIPT_EXTENSIONS,
     PYTHON_EXTENSIONS,
@@ -109,9 +110,11 @@ def calculate_duplication_score(root: Path, languages: list[str]) -> float | Non
     # com conteúdo (linhas vazias/só-comentário já não geram nenhum token).
     file_lines: dict[Path, list[tuple[int, str]]] = {}
     for path in python_files:
+        check_deadline()
         normalized = _normalized_lines_python(path)
         file_lines[path] = sorted(normalized.items())
     for path in js_ts_files:
+        check_deadline()
         normalized = _normalized_lines_js_ts(path)
         file_lines[path] = sorted(normalized.items())
 
