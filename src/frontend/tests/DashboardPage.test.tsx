@@ -60,6 +60,17 @@ describe('DashboardPage', () => {
     expect(getAnalysis).toHaveBeenCalledWith('repo-1', 'analysis-1');
   });
 
+  it('tells the user that test files are not part of the code metrics', async () => {
+    (getAnalysis as jest.Mock).mockResolvedValueOnce(COMPLETED_ANALYSIS);
+
+    renderDashboard();
+
+    await waitFor(() => expect(screen.getByTestId('scope-note')).toBeInTheDocument());
+    expect(screen.getByTestId('scope-note')).toHaveTextContent(
+      'Arquivos de teste, dependências e arquivos gerados ou minificados não entram nas métricas de código.',
+    );
+  });
+
   it('shows the overall conformity status', async () => {
     (getAnalysis as jest.Mock).mockResolvedValueOnce(COMPLETED_ANALYSIS);
 

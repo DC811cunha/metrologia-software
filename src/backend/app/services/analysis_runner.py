@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 from app.analysis import coupling, duplication, metric_engine
 from app.analysis.limits import analysis_deadline
 from app.analysis.metric_engine import NoAnalyzableSourceError
-from app.analysis.coverage_reader import read_coverage_from_artifact_zip, read_coverage_percentage
+from app.analysis.coverage_reader import read_coverage_from_artifact_zips, read_coverage_percentage
 from app.core.config import settings
 from app.models.analysis import Analysis, AnalysisStatus, Measurement
 from app.models.repository import AccessStatus, Repository
@@ -28,13 +28,13 @@ from app.services.github_service import (
 
 
 def _read_coverage(service: GithubService, owner: str, repo: str, root: Path) -> float | None:
-    """Cobertura é sempre "melhor esforço": tenta primeiro o artifact de CI mais
+    """Cobertura é sempre "melhor esforço": tenta primeiro os artifacts de CI do run mais
     recente do próprio repositório (mais provável de existir do que um artefato
     versionado — ver coverage_reader.py), e cai para os artefatos no código-fonte
     já baixado se não achar nada."""
-    zip_bytes = service.fetch_latest_coverage_artifact_zip(owner, repo)
-    if zip_bytes is not None:
-        value = read_coverage_from_artifact_zip(zip_bytes)
+    zips = service.fetch_latest_coverage_artifact_zips(owner, repo)
+    if zips:
+        value = read_coverage_from_artifact_zips(zips)
         if value is not None:
             return value
     return read_coverage_percentage(root)

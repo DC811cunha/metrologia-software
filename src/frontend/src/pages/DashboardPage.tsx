@@ -4,9 +4,9 @@ import { Link, useParams } from 'react-router-dom';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
 import Gauge from '../components/Gauge';
-import { ArrowLeftIcon, DocumentIcon } from '../components/ui/Icon';
+import { ArrowLeftIcon, DocumentIcon, InfoIcon } from '../components/ui/Icon';
 import Skeleton from '../components/ui/Skeleton';
-import { METRICS_GAUGE_CONFIG } from '../metricsCatalog';
+import { METRICS_GAUGE_CONFIG, SCOPE_NOTE } from '../metricsCatalog';
 import { Analysis, getAnalysis } from '../services/analysisService';
 import { generateAndDownloadReport } from '../services/reportService';
 
@@ -191,6 +191,14 @@ function DashboardPage() {
             ))}
           </ul>
         </div>
+
+        <p
+          data-testid="scope-note"
+          className="flex items-start gap-2 rounded-xl border border-line bg-white/[0.03] px-3.5 py-2.5 text-xs leading-relaxed text-fg-muted"
+        >
+          <InfoIcon className="mt-px h-4 w-4 shrink-0 text-brand-400" />
+          <span>{SCOPE_NOTE}</span>
+        </p>
 
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {METRICS_GAUGE_CONFIG.map((config, index) => {

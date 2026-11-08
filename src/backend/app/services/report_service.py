@@ -19,7 +19,7 @@ from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
 
-from app.analysis.metrics_catalog import METRICS_CATALOG, ConformityStatus
+from app.analysis.metrics_catalog import METRICS_CATALOG, SCOPE_NOTE, ConformityStatus
 from app.services.trend_service import calculate_trend
 
 # Fontes padrão do ReportLab (Helvetica/Times) não embutem um CMap Unicode, então
@@ -40,6 +40,9 @@ for _style in _STYLES.byName.values():
 # (#0f172a), ilegível.
 _HEADER_CELL_STYLE = ParagraphStyle(
     "TableHeaderCell", parent=_STYLES["BodyText"], textColor=colors.white, fontName="Vera-Bold"
+)
+_SCOPE_NOTE_STYLE = ParagraphStyle(
+    "ScopeNote", parent=_STYLES["BodyText"], fontSize=8.5, leading=11, textColor=colors.HexColor("#475569")
 )
 
 
@@ -228,6 +231,8 @@ def build_single_analysis_report(
         ),
         Spacer(1, 0.5 * cm),
         *_build_interpretation_section(measurements, overall_status),
+        Paragraph(SCOPE_NOTE, _SCOPE_NOTE_STYLE),
+        Spacer(1, 0.4 * cm),
         Paragraph("Detalhamento por métrica", _STYLES["Heading2"]),
         Spacer(1, 0.15 * cm),
         _build_measurement_table(measurements),
@@ -248,6 +253,8 @@ def build_history_report(
         Spacer(1, 0.3 * cm),
         Paragraph(f"Repositório: {repository_url}", _STYLES["Normal"]),
         Paragraph(f"Total de análises: {len(analyses)}", _STYLES["Normal"]),
+        Spacer(1, 0.3 * cm),
+        Paragraph(SCOPE_NOTE, _SCOPE_NOTE_STYLE),
         Spacer(1, 0.4 * cm),
     ]
 

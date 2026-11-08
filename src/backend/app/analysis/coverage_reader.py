@@ -90,7 +90,7 @@ def _parse_lcov_info(content: str) -> float | None:
     return reading.percentage if reading else None
 
 
-def _combine(readings: list[_Reading]) -> float | None:
+def _combine_readings(readings: list[_Reading]) -> _Reading | None:
     """Monorepo com vários relatórios: soma linhas cobertas e totais (média ponderada). Se algum
     relatório não informa os totais, usa o primeiro (o mais raso — a escolha é determinística)."""
     if not readings:
@@ -98,8 +98,13 @@ def _combine(readings: list[_Reading]) -> float | None:
     if len(readings) > 1 and all(reading.total for reading in readings):
         total = sum(reading.total or 0 for reading in readings)
         covered = sum(reading.covered or 0 for reading in readings)
-        return covered / total * 100
-    return readings[0].percentage
+        return _Reading(covered / total * 100, covered, total)
+    return readings[0]
+
+
+def _combine(readings: list[_Reading]) -> float | None:
+    combined = _combine_readings(readings)
+    return combined.percentage if combined else None
 
 
 def _within_size_cap(size_bytes: int) -> bool:
@@ -140,9 +145,9 @@ def _read_readme_badge(root: Path) -> float | None:
     return None
 
 
-def read_coverage_from_artifact_zip(zip_bytes: bytes) -> float | None:
-    """Procura `coverage.xml`/`lcov.info` dentro de um artifact ZIP já baixado do
-    GitHub Actions (ver `GithubService.fetch_latest_coverage_artifact_zip`)."""
+def _reading_from_zip(zip_bytes: bytes) -> _Reading | None:
+    """Leitura de UM artifact: prefere `coverage.xml` a `lcov.info` (os dois descrevem as mesmas
+    linhas — somá-los contaria tudo em dobro) e combina vários relatórios do mesmo tipo."""
     try:
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
             names = sorted(archive.namelist(), key=lambda name: (name.count("/"), name))
@@ -152,18 +157,30 @@ def read_coverage_from_artifact_zip(zip_bytes: bytes) -> float | None:
                 if name.lower().endswith("coverage.xml") and _within_size_cap(archive.getinfo(name).file_size)
                 if (reading := _read_coverage_xml(archive.read(name).decode("utf-8", errors="ignore"))) is not None
             ]
-            value = _combine(xml_readings)
-            if value is not None:
-                return value
+            combined = _combine_readings(xml_readings)
+            if combined is not None:
+                return combined
             lcov_readings = [
                 reading
                 for name in names
                 if name.lower().endswith("lcov.info") and _within_size_cap(archive.getinfo(name).file_size)
                 if (reading := _read_lcov_info(archive.read(name).decode("utf-8", errors="ignore"))) is not None
             ]
-            return _combine(lcov_readings)
+            return _combine_readings(lcov_readings)
     except zipfile.BadZipFile:
         return None
+
+
+def read_coverage_from_artifact_zips(zips: list[bytes]) -> float | None:
+    """Cobertura de vários artifacts do mesmo run de CI (ex.: backend + frontend de um monorepo),
+    combinada por soma de linhas — ver `GithubService.fetch_latest_coverage_artifact_zips`."""
+    readings = [reading for zip_bytes in zips if (reading := _reading_from_zip(zip_bytes)) is not None]
+    return _combine(readings)
+
+
+def read_coverage_from_artifact_zip(zip_bytes: bytes) -> float | None:
+    """Cobertura de um único artifact ZIP."""
+    return read_coverage_from_artifact_zips([zip_bytes])
 
 
 def read_coverage_percentage(root: Path) -> float | None:

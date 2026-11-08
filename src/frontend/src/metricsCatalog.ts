@@ -4,6 +4,14 @@ const CONFORME = '#22c55e';
 const CONDICIONAL = '#f59e0b';
 const NAO_CONFORME = '#ef4444';
 
+/**
+ * Escopo da medição (ADR-011), exibido no dashboard. Deve acompanhar `SCOPE_NOTE` do backend
+ * (`app/analysis/metrics_catalog.py`), que vai no relatório PDF.
+ */
+export const SCOPE_NOTE =
+  'Arquivos de teste, dependências e arquivos gerados ou minificados não entram nas métricas de código. ' +
+  'A cobertura de testes é lida dos relatórios publicados pelo próprio repositório.';
+
 export interface MetricGaugeConfig {
   chave: string;
   label: string;

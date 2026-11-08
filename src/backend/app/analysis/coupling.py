@@ -11,7 +11,7 @@ Resolução de imports (issue #92):
   funciona em qualquer layout (`src/pkg/a.py`, `backend/app/...`), não só quando o pacote está
   na raiz. Se mais de um módulo casar, o import é ignorado (melhor sem aresta que com aresta errada).
 - JS/TS: além de imports relativos, lê `paths`/`baseUrl` do `tsconfig.json`/`jsconfig.json`
-  mais próximo (aliases como `@/componentes/Botao`). `extends` não é seguido.
+  mais próximo (aliases como `@/componentes/Botao`), seguindo `extends` por caminho relativo.
 
 Quando nenhum import interno é resolvido em um repositório com mais de um módulo, o valor é
 `None` ("Não disponível"): `0.0` seria indistinguível de "falhei em resolver".
@@ -39,6 +39,7 @@ from app.analysis.metric_engine import (
 _RELATIVE_IMPORT_PATTERN = re.compile(r"^\.+")
 _JS_TS_SUFFIXES = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]
 _MAX_TSCONFIG_BYTES = 256 * 1024
+_MAX_EXTENDS_DEPTH = 5
 
 # Comentários (// e /* */) fora de strings, para ler tsconfig.json (que aceita comentários).
 _JSON_COMMENT_PATTERN = re.compile(r'("(?:\\.|[^"\\])*")|//[^\n]*|/\*.*?\*/', re.DOTALL)
@@ -181,30 +182,72 @@ class _TsAliases:
         return result
 
     @staticmethod
-    def _load(config_path: Path) -> _AliasConfig | None:
+    def _read_json(config_path: Path) -> dict | None:
         try:
             if config_path.stat().st_size > _MAX_TSCONFIG_BYTES:
                 return None
             text = config_path.read_text(encoding="utf-8", errors="ignore")
             text = _JSON_COMMENT_PATTERN.sub(lambda match: match.group(1) or "", text)
             text = _JSON_TRAILING_COMMA_PATTERN.sub(r"\1", text)
-            options = json.loads(text).get("compilerOptions") or {}
-        except (OSError, ValueError, AttributeError):
+            data = json.loads(text)
+        except (OSError, ValueError):
             return None
+        return data if isinstance(data, dict) else None
 
-        base_url = options.get("baseUrl")
-        raw_paths = options.get("paths")
-        if not isinstance(base_url, str) and not isinstance(raw_paths, dict):
+    @staticmethod
+    def _extends_target(config_path: Path, reference: object) -> Path | None:
+        """Só segue `extends` por caminho relativo/absoluto dentro do repositório; pacotes npm
+        (`@tsconfig/node18/...`) não estão no código analisado."""
+        if not isinstance(reference, str) or not reference.startswith((".", "/")):
             return None
+        target = Path(os.path.normpath(config_path.parent / reference))
+        if target.suffix != ".json":
+            target = target.with_name(target.name + ".json")  # o TS acrescenta .json se faltar
+        return target if target.is_file() else None
 
-        config_dir = config_path.parent
-        base_dir = Path(os.path.normpath(config_dir / base_url)) if isinstance(base_url, str) else None
+    @classmethod
+    def _effective(cls, config_path: Path, depth: int, seen: frozenset[Path]) -> tuple[Path | None, dict | None, Path | None]:
+        """(baseUrl absoluto, paths, diretório do tsconfig que definiu `paths`) já com `extends`
+        aplicado: o arquivo filho sobrescreve o pai chave a chave, como no TypeScript."""
+        data = cls._read_json(config_path)
+        if data is None or depth > _MAX_EXTENDS_DEPTH or config_path in seen:
+            return None, None, None
+        seen = seen | {config_path}
+
+        base_dir: Path | None = None
+        paths: dict | None = None
+        paths_dir: Path | None = None
+
+        extends = data.get("extends")
+        for reference in extends if isinstance(extends, list) else [extends]:
+            parent = cls._extends_target(config_path, reference)
+            if parent is None:
+                continue
+            parent_base, parent_paths, parent_paths_dir = cls._effective(parent, depth + 1, seen)
+            if parent_base is not None:
+                base_dir = parent_base
+            if parent_paths is not None:
+                paths, paths_dir = parent_paths, parent_paths_dir
+
+        options = data.get("compilerOptions")
+        if isinstance(options, dict):
+            if isinstance(options.get("baseUrl"), str):
+                base_dir = Path(os.path.normpath(config_path.parent / options["baseUrl"]))
+            if isinstance(options.get("paths"), dict):
+                paths, paths_dir = options["paths"], config_path.parent
+        return base_dir, paths, paths_dir
+
+    @classmethod
+    def _load(cls, config_path: Path) -> _AliasConfig | None:
+        base_dir, raw_paths, paths_dir = cls._effective(config_path, 0, frozenset())
+        if base_dir is None and raw_paths is None:
+            return None
         paths: dict[str, list[str]] = {}
-        if isinstance(raw_paths, dict):
-            for pattern, targets in raw_paths.items():
-                if isinstance(pattern, str) and isinstance(targets, list):
-                    paths[pattern] = [target for target in targets if isinstance(target, str)]
-        return _AliasConfig(base_dir=base_dir, paths_base=base_dir or config_dir, paths=paths)
+        for pattern, targets in (raw_paths or {}).items():
+            if isinstance(pattern, str) and isinstance(targets, list):
+                paths[pattern] = [target for target in targets if isinstance(target, str)]
+        # `paths` é relativo ao baseUrl efetivo; sem ele, ao tsconfig que definiu `paths`.
+        return _AliasConfig(base_dir=base_dir, paths_base=base_dir or paths_dir or config_path.parent, paths=paths)
 
     @staticmethod
     def targets_for(source: str, config: _AliasConfig) -> list[Path]:

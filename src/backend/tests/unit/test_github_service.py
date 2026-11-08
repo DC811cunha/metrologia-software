@@ -120,7 +120,7 @@ class TestFetchLatestCoverageArtifactZip:
             raise AssertionError("não deveria chamar a API sem token configurado")
 
         service = GithubService(client=_client_with(handler))
-        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None
+        assert service.fetch_latest_coverage_artifact_zips("octocat", "Hello-World") == []
 
     def test_downloads_the_most_recent_non_expired_coverage_artifact(self, monkeypatch):
         monkeypatch.setattr(settings, "github_token", "fake-token")
@@ -142,7 +142,7 @@ class TestFetchLatestCoverageArtifactZip:
             return httpx.Response(200, content=zip_bytes)
 
         service = GithubService(client=_client_with(handler))
-        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") == zip_bytes
+        assert service.fetch_latest_coverage_artifact_zips("octocat", "Hello-World") == [zip_bytes]
 
     def test_returns_none_when_no_coverage_artifact_exists(self, monkeypatch):
         monkeypatch.setattr(settings, "github_token", "fake-token")
@@ -151,7 +151,7 @@ class TestFetchLatestCoverageArtifactZip:
             return httpx.Response(200, json={"artifacts": [{"id": 1, "name": "build-logs", "expired": False}]})
 
         service = GithubService(client=_client_with(handler))
-        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None
+        assert service.fetch_latest_coverage_artifact_zips("octocat", "Hello-World") == []
 
     def test_returns_none_on_api_error(self, monkeypatch):
         monkeypatch.setattr(settings, "github_token", "fake-token")
@@ -160,7 +160,7 @@ class TestFetchLatestCoverageArtifactZip:
             return httpx.Response(500)
 
         service = GithubService(client=_client_with(handler))
-        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None
+        assert service.fetch_latest_coverage_artifact_zips("octocat", "Hello-World") == []
 
 
 class TestGithubTokenHandling:
@@ -245,7 +245,7 @@ class TestGithubTokenHandling:
             return httpx.Response(401, json={"message": "Bad credentials"})
 
         service = GithubService(client=_client_with(handler))
-        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None
+        assert service.fetch_latest_coverage_artifact_zips("octocat", "Hello-World") == []
 
 
 def _zip_bytes(files: dict[str, bytes]) -> bytes:
@@ -335,4 +335,4 @@ class TestDownloadLimits:
 
         service = GithubService(client=_client_with(handler))
 
-        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None
+        assert service.fetch_latest_coverage_artifact_zips("octocat", "Hello-World") == []

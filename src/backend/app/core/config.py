@@ -55,6 +55,7 @@ class Settings(BaseSettings):
     max_extracted_files: int = 30_000
     max_source_file_kb: int = 1024
     max_artifact_mb: int = 20
+    max_coverage_artifacts: int = 5
     analysis_time_limit_s: int = 300
 
     # Rate limit (issue #98): "redis" compartilha o contador entre processos/réplicas; "memory" vale
