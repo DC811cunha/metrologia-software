@@ -31,7 +31,7 @@ function ResetPasswordPage() {
       navigate('/login', { replace: true });
     } catch (err) {
       if (isAxiosError(err) && err.response?.status === 422) {
-        setError('A senha deve ter ao menos 8 caracteres.');
+        setError('A senha deve ter entre 8 e 72 caracteres.');
       } else {
         setError('Este link de recuperação é inválido ou expirou.');
       }
@@ -73,8 +73,9 @@ function ResetPasswordPage() {
           type="password"
           autoComplete="new-password"
           icon={<LockIcon />}
-          hint="Use pelo menos 8 caracteres."
+          hint="Use de 8 a 72 caracteres."
           minLength={8}
+          maxLength={72}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required

@@ -6,7 +6,7 @@ def test_register_creates_user_and_returns_tokens(client):
     assert response.status_code == 201
     body = response.json()
     assert "access_token" in body
-    assert "refresh_token" in body
+    assert "refresh_token" not in body
 
 
 def test_register_rejects_duplicate_email(client):
@@ -164,3 +164,142 @@ class TestResetPassword:
             json={"token": token, "new_password": "new-password-456"},
         )
         assert response.status_code == 400
+
+
+REFRESH_COOKIE = "softmeter_refresh_token"
+STRONG = "super-secret-123"
+
+
+class TestPasswordLength:
+    """bcrypt >= 5 recusa mais de 72 BYTES; isso nunca pode virar erro 500."""
+
+    def test_register_accepts_exactly_72_bytes(self, client):
+        response = client.post(
+            "/api/v1/auth/register", json={"email": "limit@example.com", "password": "a" * 72}
+        )
+        assert response.status_code == 201
+
+    def test_register_rejects_73_bytes_with_422(self, client):
+        response = client.post(
+            "/api/v1/auth/register", json={"email": "long@example.com", "password": "a" * 73}
+        )
+        assert response.status_code == 422
+
+    def test_register_counts_bytes_not_characters(self, client):
+        # 37 caracteres "é" = 74 bytes em UTF-8
+        response = client.post(
+            "/api/v1/auth/register", json={"email": "utf8@example.com", "password": "é" * 37}
+        )
+        assert response.status_code == 422
+
+    def test_reset_password_rejects_over_72_bytes_with_422(self, client):
+        response = client.post(
+            "/api/v1/auth/reset-password", json={"token": "qualquer", "new_password": "a" * 100}
+        )
+        assert response.status_code == 422
+
+    def test_login_with_long_password_returns_401_for_existing_account(self, client):
+        client.post("/api/v1/auth/register", json={"email": "exists@example.com", "password": STRONG})
+
+        response = client.post(
+            "/api/v1/auth/login", json={"email": "exists@example.com", "password": "a" * 100}
+        )
+
+        assert response.status_code == 401
+
+    def test_login_with_long_password_returns_401_for_unknown_account(self, client):
+        response = client.post(
+            "/api/v1/auth/login", json={"email": "ghost@example.com", "password": "a" * 100}
+        )
+
+        assert response.status_code == 401
+
+    def test_login_for_unknown_email_pays_the_hashing_cost(self, client, monkeypatch):
+        import app.api.auth as auth_module
+
+        calls = []
+        monkeypatch.setattr(auth_module, "equalize_login_timing", lambda password: calls.append(password))
+
+        client.post("/api/v1/auth/login", json={"email": "ghost@example.com", "password": STRONG})
+
+        assert calls == [STRONG]
+
+
+class TestSessionHardening:
+    def test_login_response_does_not_expose_the_refresh_token(self, client):
+        client.post("/api/v1/auth/register", json={"email": "body@example.com", "password": STRONG})
+
+        response = client.post(
+            "/api/v1/auth/login", json={"email": "body@example.com", "password": STRONG}
+        )
+
+        assert "refresh_token" not in response.json()
+        assert REFRESH_COOKIE in response.cookies
+
+    def test_refresh_cookie_has_a_lifetime_matching_the_token(self, client):
+        response = client.post(
+            "/api/v1/auth/register", json={"email": "maxage@example.com", "password": STRONG}
+        )
+
+        set_cookie = response.headers["set-cookie"]
+        assert "Max-Age=604800" in set_cookie
+        assert "HttpOnly" in set_cookie
+        assert "Secure" not in set_cookie
+
+    def test_refresh_cookie_is_secure_when_configured(self, client, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "cookie_secure", True)
+
+        response = client.post(
+            "/api/v1/auth/register", json={"email": "secure@example.com", "password": STRONG}
+        )
+
+        assert "Secure" in response.headers["set-cookie"]
+
+    def test_password_reset_ends_existing_sessions(self, client, monkeypatch):
+        sent = _fake_email_capture(monkeypatch)
+        register = client.post(
+            "/api/v1/auth/register", json={"email": "stolen@example.com", "password": STRONG}
+        )
+        old_access = register.json()["access_token"]
+        old_refresh = client.cookies.get(REFRESH_COOKIE)
+        assert client.post("/api/v1/auth/refresh").status_code == 200
+
+        client.post("/api/v1/auth/forgot-password", json={"email": "stolen@example.com"})
+        token = sent["reset_link"].split("token=")[1]
+        client.post("/api/v1/auth/reset-password", json={"token": token, "new_password": "brand-new-pass-1"})
+
+        client.cookies.clear()
+        client.cookies.set(REFRESH_COOKIE, old_refresh, path="/api/v1/auth")
+        assert client.post("/api/v1/auth/refresh").status_code == 401
+        assert (
+            client.post(
+                "/api/v1/auth/logout", headers={"Authorization": f"Bearer {old_access}"}
+            ).status_code
+            == 401
+        )
+
+    def test_logout_revokes_the_refresh_token_on_the_server(self, client):
+        register = client.post(
+            "/api/v1/auth/register", json={"email": "bye@example.com", "password": STRONG}
+        )
+        access = register.json()["access_token"]
+        leaked_refresh = client.cookies.get(REFRESH_COOKIE)
+
+        logout = client.post("/api/v1/auth/logout", headers={"Authorization": f"Bearer {access}"})
+        assert logout.status_code == 204
+
+        client.cookies.clear()
+        client.cookies.set(REFRESH_COOKIE, leaked_refresh, path="/api/v1/auth")
+        assert client.post("/api/v1/auth/refresh").status_code == 401
+
+    def test_new_login_after_logout_works(self, client):
+        payload = {"email": "again@example.com", "password": STRONG}
+        access = client.post("/api/v1/auth/register", json=payload).json()["access_token"]
+        client.post("/api/v1/auth/logout", headers={"Authorization": f"Bearer {access}"})
+
+        response = client.post("/api/v1/auth/login", json=payload)
+
+        assert response.status_code == 200
+        assert client.post("/api/v1/auth/refresh").status_code == 200

@@ -13,6 +13,7 @@ from app.core.security import (
     create_access_token,
     create_refresh_token,
     decode_refresh_token,
+    equalize_login_timing,
     hash_password,
     verify_password,
 )
@@ -24,9 +25,9 @@ from app.schemas.auth import (
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     LoginRequest,
+    LoginResponse,
     RegisterRequest,
     ResetPasswordRequest,
-    TokenPairResponse,
 )
 from app.workers.email_tasks import send_password_reset_email_task
 
@@ -48,13 +49,20 @@ def _set_refresh_cookie(response: Response, refresh_token: str) -> None:
         key=REFRESH_COOKIE_NAME,
         value=refresh_token,
         httponly=True,
+        secure=settings.cookie_secure,
         samesite="lax",
+        max_age=settings.jwt_refresh_expires_days * 24 * 60 * 60,
         path="/api/v1/auth",
     )
 
 
-@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=TokenPairResponse)
-def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)) -> TokenPairResponse:
+def _issue_session(user: User, response: Response) -> LoginResponse:
+    _set_refresh_cookie(response, create_refresh_token(user.id, user.token_version))
+    return LoginResponse(access_token=create_access_token(user.id, user.token_version))
+
+
+@router.post("/register", status_code=status.HTTP_201_CREATED, response_model=LoginResponse)
+def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)) -> LoginResponse:
     user = User(email=payload.email, password_hash=hash_password(payload.password))
     db.add(user)
     try:
@@ -64,22 +72,21 @@ def register(payload: RegisterRequest, response: Response, db: Session = Depends
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email já cadastrado") from exc
     db.refresh(user)
 
-    access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
-    _set_refresh_cookie(response, refresh_token)
-    return TokenPairResponse(access_token=access_token, refresh_token=refresh_token)
+    return _issue_session(user, response)
 
 
-@router.post("/login", response_model=TokenPairResponse)
-def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)) -> TokenPairResponse:
+@router.post("/login", response_model=LoginResponse)
+def login(payload: LoginRequest, response: Response, db: Session = Depends(get_db)) -> LoginResponse:
     user = db.query(User).filter(User.email == payload.email).first()
-    if user is None or not verify_password(payload.password, user.password_hash):
+    if user is None:
+        # Sem isto, e-mail inexistente responderia na hora e e-mail cadastrado levaria o custo
+        # do bcrypt — diferença de tempo que revela quais contas existem.
+        equalize_login_timing(payload.password)
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas")
+    if not verify_password(payload.password, user.password_hash):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Credenciais inválidas")
 
-    access_token = create_access_token(user.id)
-    refresh_token = create_refresh_token(user.id)
-    _set_refresh_cookie(response, refresh_token)
-    return TokenPairResponse(access_token=access_token, refresh_token=refresh_token)
+    return _issue_session(user, response)
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)
@@ -90,15 +97,18 @@ def refresh(
     if refresh_token is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token ausente")
     try:
-        user_id = decode_refresh_token(refresh_token)
+        claims = decode_refresh_token(refresh_token)
     except InvalidTokenError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Refresh token inválido") from exc
 
-    user = db.get(User, user_id)
+    user = db.get(User, claims.user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Usuário não encontrado")
+    if user.token_version != claims.version:
+        # Sessão encerrada (reset de senha ou logout) depois que este token foi emitido.
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Sessão encerrada")
 
-    return AccessTokenResponse(access_token=create_access_token(user.id))
+    return AccessTokenResponse(access_token=create_access_token(user.id, user.token_version))
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
@@ -163,10 +173,20 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         )
 
     user.password_hash = hash_password(payload.new_password)
+    # Quem tinha acesso à conta antes do reset (ex.: sessão roubada) perde as sessões ativas.
+    user.token_version += 1
     reset_token.usado_em = now
     db.commit()
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-def logout(response: Response, _: User = Depends(get_current_user)) -> None:
+def logout(
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> None:
+    """Encerra a sessão no servidor (não só apaga o cookie): incrementar a versão invalida o
+    refresh token mesmo que uma cópia dele tenha vazado. Efeito: sai de todos os dispositivos."""
+    user.token_version += 1
+    db.commit()
     response.delete_cookie(REFRESH_COOKIE_NAME, path="/api/v1/auth")

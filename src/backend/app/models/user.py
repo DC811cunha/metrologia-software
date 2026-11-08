@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, String
+from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -20,6 +20,9 @@ class User(Base):
     criado_em: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    # Incrementada no reset de senha e no logout: invalida todos os JWTs emitidos antes
+    # (o refresh token é stateless, então esta é a forma de revogá-lo).
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0", nullable=False)
 
     repositories: Mapped[list["Repository"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
