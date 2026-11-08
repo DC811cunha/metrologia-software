@@ -15,8 +15,11 @@ from app.schemas.repository import (
     RepositoryListItemResponse,
     RepositoryResponse,
 )
+from app.services.analysis_runner import rate_limit_message
 from app.services.github_service import (
+    GithubRateLimitError,
     GithubService,
+    GithubUnavailableError,
     RepositoryAccessError,
     UnsupportedLanguageError,
     parse_repo_url,
@@ -47,6 +50,19 @@ def create_repository(
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except UnsupportedLanguageError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    except GithubRateLimitError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=rate_limit_message(exc.retry_after),
+            headers={"Retry-After": str(exc.retry_after)} if exc.retry_after else None,
+        ) from exc
+    except GithubUnavailableError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="O GitHub está indisponível no momento. Tente novamente em instantes.",
+        ) from exc
+    finally:
+        github_service.close()
 
     repository = Repository(
         usuario_id=user.id,

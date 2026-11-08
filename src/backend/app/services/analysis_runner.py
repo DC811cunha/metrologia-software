@@ -20,7 +20,9 @@ from app.models.analysis import Analysis, AnalysisStatus, Measurement
 from app.models.repository import AccessStatus, Repository
 from app.services.conformity_service import calculate_overall_status, classify_measurements
 from app.services.github_service import (
+    GithubRateLimitError,
     GithubService,
+    GithubUnavailableError,
     RepositoryAccessError,
     RepositoryTooLargeError,
     parse_repo_url,
@@ -93,10 +95,32 @@ def run_full_analysis(
     owner, repo = parse_repo_url(repository.url)
 
     try:
+        _run_pipeline(db, analysis, repository, service, owner, repo)
+    finally:
+        if github_service is None:
+            service.close()
+
+
+def rate_limit_message(retry_after: int | None) -> str:
+    if retry_after is None:
+        return "Limite de requisições do GitHub atingido. Tente novamente em alguns minutos."
+    minutes = max(1, -(-retry_after // 60))
+    return f"Limite de requisições do GitHub atingido. Tente novamente em cerca de {minutes} min."
+
+
+def _run_pipeline(
+    db: Session, analysis: Analysis, repository: Repository, service: GithubService, owner: str, repo: str
+) -> None:
+    try:
         with tempfile.TemporaryDirectory() as tmp_dir, analysis_deadline(settings.analysis_time_limit_s):
             root = service.download_and_extract(owner, repo, Path(tmp_dir))
             values = _compute_metric_values(service, owner, repo, root, repository.linguagens_detectadas)
         _persist_success(db, analysis, values)
+    except GithubRateLimitError as exc:
+        # Temporário: não marca o repositório como inacessível (ele só renova a cota depois).
+        _persist_failure(db, analysis, rate_limit_message(exc.retry_after))
+    except GithubUnavailableError as exc:
+        _persist_failure(db, analysis, f"O GitHub está indisponível no momento ({exc}). Tente novamente em instantes.")
     except NoAnalyzableSourceError as exc:
         _persist_failure(db, analysis, f"Nenhum código analisável: {exc}")
     except RepositoryTooLargeError as exc:

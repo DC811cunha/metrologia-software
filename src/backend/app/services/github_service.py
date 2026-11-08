@@ -7,6 +7,7 @@ código-fonte via download do zipball (sem exigir o binário `git` no worker).
 import logging
 import re
 import tempfile
+import time
 import zipfile
 from pathlib import Path
 from typing import IO, Any
@@ -34,6 +35,19 @@ class GithubServiceError(Exception):
 
 class RepositoryAccessError(GithubServiceError):
     """Repositório inexistente, privado ou inacessível (FR-014)."""
+
+
+class GithubRateLimitError(GithubServiceError):
+    """Cota de requisições do GitHub esgotada (primária ou secundária) — erro TEMPORÁRIO: o
+    repositório existe e voltará a responder quando o limite renovar (issue #90)."""
+
+    def __init__(self, message: str, retry_after: int | None = None) -> None:
+        super().__init__(message)
+        self.retry_after = retry_after
+
+
+class GithubUnavailableError(GithubServiceError):
+    """Falha de rede, timeout, 5xx ou status inesperado do GitHub — também temporária (issue #91)."""
 
 
 class RepositoryTooLargeError(GithubServiceError):
@@ -71,7 +85,10 @@ class GithubService:
     def _send(self, url: str, headers: dict[str, str] | None, stream: bool, **kwargs: Any) -> httpx.Response:
         follow_redirects = kwargs.pop("follow_redirects", False)
         request = self._client.build_request("GET", url, headers=headers, params=kwargs.pop("params", None))
-        return self._client.send(request, stream=stream, follow_redirects=follow_redirects)
+        try:
+            return self._client.send(request, stream=stream, follow_redirects=follow_redirects)
+        except httpx.TransportError as exc:  # timeout, conexão recusada/interrompida, DNS...
+            raise GithubUnavailableError(f"Falha de comunicação com o GitHub: {type(exc).__name__}") from exc
 
     def _get(self, url: str, *, stream: bool = False, **kwargs: Any) -> httpx.Response:
         """GET com `GITHUB_TOKEN` quando configurado e fallback gracioso: se o GitHub
@@ -95,21 +112,61 @@ class GithubService:
             self._token = None
         return self._send(url, None, stream, **kwargs)
 
+    @staticmethod
+    def _github_message(response: httpx.Response) -> str:
+        try:
+            response.read()
+            data = response.json()
+        except (httpx.HTTPError, ValueError):
+            return ""
+        return str(data.get("message", "")) if isinstance(data, dict) else ""
+
+    @classmethod
+    def _is_rate_limited(cls, response: httpx.Response) -> bool:
+        """O GitHub usa 403 (e às vezes 429) também para limite de requisições, primário
+        (`x-ratelimit-remaining: 0`) e secundário (`retry-after` ou mensagem), não só para acesso negado."""
+        if response.status_code == 429:
+            return True
+        if response.status_code != 403:
+            return False
+        if response.headers.get("x-ratelimit-remaining") == "0" or "retry-after" in response.headers:
+            return True
+        return "rate limit" in cls._github_message(response).lower()
+
+    @staticmethod
+    def _retry_after(response: httpx.Response) -> int | None:
+        header = response.headers.get("retry-after")
+        if header is not None and header.isdigit():
+            return max(1, int(header))
+        reset = response.headers.get("x-ratelimit-reset")
+        if reset is not None and reset.isdigit():
+            return max(1, int(reset) - int(time.time()))
+        return None
+
+    def _raise_for_github_error(self, response: httpx.Response, owner: str, repo: str, action: str = "") -> None:
+        """Traduz a resposta do GitHub em um erro tipado: cota esgotada e indisponibilidade são
+        temporárias; só 403/404/451 sem sinal de limite significam repositório inacessível."""
+        if response.is_success:
+            return
+        if self._is_rate_limited(response):
+            raise GithubRateLimitError(
+                "Limite de requisições do GitHub atingido", retry_after=self._retry_after(response)
+            )
+        if response.status_code in (403, 404, 451):
+            raise RepositoryAccessError(f"Repositório '{owner}/{repo}' inacessível{action}")
+        raise GithubUnavailableError(f"O GitHub respondeu com status {response.status_code}")
+
     def fetch_repo_size_kb(self, owner: str, repo: str) -> int:
         """Tamanho do repositório em KB (metadado leve, sem precisar baixar o zipball) —
         usado como heurística de orçamento síncrono/assíncrono (research.md item 7)."""
         response = self._get(f"/repos/{owner}/{repo}")
-        if response.status_code in (404, 403):
-            raise RepositoryAccessError(f"Repositório '{owner}/{repo}' inacessível")
-        response.raise_for_status()
+        self._raise_for_github_error(response, owner, repo)
         return int(response.json()["size"])
 
     def fetch_languages(self, owner: str, repo: str) -> list[str]:
         """Consulta as linguagens do repositório e valida contra FR-002."""
         response = self._get(f"/repos/{owner}/{repo}/languages")
-        if response.status_code in (404, 403):
-            raise RepositoryAccessError(f"Repositório '{owner}/{repo}' inacessível")
-        response.raise_for_status()
+        self._raise_for_github_error(response, owner, repo)
 
         detected = response.json()
         supported = [
@@ -136,6 +193,9 @@ class GithubService:
                 if total > max_bytes:
                     raise RepositoryTooLargeError(f"{what} acima do limite de {max_bytes // (1024 * 1024)} MB")
                 buffer.write(chunk)
+        except httpx.TransportError as exc:
+            buffer.close()
+            raise GithubUnavailableError(f"Falha de comunicação com o GitHub: {type(exc).__name__}") from exc
         except BaseException:
             buffer.close()
             raise
@@ -151,9 +211,7 @@ class GithubService:
         """
         response = self._get(f"/repos/{owner}/{repo}/zipball/HEAD", stream=True, follow_redirects=True)
         try:
-            if response.status_code in (404, 403):
-                raise RepositoryAccessError(f"Repositório '{owner}/{repo}' inacessível para download")
-            response.raise_for_status()
+            self._raise_for_github_error(response, owner, repo, " para download")
             buffer = self._read_capped(response, settings.max_download_mb * 1024 * 1024, "Download do repositório")
         finally:
             response.close()
@@ -197,7 +255,7 @@ class GithubService:
                 for artifact in response.json()["artifacts"]
                 if not artifact["expired"] and "coverage" in artifact["name"].lower()
             ]
-        except httpx.HTTPError:
+        except (httpx.HTTPError, GithubServiceError):
             return []
         if not candidates:
             return []
@@ -232,7 +290,7 @@ class GithubService:
                     return buffer.read()
             finally:
                 download.close()
-        except (httpx.HTTPError, RepositoryTooLargeError):
+        except (httpx.HTTPError, GithubServiceError):
             return None
 
     def close(self) -> None:
