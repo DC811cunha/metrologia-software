@@ -9,6 +9,7 @@ from app.core.config import settings
 from app.services.github_service import (
     GithubService,
     RepositoryAccessError,
+    RepositoryTooLargeError,
     UnsupportedLanguageError,
     parse_repo_url,
 )
@@ -244,4 +245,94 @@ class TestGithubTokenHandling:
             return httpx.Response(401, json={"message": "Bad credentials"})
 
         service = GithubService(client=_client_with(handler))
+        assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None
+
+
+def _zip_bytes(files: dict[str, bytes]) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
+        for name, content in files.items():
+            archive.writestr(name, content)
+    return buffer.getvalue()
+
+
+class TestDownloadLimits:
+    """Repositório de terceiros é conteúdo não confiável: baixar e extrair tem teto (issue #99)."""
+
+    def test_refuses_a_download_whose_declared_size_is_above_the_cap(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(settings, "max_download_mb", 1)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=b"x" * 10, headers={"content-length": str(5 * 1024 * 1024)})
+
+        service = GithubService(client=_client_with(handler))
+
+        with pytest.raises(RepositoryTooLargeError, match="1 MB"):
+            service.download_and_extract("octocat", "Hello-World", tmp_path)
+
+    def test_aborts_a_streamed_download_that_outgrows_the_cap(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(settings, "max_download_mb", 1)
+
+        def body():
+            for _ in range(40):
+                yield b"x" * (64 * 1024)  # 2,5 MB sem Content-Length
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=body())
+
+        service = GithubService(client=_client_with(handler))
+
+        with pytest.raises(RepositoryTooLargeError):
+            service.download_and_extract("octocat", "Hello-World", tmp_path)
+
+    def test_refuses_an_archive_that_expands_beyond_the_cap(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(settings, "max_extracted_mb", 1)
+        bomb = _zip_bytes({"repo-abc/data.bin": b"\0" * (3 * 1024 * 1024)})  # comprime para poucos KB
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=bomb)
+
+        service = GithubService(client=_client_with(handler))
+
+        with pytest.raises(RepositoryTooLargeError, match="descompactado"):
+            service.download_and_extract("octocat", "Hello-World", tmp_path)
+        assert not any(tmp_path.iterdir())
+
+    def test_refuses_an_archive_with_too_many_files(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(settings, "max_extracted_files", 3)
+        many = _zip_bytes({f"repo-abc/f{index}.py": b"x = 1\n" for index in range(6)})
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=many)
+
+        service = GithubService(client=_client_with(handler))
+
+        with pytest.raises(RepositoryTooLargeError, match="arquivos"):
+            service.download_and_extract("octocat", "Hello-World", tmp_path)
+
+    def test_a_normal_archive_still_extracts(self, tmp_path):
+        small = _zip_bytes({"repo-abc/main.py": b"x = 1\n"})
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, content=small)
+
+        service = GithubService(client=_client_with(handler))
+
+        root = service.download_and_extract("octocat", "Hello-World", tmp_path)
+
+        assert (root / "main.py").read_text() == "x = 1\n"
+
+    def test_coverage_artifact_above_the_cap_is_ignored(self, monkeypatch):
+        monkeypatch.setattr(settings, "github_token", "fake-token")
+        monkeypatch.setattr(settings, "max_artifact_mb", 1)
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/actions/artifacts"):
+                return httpx.Response(
+                    200, json={"artifacts": [{"id": 7, "name": "coverage", "expired": False}]}
+                )
+            return httpx.Response(200, content=b"x" * (2 * 1024 * 1024))
+
+        service = GithubService(client=_client_with(handler))
+
         assert service.fetch_latest_coverage_artifact_zip("octocat", "Hello-World") is None

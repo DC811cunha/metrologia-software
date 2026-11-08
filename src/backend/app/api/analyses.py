@@ -62,6 +62,18 @@ def trigger_analysis(
         db.commit()
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
 
+    if size_kb > settings.max_repo_size_kb:
+        # Recusa em vez de só mudar para o modo assíncrono: um repositório gigante enche o disco do
+        # worker mesmo rodando em segundo plano.
+        message = (
+            f"Repositório grande demais para análise ({size_kb // 1024} MB; "
+            f"máximo {settings.max_repo_size_kb // 1024} MB)"
+        )
+        analysis.status = AnalysisStatus.FALHOU
+        analysis.motivo_falha = message
+        db.commit()
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=message)
+
     analysis.status = AnalysisStatus.PROCESSANDO
     db.commit()
 

@@ -3,7 +3,9 @@ from pathlib import Path
 
 import app.api.analyses as analyses_module
 import app.api.repositories as repositories_module
-from app.services.github_service import RepositoryAccessError
+from app.analysis.limits import AnalysisTimeoutError
+import app.services.analysis_runner as runner_module
+from app.services.github_service import RepositoryAccessError, RepositoryTooLargeError
 
 
 def _register_repository(client, auth_headers, monkeypatch, url="https://github.com/octocat/Hello-World"):
@@ -88,7 +90,7 @@ class TestTriggerAnalysisAsync:
     def test_dispatches_celery_task_for_large_repository(self, client, auth_headers, monkeypatch):
         repository = _register_repository(client, auth_headers, monkeypatch)
         monkeypatch.setattr(
-            analyses_module.GithubService, "fetch_repo_size_kb", lambda self, owner, repo: 999_999
+            analyses_module.GithubService, "fetch_repo_size_kb", lambda self, owner, repo: 50_000
         )
         dispatched: list[uuid.UUID] = []
         monkeypatch.setattr(
@@ -146,3 +148,77 @@ class TestGetAnalysis:
         repositories = client.get("/api/v1/repositories", headers=auth_headers).json()
         assert repositories[0]["ultima_analise_id"] == created["id"]
         assert repositories[0]["ultima_analise_status"] == "concluida"
+
+
+class TestAnalysisLimits:
+    """Custo de baixar e analisar repositórios de terceiros é limitado (issue #99)."""
+
+    def test_refuses_a_repository_above_the_size_limit(self, client, auth_headers, monkeypatch):
+        repository = _register_repository(client, auth_headers, monkeypatch)
+        monkeypatch.setattr(
+            analyses_module.GithubService, "fetch_repo_size_kb", lambda self, owner, repo: 999_999
+        )
+        dispatched: list[uuid.UUID] = []
+        monkeypatch.setattr(
+            analyses_module, "dispatch_async_analysis", lambda analysis_id: dispatched.append(analysis_id)
+        )
+
+        response = client.post(
+            f"/api/v1/repositories/{repository['id']}/analyses", headers=auth_headers
+        )
+
+        assert response.status_code == 422
+        assert "grande demais" in response.json()["detail"]
+        assert dispatched == []
+        history = client.get(
+            f"/api/v1/repositories/{repository['id']}/analyses", headers=auth_headers
+        ).json()
+        assert [item["status_conformidade_geral"] for item in history] == [None]
+
+    def test_download_over_the_limit_fails_the_analysis_without_marking_the_repo_inaccessible(
+        self, client, auth_headers, monkeypatch
+    ):
+        repository = _register_repository(client, auth_headers, monkeypatch)
+        monkeypatch.setattr(
+            analyses_module.GithubService, "fetch_repo_size_kb", lambda self, owner, repo: 10
+        )
+
+        def too_big(self, owner, repo, dest_dir):
+            raise RepositoryTooLargeError("Download do repositório acima do limite de 100 MB")
+
+        monkeypatch.setattr(analyses_module.GithubService, "download_and_extract", too_big)
+
+        response = client.post(
+            f"/api/v1/repositories/{repository['id']}/analyses", headers=auth_headers
+        )
+
+        assert response.status_code == 201
+        body = response.json()
+        assert body["status"] == "falhou"
+        assert "grande demais" in body["motivo_falha"]
+        repo_after = client.get(
+            f"/api/v1/repositories/{repository['id']}", headers=auth_headers
+        ).json()
+        assert repo_after["status_acesso"] == "ativo"
+
+    def test_analysis_that_exceeds_the_time_limit_is_recorded_as_failed(
+        self, client, auth_headers, monkeypatch
+    ):
+        repository = _register_repository(client, auth_headers, monkeypatch)
+        monkeypatch.setattr(
+            analyses_module.GithubService, "fetch_repo_size_kb", lambda self, owner, repo: 10
+        )
+        monkeypatch.setattr(analyses_module.GithubService, "download_and_extract", _fake_download)
+
+        def too_slow(*args, **kwargs):
+            raise AnalysisTimeoutError("A análise excedeu o tempo máximo de 300 s")
+
+        monkeypatch.setattr(runner_module, "_compute_metric_values", too_slow)
+
+        response = client.post(
+            f"/api/v1/repositories/{repository['id']}/analyses", headers=auth_headers
+        )
+
+        body = response.json()
+        assert body["status"] == "falhou"
+        assert "tempo máximo" in body["motivo_falha"]

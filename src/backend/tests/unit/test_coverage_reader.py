@@ -84,3 +84,38 @@ class TestReadCoverageFromArtifactZip:
 
     def test_returns_none_for_corrupted_zip(self):
         assert read_coverage_from_artifact_zip(b"not a zip file") is None
+
+
+class TestUntrustedCoverageFiles:
+    BILLION_LAUGHS = (
+        '<?xml version="1.0"?>'
+        '<!DOCTYPE lolz [<!ENTITY lol "lol"><!ENTITY lol2 "&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;&lol;">'
+        '<!ENTITY lol3 "&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;&lol2;">]>'
+        '<coverage line-rate="0.9">&lol3;</coverage>'
+    )
+
+    def test_xml_with_entity_expansion_is_rejected_instead_of_parsed(self, tmp_path):
+        (tmp_path / "coverage.xml").write_text(self.BILLION_LAUGHS, encoding="utf-8")
+
+        assert read_coverage_percentage(tmp_path) is None
+
+    def test_artifact_zip_with_entity_expansion_is_rejected(self):
+        import io as _io
+        import zipfile as _zipfile
+
+        buffer = _io.BytesIO()
+        with _zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("coverage.xml", self.BILLION_LAUGHS)
+
+        assert read_coverage_from_artifact_zip(buffer.getvalue()) is None
+
+    def test_oversized_coverage_file_in_the_repository_is_skipped(self, tmp_path, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "max_artifact_mb", 1)
+        (tmp_path / "coverage.xml").write_text(
+            '<?xml version="1.0"?><coverage line-rate="0.9">' + "<x/>" * (400 * 1024) + "</coverage>",
+            encoding="utf-8",
+        )
+
+        assert read_coverage_percentage(tmp_path) is None

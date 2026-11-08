@@ -23,7 +23,12 @@ import io
 import re
 import zipfile
 from pathlib import Path
-from xml.etree import ElementTree
+from xml.etree.ElementTree import ParseError
+
+from defusedxml import ElementTree
+from defusedxml.common import DefusedXmlException
+
+from app.core.config import settings
 
 _BADGE_PATTERNS = [
     # Badge shields.io/Codecov/Coveralls, ex.: "coverage-87%25-brightgreen" ou "coverage-87%"
@@ -36,8 +41,10 @@ _BADGE_PATTERNS = [
 
 def _parse_coverage_xml(content: str) -> float | None:
     try:
+        # defusedxml: o coverage.xml vem de um repositório de terceiros; o parser padrão aceitaria
+        # expansão de entidades ("billion laughs") e consumiria CPU/memória sem limite.
         root = ElementTree.fromstring(content)
-    except ElementTree.ParseError:
+    except (ParseError, DefusedXmlException):
         return None
     line_rate = root.get("line-rate")
     if line_rate is None:
@@ -58,6 +65,10 @@ def _parse_lcov_info(content: str) -> float | None:
     if lines_found == 0:
         return None
     return lines_hit / lines_found * 100
+
+
+def _within_size_cap(size_bytes: int) -> bool:
+    return size_bytes <= settings.max_artifact_mb * 1024 * 1024
 
 
 def _find_first(root: Path, filename: str) -> Path | None:
@@ -85,12 +96,12 @@ def read_coverage_from_artifact_zip(zip_bytes: bytes) -> float | None:
         with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
             for name in archive.namelist():
                 lower = name.lower()
-                if lower.endswith("coverage.xml"):
+                if lower.endswith("coverage.xml") and _within_size_cap(archive.getinfo(name).file_size):
                     value = _parse_coverage_xml(archive.read(name).decode("utf-8", errors="ignore"))
                     if value is not None:
                         return value
             for name in archive.namelist():
-                if name.lower().endswith("lcov.info"):
+                if name.lower().endswith("lcov.info") and _within_size_cap(archive.getinfo(name).file_size):
                     value = _parse_lcov_info(archive.read(name).decode("utf-8", errors="ignore"))
                     if value is not None:
                         return value
@@ -101,13 +112,13 @@ def read_coverage_from_artifact_zip(zip_bytes: bytes) -> float | None:
 
 def read_coverage_percentage(root: Path) -> float | None:
     coverage_xml = _find_first(root, "coverage.xml")
-    if coverage_xml is not None:
+    if coverage_xml is not None and _within_size_cap(coverage_xml.stat().st_size):
         value = _parse_coverage_xml(coverage_xml.read_text(encoding="utf-8", errors="ignore"))
         if value is not None:
             return value
 
     lcov_info = _find_first(root, "lcov.info")
-    if lcov_info is not None:
+    if lcov_info is not None and _within_size_cap(lcov_info.stat().st_size):
         value = _parse_lcov_info(lcov_info.read_text(encoding="utf-8", errors="ignore"))
         if value is not None:
             return value
