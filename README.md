@@ -136,6 +136,28 @@ Ver também o [Quickstart completo de validação manual](specs/001-softmeter-pl
 
 ---
 
+### Desenvolvimento × produção
+
+O `docker-compose.yml` é **somente para desenvolvimento**: publica o Postgres (`5432`) e o Redis (`6379`,
+sem senha) em todas as interfaces, usa senhas e segredos JWT padrão e roda o backend com `--reload` e o
+código montado como volume. **Não o use para publicar a aplicação.**
+
+Para produção há o `docker-compose.prod.yml`: sem portas de banco/Redis, sem `--reload`, Redis com senha
+e todas as credenciais obrigatórias (o `compose` recusa subir se alguma faltar). Ele cobre backend, worker,
+Postgres e Redis; o frontend deve ser servido como build estático (`npm run build`) por um proxy reverso
+com HTTPS, que também encaminha `/api` ao backend.
+
+```bash
+# 1. Defina as variáveis (ver comentários no .env.example): DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET,
+#    JWT_REFRESH_SECRET, FRONTEND_URL, CORS_ORIGINS, FORWARDED_ALLOW_IPS
+# 2. Suba e aplique as migrations
+docker compose -f docker-compose.prod.yml up -d --build
+docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
+```
+
+Com `ENVIRONMENT=production` a API **se recusa a iniciar** com segredos JWT padrão ou curtos (< 32
+caracteres), `JWT_SECRET` igual a `JWT_REFRESH_SECRET`, `COOKIE_SECURE` desligado ou a senha padrão do banco.
+
 ## 🏗️ Stack Tecnológica
 
 | Camada | Tecnologia | Justificativa |
