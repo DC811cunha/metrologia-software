@@ -77,7 +77,7 @@ describe('RegisterPage', () => {
 
     await waitFor(() =>
       expect(screen.getByRole('alert')).toHaveTextContent(
-        'E-mail inválido ou senha deve ter ao menos 8 caracteres.',
+        'E-mail inválido ou senha fora do tamanho permitido (8 a 72 caracteres).',
       ),
     );
   });

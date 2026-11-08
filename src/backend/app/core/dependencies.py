@@ -21,11 +21,12 @@ def get_current_user(
     if token is None:
         raise credentials_error
     try:
-        user_id = decode_access_token(token)
+        claims = decode_access_token(token)
     except InvalidTokenError as exc:
         raise credentials_error from exc
 
-    user = db.get(User, user_id)
-    if user is None:
+    user = db.get(User, claims.user_id)
+    # Versão divergente = sessão encerrada (reset de senha ou logout) depois da emissão.
+    if user is None or user.token_version != claims.version:
         raise credentials_error
     return user

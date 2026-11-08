@@ -31,7 +31,7 @@ function RegisterPage() {
       if (isAxiosError(err) && err.response?.status === 409) {
         setError('Este e-mail já está cadastrado.');
       } else if (isAxiosError(err) && err.response?.status === 422) {
-        setError('E-mail inválido ou senha deve ter ao menos 8 caracteres.');
+        setError('E-mail inválido ou senha fora do tamanho permitido (8 a 72 caracteres).');
       } else {
         setError('Não foi possível concluir o cadastro.');
       }
@@ -71,8 +71,9 @@ function RegisterPage() {
           type="password"
           autoComplete="new-password"
           icon={<LockIcon />}
-          hint="Use pelo menos 8 caracteres."
+          hint="Use de 8 a 72 caracteres."
           minLength={8}
+          maxLength={72}
           value={password}
           onChange={(event) => setPassword(event.target.value)}
           required

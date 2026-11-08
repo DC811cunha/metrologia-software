@@ -81,7 +81,7 @@ describe('ResetPasswordPage', () => {
     fireEvent.submit(screen.getByRole('button', { name: /redefinir senha/i }).closest('form')!);
 
     await waitFor(() =>
-      expect(screen.getByRole('alert')).toHaveTextContent('A senha deve ter ao menos 8 caracteres.'),
+      expect(screen.getByRole('alert')).toHaveTextContent('A senha deve ter entre 8 e 72 caracteres.'),
     );
   });
 });

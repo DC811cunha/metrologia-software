@@ -50,6 +50,7 @@ services:
       EMAIL_FROM: ${EMAIL_FROM:-SoftMeter <onboarding@resend.dev>}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:3000}
       PASSWORD_RESET_TOKEN_EXPIRES_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRES_MINUTES:-60}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
     ports:
       - "3001:3001"
     volumes:

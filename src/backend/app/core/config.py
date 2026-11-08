@@ -15,6 +15,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:3000"]
 
     github_token: str | None = None
+
+    # Cookie do refresh token: `Secure` deve ser ligado sempre que a API for servida por HTTPS.
+    cookie_secure: bool = False
     # Heurística de orçamento síncrono (research.md item 7): repositórios até este
     # tamanho (KB, conforme reportado pela API do GitHub) são analisados de forma
     # síncrona; acima disso, a análise é despachada para a fila Celery/Redis.
