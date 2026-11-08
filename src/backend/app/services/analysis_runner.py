@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.analysis import coupling, duplication, metric_engine
 from app.analysis.limits import analysis_deadline
+from app.analysis.metric_engine import NoAnalyzableSourceError
 from app.analysis.coverage_reader import read_coverage_from_artifact_zip, read_coverage_percentage
 from app.core.config import settings
 from app.models.analysis import Analysis, AnalysisStatus, Measurement
@@ -96,6 +97,8 @@ def run_full_analysis(
             root = service.download_and_extract(owner, repo, Path(tmp_dir))
             values = _compute_metric_values(service, owner, repo, root, repository.linguagens_detectadas)
         _persist_success(db, analysis, values)
+    except NoAnalyzableSourceError as exc:
+        _persist_failure(db, analysis, f"Nenhum código analisável: {exc}")
     except RepositoryTooLargeError as exc:
         # Não é falta de acesso: o repositório existe, só é grande demais — não marca como inacessível.
         _persist_failure(db, analysis, f"Repositório grande demais para análise: {exc}")

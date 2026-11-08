@@ -31,12 +31,55 @@ IGNORED_DIR_NAMES = {
     "__pycache__",
     ".venv",
     "venv",
+    "env",
+    "site-packages",
+    "bower_components",
     "dist",
     "build",
+    "out",
+    "target",
+    ".next",
+    ".nuxt",
     "vendor",
     ".tox",
     "coverage",
+    "migrations",
 }
+
+# O SoftMeter mede o código de produção: testes ficam de fora de CC, LOC, MI, acoplamento e
+# duplicação (testes repetem estrutura por natureza e, no grafo de imports, só importam — o que
+# infla a instabilidade média). A cobertura de testes continua sendo lida normalmente.
+TEST_DIR_NAMES = {"test", "tests", "__tests__", "spec", "specs", "e2e", "__mocks__"}
+_TEST_FILE_INFIXES = (".test.", ".spec.")
+# Arquivos gerados: declarações de tipos e bundles minificados.
+_GENERATED_SUFFIXES = (".min.js", ".min.mjs", ".min.cjs", ".d.ts", ".d.mts", ".d.cts", ".bundle.js")
+_MINIFIED_MIN_BYTES = 2000
+_MINIFIED_AVG_LINE_LENGTH = 200
+
+
+class NoAnalyzableSourceError(Exception):
+    """Nenhum arquivo-fonte restou depois de excluir testes, dependências e arquivos gerados."""
+
+
+def is_test_file(relative: Path) -> bool:
+    name = relative.name
+    if TEST_DIR_NAMES & set(relative.parts[:-1]):
+        return True
+    if name == "conftest.py" or (name.startswith("test_") and name.endswith(".py")) or name.endswith("_test.py"):
+        return True
+    return any(infix in name for infix in _TEST_FILE_INFIXES)
+
+
+def _looks_minified(path: Path) -> bool:
+    """Heurística de bundle minificado sem o sufixo `.min.`: poucas linhas e muito longas."""
+    try:
+        if path.stat().st_size < _MINIFIED_MIN_BYTES:
+            return False
+        with path.open("rb") as handle:
+            sample = handle.read(64 * 1024)
+    except OSError:
+        return False
+    return len(sample) / (sample.count(b"\n") + 1) > _MINIFIED_AVG_LINE_LENGTH
 
 FUNCTION_NODE_TYPES = {
     "function_declaration",
@@ -128,7 +171,10 @@ def iter_source_files(root: Path, extensions: set[str]) -> list[Path]:
         check_deadline()
         if not path.is_file() or path.suffix not in extensions:
             continue
-        if IGNORED_DIR_NAMES & set(path.relative_to(root).parts[:-1]):
+        relative = path.relative_to(root)
+        if IGNORED_DIR_NAMES & set(relative.parts[:-1]) or is_test_file(relative):
+            continue
+        if path.name.endswith(_GENERATED_SUFFIXES) or (path.suffix in JAVASCRIPT_EXTENSIONS | TYPESCRIPT_EXTENSIONS and _looks_minified(path)):
             continue
         # Arquivo enorme é quase sempre gerado/minificado/dados: custo alto e valor ~nulo.
         if path.stat().st_size > max_bytes:
@@ -260,10 +306,12 @@ def analyze_js_ts_file(code: str, extension: str, metrics: RepoMetrics) -> None:
 
 def analyze_repository(root: Path, languages: list[str]) -> RepoMetrics:
     metrics = RepoMetrics()
+    analyzed_files = 0
 
     if "python" in languages:
         for path in iter_source_files(root, PYTHON_EXTENSIONS):
             check_deadline()
+            analyzed_files += 1
             try:
                 analyze_python_file(path.read_text(encoding="utf-8", errors="ignore"), metrics)
             except (SyntaxError, RecursionError, ValueError):
@@ -276,10 +324,15 @@ def analyze_repository(root: Path, languages: list[str]) -> RepoMetrics:
         js_ts_extensions |= TYPESCRIPT_EXTENSIONS
     for path in iter_source_files(root, js_ts_extensions):
         check_deadline()
+        analyzed_files += 1
         try:
             analyze_js_ts_file(path.read_text(encoding="utf-8", errors="ignore"), path.suffix, metrics)
         except RecursionError:
             # Expressões aninhadas em excesso: ignora só este arquivo, não a análise inteira.
             continue
 
+    if analyzed_files == 0:
+        raise NoAnalyzableSourceError(
+            "nenhum arquivo-fonte restou depois de excluir testes, dependências e arquivos gerados"
+        )
     return metrics

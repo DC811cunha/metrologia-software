@@ -56,7 +56,7 @@ METRICS_CATALOG: dict[str, MetricDefinition] = {
         chave="complexidade_ciclomatica",
         nome="Complexidade Ciclomática",
         unidade="nº de caminhos / função (média do repositório)",
-        formula="CC = E - N + 2P (arestas - nós + 2×componentes conexos do grafo de fluxo de controle), por função/método",
+        formula="CC = E - N + 2P (arestas - nós + 2×componentes conexos do grafo de fluxo de controle), por função/método; mede o código de produção (testes, dependências e arquivos gerados/minificados ficam de fora)",
         fonte_bibliografica="McCabe, T.J. (1976). A Complexity Measure. IEEE Trans. Software Engineering; NIST SP 500-235",
         limite_nominal=10,
         limite_superior_condicional=20,
