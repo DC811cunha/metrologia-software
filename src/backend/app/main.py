@@ -1,13 +1,14 @@
-import time
-from collections import defaultdict, deque
+import json
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 from app.api import analyses, auth, reports, repositories
 from app.core.config import settings
+from app.core.rate_limit import get_rate_limiter, rule_for
 
 app = FastAPI(title="SoftMeter API", version="0.1.0")
 
@@ -23,62 +24,102 @@ app.add_middleware(
 )
 
 _MAX_BODY_BYTES = 64 * 1024  # 64 KB
+_PAYLOAD_TOO_LARGE_BODY = json.dumps({"detail": "Payload muito grande (máximo 64 KB)"}).encode("utf-8")
 
 
-class _ContentSizeLimitMiddleware(BaseHTTPMiddleware):
-    """Rejects requests whose Content-Length exceeds 64 KB (payload flooding)."""
+class _PayloadTooLarge(Exception):
+    pass
 
-    async def dispatch(self, request: Request, call_next):  # type: ignore[override]
-        content_length = request.headers.get("content-length")
-        if content_length is not None and int(content_length) > _MAX_BODY_BYTES:
-            return JSONResponse(
-                status_code=413,
-                content={"detail": "Payload muito grande (máximo 64 KB)"},
-            )
-        return await call_next(request)
+
+class _ContentSizeLimitMiddleware:
+    """Rejeita corpos acima de 64 KB (payload flooding). Confere o Content-Length declarado e,
+    como `Transfer-Encoding: chunked` não tem esse cabeçalho, também conta os bytes realmente
+    recebidos — só olhar o cabeçalho deixaria requisições em chunks passarem sem limite."""
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        declared = dict(scope["headers"]).get(b"content-length")
+        if declared is not None and declared.isdigit() and int(declared) > _MAX_BODY_BYTES:
+            await self._reject(send)
+            return
+
+        received = 0
+        response_started = False
+        rejected = False
+
+        async def limited_receive() -> Message:
+            nonlocal received, rejected
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > _MAX_BODY_BYTES:
+                    # O FastAPI engole exceções da leitura do corpo e as converte em 400, então a
+                    # resposta 413 é enviada aqui mesmo e o que a aplicação tentar enviar depois
+                    # é descartado.
+                    if not response_started and not rejected:
+                        rejected = True
+                        await self._reject(send)
+                    raise _PayloadTooLarge
+            return message
+
+        async def tracking_send(message: Message) -> None:
+            nonlocal response_started
+            if rejected:
+                return
+            if message["type"] == "http.response.start":
+                response_started = True
+            await send(message)
+
+        try:
+            await self.app(scope, limited_receive, tracking_send)
+        except _PayloadTooLarge:
+            pass
+
+    @staticmethod
+    async def _reject(send: Send) -> None:
+        await send(
+            {
+                "type": "http.response.start",
+                "status": 413,
+                "headers": [
+                    (b"content-type", b"application/json"),
+                    (b"content-length", str(len(_PAYLOAD_TOO_LARGE_BODY)).encode("ascii")),
+                ],
+            }
+        )
+        await send({"type": "http.response.body", "body": _PAYLOAD_TOO_LARGE_BODY})
 
 
 # 2. Request body size limit
 app.add_middleware(_ContentSizeLimitMiddleware)
 
-# Chave é "path:ip" — cada endpoint sensível tem sua própria janela, então
-# esgotar o limite de login não afeta o de forgot-password e vice-versa.
-_login_window: dict[str, deque[float]] = defaultdict(deque)
-_RATE_WINDOW_S = 60
-_RATE_MAX = 10  # tentativas por minuto por IP
-_RATE_LIMITED_PATHS = {
-    "/api/v1/auth/login",
-    "/api/v1/auth/forgot-password",
-    "/api/v1/auth/reset-password",
-}
 
-
-class _LoginRateLimitMiddleware(BaseHTTPMiddleware):
-    """Limita tentativas de login e de recuperação de senha a 10/minuto por IP —
-    forgot-password mitiga brute-force e spam de e-mail/enumeração de contas;
-    reset-password entra pelo mesmo motivo por defesa em profundidade (o token
-    já tem 256 bits de entropia, mas o endpoint não tinha nenhum limite antes)."""
+class _RateLimitMiddleware(BaseHTTPMiddleware):
+    """Limita por IP as rotas sensíveis (ver `app.core.rate_limit.rule_for`): login e recuperação de
+    senha sempre; cadastro, refresh e criação de análises em produção."""
 
     async def dispatch(self, request: Request, call_next):  # type: ignore[override]
-        if request.url.path in _RATE_LIMITED_PATHS and request.method == "POST":
-            ip = (request.client.host if request.client else "unknown")
-            key = f"{request.url.path}:{ip}"
-            now = time.monotonic()
-            window = _login_window[key]
-            while window and window[0] < now - _RATE_WINDOW_S:
-                window.popleft()
-            if len(window) >= _RATE_MAX:
+        rule = rule_for(request.method, request.url.path)
+        if rule is not None:
+            ip = request.client.host if request.client else "unknown"
+            retry_after = await get_rate_limiter().hit(f"{rule.name}:{ip}", rule.limit, rule.window_s)
+            if retry_after is not None:
                 return JSONResponse(
                     status_code=429,
-                    content={"detail": "Muitas tentativas. Tente novamente em um minuto."},
-                    headers={"Retry-After": "60"},
+                    content={"detail": f"Muitas tentativas. Tente novamente em {retry_after} segundos."},
+                    headers={"Retry-After": str(retry_after)},
                 )
-            window.append(now)
         return await call_next(request)
 
 
-# 3. Login rate limiter (outermost — first to see requests)
-app.add_middleware(_LoginRateLimitMiddleware)
+# 3. Rate limiter (outermost — first to see requests)
+app.add_middleware(_RateLimitMiddleware)
 
 # ── exception handlers ────────────────────────────────────────────────────────
 

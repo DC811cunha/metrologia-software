@@ -17,6 +17,7 @@ x-backend-env: &backend-env
   JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (>= 32 caracteres)}
   JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?defina JWT_REFRESH_SECRET (>= 32 caracteres, diferente de JWT_SECRET)}
   COOKIE_SECURE: "true"
+  RATE_LIMIT_BACKEND: redis
   CORS_ORIGINS: ${CORS_ORIGINS:?defina CORS_ORIGINS como lista JSON das origens permitidas}
   FRONTEND_URL: ${FRONTEND_URL:?defina FRONTEND_URL com a URL publica do site}
   GITHUB_TOKEN: ${GITHUB_TOKEN:-}
