@@ -143,7 +143,7 @@ class TestDuplicationFalsePositives:
 
     def test_a_run_of_identical_asserts_is_not_duplication(self, tmp_path):
         asserts = "\n".join(f"    assert value == {i}" for i in range(12))
-        write(tmp_path, "test_x.py", f"def test_it(value):\n{asserts}\n")
+        write(tmp_path, "checks.py", f"def check_it(value):\n{asserts}\n")
 
         assert duplication.calculate_duplication_score(tmp_path, ["python"]) == 0.0
 

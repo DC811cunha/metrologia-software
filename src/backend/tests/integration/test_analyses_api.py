@@ -222,3 +222,31 @@ class TestAnalysisLimits:
         body = response.json()
         assert body["status"] == "falhou"
         assert "tempo máximo" in body["motivo_falha"]
+
+
+class TestRepositoryWithoutAnalyzableSource:
+    def test_a_repository_with_only_tests_fails_with_a_clear_message(self, client, auth_headers, monkeypatch):
+        repository = _register_repository(client, auth_headers, monkeypatch)
+        monkeypatch.setattr(
+            analyses_module.GithubService, "fetch_repo_size_kb", lambda self, owner, repo: 10
+        )
+
+        def only_tests(self, owner, repo, dest_dir: Path) -> Path:
+            root = dest_dir / f"{owner}-{repo}-abc123"
+            (root / "tests").mkdir(parents=True)
+            (root / "tests" / "test_a.py").write_text("def test_a():\n    assert True\n", encoding="utf-8")
+            return root
+
+        monkeypatch.setattr(analyses_module.GithubService, "download_and_extract", only_tests)
+
+        response = client.post(
+            f"/api/v1/repositories/{repository['id']}/analyses", headers=auth_headers
+        )
+
+        body = response.json()
+        assert body["status"] == "falhou"
+        assert "Nenhum código analisável" in body["motivo_falha"]
+        repo_after = client.get(
+            f"/api/v1/repositories/{repository['id']}", headers=auth_headers
+        ).json()
+        assert repo_after["status_acesso"] == "ativo"
