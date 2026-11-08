@@ -1,0 +1,93 @@
+# SoftMeter — compose de PRODUÇÃO (backend, worker, Postgres e Redis).
+#
+# Diferenças em relação ao docker-compose.yml (desenvolvimento):
+#   - Postgres e Redis NÃO publicam portas no host (só são alcançáveis pela rede interna);
+#   - Redis exige senha;
+#   - sem `--reload` e sem o código montado como volume;
+#   - a API só escuta em 127.0.0.1 — quem a expõe é o proxy reverso com HTTPS;
+#   - toda credencial é obrigatória: o compose recusa subir se alguma variável faltar.
+#
+# O frontend não faz parte deste arquivo: gere o build estático (`npm run build` em src/frontend)
+# e sirva-o pelo mesmo proxy que encaminha `/api` ao backend. Ver README ("Desenvolvimento × produção").
+
+x-backend-env: &backend-env
+  ENVIRONMENT: production
+  DATABASE_URL: postgresql://${DB_USER:-softmeter}:${DB_PASSWORD:?defina DB_PASSWORD}@db:5432/${DB_NAME:-softmeter_db}
+  REDIS_URL: redis://:${REDIS_PASSWORD:?defina REDIS_PASSWORD}@redis:6379/0
+  JWT_SECRET: ${JWT_SECRET:?defina JWT_SECRET (>= 32 caracteres)}
+  JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?defina JWT_REFRESH_SECRET (>= 32 caracteres, diferente de JWT_SECRET)}
+  COOKIE_SECURE: "true"
+  CORS_ORIGINS: ${CORS_ORIGINS:?defina CORS_ORIGINS como lista JSON das origens permitidas}
+  FRONTEND_URL: ${FRONTEND_URL:?defina FRONTEND_URL com a URL publica do site}
+  GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+  RESEND_API_KEY: ${RESEND_API_KEY:-}
+  EMAIL_FROM: ${EMAIL_FROM:-SoftMeter <onboarding@resend.dev>}
+  PASSWORD_RESET_TOKEN_EXPIRES_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRES_MINUTES:-60}
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: softmeter_db_prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER:-softmeter}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-softmeter_db}
+    volumes:
+      - postgres_data_prod:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-softmeter} -d ${DB_NAME:-softmeter_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: softmeter_redis_prod
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:?defina REDIS_PASSWORD}"]
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a \"$$REDIS_PASSWORD\" ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?defina REDIS_PASSWORD}
+
+  backend:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    container_name: softmeter_backend_prod
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+      # IPs do proxy reverso em que o backend confia para ler X-Forwarded-For (o uvicorn lê esta
+      # variável). Sem isto, atrás de um proxy todos os usuários apareceriam com o IP do proxy.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:?defina FORWARDED_ALLOW_IPS (IP/rede do proxy reverso)}
+    ports:
+      - "127.0.0.1:3001:3001"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3001", "--proxy-headers"]
+
+  celery-worker:
+    build:
+      context: ./src/backend
+      dockerfile: Dockerfile
+    container_name: softmeter_celery_worker_prod
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      <<: *backend-env
+    command: ["celery", "-A", "app.core.celery_app", "worker", "--loglevel=info"]
+
+volumes:
+  postgres_data_prod:
