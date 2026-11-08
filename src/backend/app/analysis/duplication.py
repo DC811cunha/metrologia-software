@@ -10,10 +10,13 @@ que participam de ao menos um bloco de 6+ linhas repetido em outro ponto do repo
 
 from __future__ import annotations
 
+import ast
 import io
 import keyword
 import tokenize
 from pathlib import Path
+
+from tree_sitter import Node
 
 from app.analysis.limits import check_deadline
 from app.analysis.metric_engine import (
@@ -26,6 +29,9 @@ from app.analysis.metric_engine import (
 )
 
 WINDOW_SIZE = 6
+# Janela de 6 linhas quase idênticas (membros de Enum, campos de dataclass, sequência de asserts)
+# não é lógica duplicada: exige-se um mínimo de linhas normalizadas DISTINTAS dentro da janela.
+MIN_DISTINCT_LINES = 4
 
 _JS_TS_OPERAND_LEAF_TYPES = {
     "identifier",
@@ -38,6 +44,18 @@ _JS_TS_NUMBER_LEAF_TYPES = {"number"}
 _JS_TS_STRING_LEAF_TYPES = {"string_fragment", "regex_pattern"}
 
 
+def _python_import_lines(source: str) -> set[int]:
+    try:
+        tree = ast.parse(source)
+    except (SyntaxError, ValueError, RecursionError):
+        return set()
+    rows: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            rows.update(range(node.lineno, (node.end_lineno or node.lineno) + 1))
+    return rows
+
+
 def _normalized_lines_python(path: Path) -> dict[int, str]:
     source = path.read_text(encoding="utf-8", errors="ignore")
     try:
@@ -45,11 +63,13 @@ def _normalized_lines_python(path: Path) -> dict[int, str]:
     except (tokenize.TokenError, SyntaxError, IndentationError):
         return {}
 
+    # Blocos de imports são "iguais" por construção (`import ID`) e não são lógica duplicada.
+    import_lines = _python_import_lines(source)
     lines: dict[int, list[str]] = {}
     for token in tokens:
         if token.type in (tokenize.NEWLINE, tokenize.NL, tokenize.INDENT, tokenize.DEDENT, tokenize.ENDMARKER):
             continue
-        if token.type == tokenize.COMMENT:
+        if token.type == tokenize.COMMENT or token.start[0] in import_lines:
             continue
         text = token.string
         if token.type == tokenize.NAME and not keyword.iskeyword(text):
@@ -65,16 +85,35 @@ def _normalized_lines_python(path: Path) -> dict[int, str]:
     return {line: " ".join(parts) for line, parts in lines.items()}
 
 
+def _js_ts_import_rows(root: Node) -> set[int]:
+    """Linhas (0-based) de `import ...`, `export ... from '...'` e `require('...')`."""
+    rows: set[int] = set()
+    for node in walk_tree(root):
+        target: Node | None = None
+        if node.type == "import_statement":
+            target = node
+        elif node.type == "export_statement" and any(child.type == "string" for child in node.children):
+            target = node
+        elif node.type == "call_expression":
+            function_node = node.child_by_field_name("function")
+            if function_node is not None and function_node.text == b"require":
+                target = node.parent or node
+        if target is not None:
+            rows.update(range(target.start_point[0], target.end_point[0] + 1))
+    return rows
+
+
 def _normalized_lines_js_ts(path: Path) -> dict[int, str]:
     code = path.read_text(encoding="utf-8", errors="ignore")
     parser = parser_for(path.suffix)
     tree = parser.parse(code.encode("utf-8"))
 
+    import_rows = _js_ts_import_rows(tree.root_node)
     lines: dict[int, list[str]] = {}
     for node in walk_tree(tree.root_node):
         if node.children:
             continue
-        if node.type == "comment":
+        if node.type == "comment" or node.start_point[0] in import_rows:
             continue
         text = node.text.decode("utf-8", errors="ignore")
         if not text.strip():
@@ -120,15 +159,26 @@ def calculate_duplication_score(root: Path, languages: list[str]) -> float | Non
 
     total_lines = sum(len(lines) for lines in file_lines.values())
     if total_lines == 0:
-        return None
+        # Há arquivos elegíveis, mas só imports/comentários: nada duplicado (e a métrica não permite
+        # "Não disponível"), então é 0% — `None` ficaria reservado a "nenhum arquivo elegível".
+        return 0.0
 
     shingles: dict[tuple[str, ...], list[tuple[Path, tuple[int, ...]]]] = {}
     for path, lines in file_lines.items():
         if len(lines) < WINDOW_SIZE:
             continue
+        last_start_by_key: dict[tuple[str, ...], int] = {}
         for start in range(len(lines) - WINDOW_SIZE + 1):
             window = lines[start : start + WINDOW_SIZE]
             key = tuple(text for _, text in window)
+            if len(set(key)) < MIN_DISTINCT_LINES:
+                continue
+            # Janelas do MESMO arquivo que se sobrepõem não são cópias umas das outras: só conta uma
+            # nova ocorrência se ela começar depois do fim da anterior com a mesma chave.
+            previous = last_start_by_key.get(key)
+            if previous is not None and start - previous < WINDOW_SIZE:
+                continue
+            last_start_by_key[key] = start
             line_numbers = tuple(line for line, _ in window)
             shingles.setdefault(key, []).append((path, line_numbers))
 

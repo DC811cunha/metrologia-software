@@ -148,7 +148,9 @@ def analyze_python_file(code: str, metrics: RepoMetrics) -> None:
     raw = radon_analyze(code)
     halstead_volume = h_visit(code).total.volume
     total_complexity = sum(block.complexity for block in blocks) or 1.0
-    sloc = raw.lloc or raw.sloc or 1
+    # SLOC (e não `lloc`): é a convenção documentada no catálogo e a mesma usada em JS/TS, para
+    # que o mesmo código renda o mesmo índice nas duas linguagens (Princípio V).
+    sloc = raw.sloc or 1
     metrics.file_maintainability_index.append(
         compute_maintainability_index(halstead_volume, total_complexity, sloc)
     )
@@ -199,16 +201,19 @@ def _function_nodes(root: Node) -> list[Node]:
     return [node for node in walk_tree(root) if node.is_named and node.type in FUNCTION_NODE_TYPES]
 
 
-def _non_blank_non_comment_line_count(text: str) -> int:
-    count = 0
-    for raw_line in text.splitlines():
-        stripped = raw_line.strip()
-        if not stripped:
+def _code_line_count(node: Node) -> int:
+    """SLOC de um nó: linhas físicas que contêm ao menos um token que não seja comentário.
+
+    Usa os nós `comment` do tree-sitter em vez de olhar o primeiro caractere da linha: assim
+    linhas internas de um comentário de bloco não contam como código, e uma linha como
+    `/* nota */ return x;` conta (tem código). Mesma convenção do `sloc` do radon no Python.
+    """
+    rows: set[int] = set()
+    for current in walk_tree(node):
+        if current.children or current.type == "comment" or current.start_byte == current.end_byte:
             continue
-        if stripped.startswith("//") or stripped.startswith("*") or stripped.startswith("/*"):
-            continue
-        count += 1
-    return count or 1
+        rows.update(range(current.start_point[0], current.end_point[0] + 1))
+    return len(rows) or 1
 
 
 def analyze_js_ts_file(code: str, extension: str, metrics: RepoMetrics) -> None:
@@ -221,8 +226,7 @@ def analyze_js_ts_file(code: str, extension: str, metrics: RepoMetrics) -> None:
     for func in function_nodes:
         complexity = 1 + _count_decision_points(func)
         metrics.function_complexities.append(float(complexity))
-        snippet = code_bytes[func.start_byte : func.end_byte].decode("utf-8")
-        metrics.function_loc.append(float(_non_blank_non_comment_line_count(snippet)))
+        metrics.function_loc.append(float(_code_line_count(func)))
 
     total_complexity = (
         sum(1 + _count_decision_points(f) for f in function_nodes)
@@ -248,7 +252,7 @@ def analyze_js_ts_file(code: str, extension: str, metrics: RepoMetrics) -> None:
     vocabulary = n1 + n2
     halstead_volume = (big_n1 + big_n2) * math.log2(vocabulary) if vocabulary > 0 else 0.0
 
-    sloc = _non_blank_non_comment_line_count(code)
+    sloc = _code_line_count(root)
     metrics.file_maintainability_index.append(
         compute_maintainability_index(halstead_volume, total_complexity, sloc)
     )
