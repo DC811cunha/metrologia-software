@@ -47,6 +47,14 @@ class Settings(BaseSettings):
 
     reports_dir: str = "generated_reports"
 
+    # Rate limit (issue #98): "redis" compartilha o contador entre processos/réplicas; "memory" vale
+    # por processo. Os limites abaixo só são aplicados com ENVIRONMENT=production (login e
+    # recuperação de senha são sempre limitados a 10/minuto por IP).
+    rate_limit_backend: Literal["memory", "redis"] = "memory"
+    rate_limit_register_per_hour: int = 10
+    rate_limit_refresh_per_minute: int = 30
+    rate_limit_analyses_per_hour: int = 20
+
     # Recuperação de senha (ADR-005) — sem resend_api_key configurada, o link de
     # reset é apenas registrado no log do backend em vez de enviado por e-mail;
     # nunca bloqueia o fluxo.
