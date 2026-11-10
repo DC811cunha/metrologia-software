@@ -56,16 +56,18 @@ function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
       </a>
 
       <aside
-        aria-hidden="true"
         className="relative hidden overflow-hidden bg-gradient-to-br from-ink-950 via-brand-950 to-brand-700 p-10 text-white lg:flex lg:flex-col lg:justify-between xl:p-12"
       >
-        <div className="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
-        <div className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-brand-500/30 blur-3xl" />
-        <div className="absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-cyan-400/15 blur-3xl" />
+        <div aria-hidden="true" className="bg-grid absolute inset-0 [mask-image:radial-gradient(ellipse_at_center,black_30%,transparent_75%)]" />
+        <div aria-hidden="true" className="absolute -right-24 -top-24 h-96 w-96 rounded-full bg-brand-500/30 blur-3xl" />
+        <div aria-hidden="true" className="absolute -bottom-32 -left-20 h-96 w-96 rounded-full bg-cyan-400/15 blur-3xl" />
 
-        <Logo tone="light" className="relative" />
+        {/* A logo é o caminho de volta à página inicial: fica fora das áreas decorativas (aria-hidden). */}
+        <Link to="/" aria-label="SoftMeter — página inicial" className="relative w-fit rounded-lg">
+          <Logo tone="light" />
+        </Link>
 
-        <div className="relative max-w-lg">
+        <div aria-hidden="true" className="relative max-w-lg">
           <span className="inline-flex items-center gap-2 rounded-full border border-white/15 bg-white/10 px-3 py-1 text-xs font-medium text-brand-100 backdrop-blur">
             <span className="h-1.5 w-1.5 rounded-full bg-cyan-300" />
             Metrologia aplicada ao software
@@ -91,7 +93,7 @@ function AuthLayout({ title, subtitle, children, footer }: AuthLayoutProps) {
         </div>
 
         {/* Pré-visualização decorativa: só aparece quando há altura suficiente */}
-        <div className="relative hidden h-48 [@media(min-height:860px)]:block">
+        <div aria-hidden="true" className="relative hidden h-48 [@media(min-height:860px)]:block">
           <PreviewCard
             label="Cobertura de Testes"
             value="87 %"

@@ -16,6 +16,7 @@ function renderLoginPage() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/repositories" element={<div>Repositories Page</div>} />
+        <Route path="/" element={<div>Home Page</div>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -41,6 +42,22 @@ describe('LoginPage', () => {
       email: 'dev@example.com',
       password: 'super-secret-123',
     });
+  });
+
+  it('links the logo back to the home page so the visitor is never stuck on the login screen', () => {
+    renderLoginPage();
+
+    const logoLinks = screen.getAllByRole('link', { name: 'SoftMeter — página inicial' });
+    expect(logoLinks.length).toBeGreaterThan(0);
+    logoLinks.forEach((link) => expect(link).toHaveAttribute('href', '/'));
+  });
+
+  it('navigates to the home page when the logo is clicked', () => {
+    renderLoginPage();
+
+    fireEvent.click(screen.getAllByRole('link', { name: 'SoftMeter — página inicial' })[0]);
+
+    expect(screen.getByText('Home Page')).toBeInTheDocument();
   });
 
   it('shows an error message when credentials are invalid', async () => {
