@@ -36,4 +36,17 @@ test.describe('Página inicial', () => {
     await carousel.getByRole('button', { name: /ir para o passo 5/i }).click();
     await expect(carousel.getByRole('group', { name: '5 de 6' })).toBeVisible();
   });
+
+  test('a logo das telas de login e cadastro leva de volta à página inicial', async ({ page }) => {
+    for (const route of ['/login', '/register']) {
+      await page.goto(route);
+
+      await page.getByRole('link', { name: 'SoftMeter — página inicial' }).click();
+
+      await expect(page).toHaveURL(/\/$/);
+      await expect(
+        page.getByRole('heading', { level: 1, name: /meça a qualidade do seu código/i }),
+      ).toBeVisible();
+    }
+  });
 });
