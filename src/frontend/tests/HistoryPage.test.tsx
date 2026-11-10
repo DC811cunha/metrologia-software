@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import HistoryPage from '../src/pages/HistoryPage';
@@ -54,8 +54,68 @@ describe('HistoryPage', () => {
 
     renderHistoryPage();
 
-    await waitFor(() => expect(screen.getByText('Condicional')).toBeInTheDocument());
-    expect(screen.getByText('Conforme')).toBeInTheDocument();
+    const list = await screen.findByRole('list', { name: 'Histórico de análises' });
+    expect(within(list).getByText('Condicional')).toBeInTheDocument();
+    expect(within(list).getByText('Conforme')).toBeInTheDocument();
+  });
+
+  it('shows the current status of the metric next to the trend', async () => {
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce(HISTORY);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce(TREND);
+
+    renderHistoryPage();
+
+    // O último ponto da série (valor 5) é Conforme: o usuário vê o status sem precisar ler o gráfico.
+    await waitFor(() => expect(screen.getByText(/Situação atual:/)).toBeInTheDocument());
+    expect(screen.getByText(/Situação atual:/).parentElement).toHaveTextContent('Situação atual:Conforme');
+    expect(screen.getByText(/Tendência: Melhorando/i)).toBeInTheDocument();
+  });
+
+  it('explains the status colours of the chart with a text legend', async () => {
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce(HISTORY);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce(TREND);
+
+    renderHistoryPage();
+
+    const legend = await screen.findByRole('list', { name: 'Legenda das faixas de conformidade' });
+    expect(within(legend).getByText('Conforme')).toBeInTheDocument();
+    expect(within(legend).getByText('Condicional')).toBeInTheDocument();
+    expect(within(legend).getByText('Não-Conforme')).toBeInTheDocument();
+  });
+
+  it('describes the chart to screen readers with the latest value and status', async () => {
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce(HISTORY);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce(TREND);
+
+    renderHistoryPage();
+
+    const chart = await screen.findByRole('img', { name: /Gráfico de tendência de Complexidade Ciclomática/ });
+    expect(chart).toHaveAccessibleName(/último valor 5 cam\.\/função, Conforme/);
+  });
+
+  it('links back to the dashboard of the most recent completed analysis', async () => {
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce(HISTORY);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce(TREND);
+
+    renderHistoryPage();
+
+    const back = await screen.findByRole('link', { name: /voltar ao dashboard/i });
+    expect(back).toHaveAttribute('href', '/repositories/repo-1/analyses/analysis-2');
+  });
+
+  it('falls back to the repository list when there is no completed analysis yet', async () => {
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce([]);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce({
+      metrica_chave: 'complexidade_ciclomatica',
+      tendencia: null,
+      serie: [],
+    });
+
+    renderHistoryPage();
+
+    const back = await screen.findByRole('link', { name: /repositórios/i });
+    expect(back).toHaveAttribute('href', '/repositories');
+    expect(screen.queryByRole('link', { name: /voltar ao dashboard/i })).not.toBeInTheDocument();
   });
 
   it('shows the trend label for the selected metric', async () => {

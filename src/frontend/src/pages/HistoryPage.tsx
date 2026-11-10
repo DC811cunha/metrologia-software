@@ -64,6 +64,9 @@ function HistoryPage() {
   // deve ser exibido vazio, e sim a mensagem de dados insuficientes.
   const hasPlottableData = trend?.serie.some((point) => point.valor_medido !== null) ?? false;
   const TrendIcon = trend?.tendencia ? TREND_ICONS[trend.tendencia] : null;
+  const currentPoint = [...(trend?.serie ?? [])].reverse().find((point) => point.valor_medido !== null);
+  // O histórico vem em ordem cronológica: a última análise concluída é a que o dashboard mostra.
+  const latestCompleted = [...history].reverse().find((item) => item.status_conformidade_geral !== null);
 
   return (
     <div className="flex flex-col gap-8">
@@ -73,11 +76,15 @@ function HistoryPage() {
         description="Acompanhe como cada métrica evolui a cada análise executada."
         back={
           <Link
-            to="/repositories"
+            to={
+              latestCompleted
+                ? `/repositories/${repositoryId}/analyses/${latestCompleted.id}`
+                : '/repositories'
+            }
             className="mb-1.5 inline-flex w-fit items-center gap-1.5 text-sm font-medium text-brand-400 hover:text-brand-300"
           >
             <ArrowLeftIcon className="h-4 w-4" />
-            Repositórios
+            {latestCompleted ? 'Voltar ao dashboard' : 'Repositórios'}
           </Link>
         }
       />
@@ -103,18 +110,26 @@ function HistoryPage() {
               ))}
             </select>
           </div>
-          {trend?.tendencia && TrendIcon && (
-            <span
-              className={`inline-flex w-fit items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-semibold ${TREND_CLASSES[trend.tendencia]}`}
-            >
-              <TrendIcon className="h-4 w-4" />
-              Tendência: {TREND_LABEL[trend.tendencia]}
-            </span>
-          )}
+          <div className="flex flex-wrap items-center gap-3">
+            {currentPoint && (
+              <span className="inline-flex items-center gap-2 text-sm text-fg-muted">
+                Situação atual:
+                <StatusBadge label={currentPoint.status_conformidade} />
+              </span>
+            )}
+            {trend?.tendencia && TrendIcon && (
+              <span
+                className={`inline-flex w-fit items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-semibold ${TREND_CLASSES[trend.tendencia]}`}
+              >
+                <TrendIcon className="h-4 w-4" />
+                Tendência: {TREND_LABEL[trend.tendencia]}
+              </span>
+            )}
+          </div>
         </div>
 
-        {trend && hasPlottableData ? (
-          <TrendChart serie={trend.serie} />
+        {trend && hasPlottableData && metricConfig ? (
+          <TrendChart serie={trend.serie} config={metricConfig} />
         ) : (
           <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-line bg-white/[0.03] py-12 text-center">
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-surface text-fg-subtle ring-1 ring-line">
@@ -139,7 +154,7 @@ function HistoryPage() {
       ) : history.length === 0 ? (
         <Card className="text-center text-sm text-fg-muted">Nenhuma análise registrada ainda.</Card>
       ) : (
-        <ul className="flex flex-col gap-2.5">
+        <ul aria-label="Histórico de análises" className="flex flex-col gap-2.5">
           {history.map((item, index) => (
             <Card
               key={item.id}
