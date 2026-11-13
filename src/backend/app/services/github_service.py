@@ -83,11 +83,14 @@ class GithubService:
         )
 
     def _send(self, url: str, headers: dict[str, str] | None, stream: bool, **kwargs: Any) -> httpx.Response:
-        follow_redirects = kwargs.pop("follow_redirects", False)
+        # Redirecionamentos são seguidos SEMPRE: o GitHub responde 301 para repositórios renomeados ou
+        # transferidos (a URL antiga continua válida) e 307 para movimentos temporários; sem segui-los,
+        # esse 301 era tratado como "GitHub indisponível". O httpx remove o cabeçalho Authorization
+        # quando o redirecionamento muda de origem (ex.: api.github.com -> codeload.github.com).
         request = self._client.build_request("GET", url, headers=headers, params=kwargs.pop("params", None))
         try:
-            return self._client.send(request, stream=stream, follow_redirects=follow_redirects)
-        except httpx.TransportError as exc:  # timeout, conexão recusada/interrompida, DNS...
+            return self._client.send(request, stream=stream, follow_redirects=True)
+        except httpx.RequestError as exc:  # timeout, conexão recusada/interrompida, DNS, redirecionamentos demais...
             raise GithubUnavailableError(f"Falha de comunicação com o GitHub: {type(exc).__name__}") from exc
 
     def _get(self, url: str, *, stream: bool = False, **kwargs: Any) -> httpx.Response:
@@ -193,7 +196,7 @@ class GithubService:
                 if total > max_bytes:
                     raise RepositoryTooLargeError(f"{what} acima do limite de {max_bytes // (1024 * 1024)} MB")
                 buffer.write(chunk)
-        except httpx.TransportError as exc:
+        except httpx.RequestError as exc:
             buffer.close()
             raise GithubUnavailableError(f"Falha de comunicação com o GitHub: {type(exc).__name__}") from exc
         except BaseException:
@@ -209,7 +212,7 @@ class GithubService:
         Retorna o caminho da pasta raiz extraída (o GitHub empacota tudo sob um único
         diretório `{owner}-{repo}-{sha}/`).
         """
-        response = self._get(f"/repos/{owner}/{repo}/zipball/HEAD", stream=True, follow_redirects=True)
+        response = self._get(f"/repos/{owner}/{repo}/zipball/HEAD", stream=True)
         try:
             self._raise_for_github_error(response, owner, repo, " para download")
             buffer = self._read_capped(response, settings.max_download_mb * 1024 * 1024, "Download do repositório")
@@ -280,7 +283,6 @@ class GithubService:
             download = self._get(
                 f"/repos/{owner}/{repo}/actions/artifacts/{artifact_id}/zip",
                 stream=True,
-                follow_redirects=True,
             )
             try:
                 download.raise_for_status()

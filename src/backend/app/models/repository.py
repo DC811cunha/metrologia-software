@@ -10,6 +10,7 @@ from app.db.session import Base
 
 if TYPE_CHECKING:
     from app.models.analysis import Analysis
+    from app.models.report import Report
     from app.models.user import User
 
 
@@ -36,5 +37,10 @@ class Repository(Base):
 
     user: Mapped["User"] = relationship(back_populates="repositories")
     analyses: Mapped[list["Analysis"]] = relationship(
+        back_populates="repository", cascade="all, delete-orphan"
+    )
+    # Relatórios PDF apontam para o repositório (e, nos de análise única, para a análise): sem este
+    # cascade o Postgres recusava a exclusão do repositório com violação de chave estrangeira.
+    reports: Mapped[list["Report"]] = relationship(
         back_populates="repository", cascade="all, delete-orphan"
     )

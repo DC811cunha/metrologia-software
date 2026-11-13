@@ -1,6 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -15,6 +15,16 @@ _engine = create_engine(
     connect_args={"check_same_thread": False},
     poolclass=StaticPool,
 )
+
+
+@event.listens_for(_engine, "connect")
+def _enforce_foreign_keys(dbapi_connection, connection_record):
+    # O SQLite não aplica chaves estrangeiras por padrão, ao contrário do Postgres de produção:
+    # sem isto, uma exclusão que o Postgres recusa (ex.: relatórios apontando para análises)
+    # passava nos testes e só estourava com o banco real.
+    dbapi_connection.execute("PRAGMA foreign_keys=ON")
+
+
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
 
 
