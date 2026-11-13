@@ -9,6 +9,7 @@ import re
 import tempfile
 import time
 import zipfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, Any
 
@@ -58,6 +59,15 @@ class UnsupportedLanguageError(GithubServiceError):
     """Repositório não contém nenhuma linguagem suportada (FR-002)."""
 
 
+@dataclass(frozen=True)
+class RepoIdentity:
+    """Identidade atual do repositório, como o GitHub a informa (já resolvido o redirecionamento de
+    um repositório renomeado ou transferido)."""
+
+    github_id: int
+    full_name: str  # "dono/nome" com a grafia canônica
+
+
 _URL_PATTERN = re.compile(
     r"^https?://github\.com/(?P<owner>[\w.-]+)/(?P<repo>[\w.-]+?)(?:\.git)?/?$"
 )
@@ -76,6 +86,9 @@ class GithubService:
         # O token vai por requisição (não como header fixo do client) para poder ser
         # descartado quando o GitHub o rejeitar — ver `_get`.
         self._token: str | None = settings.github_token or None
+        # Identidade vista na última consulta de metadados (`fetch_repo_size_kb`); None antes dela ou se
+        # a resposta não a trouxe. Permite sincronizar nome/URL sem uma chamada extra à API.
+        self.repo_identity: RepoIdentity | None = None
         self._client = client or httpx.Client(
             base_url=GITHUB_API_URL,
             headers={"Accept": "application/vnd.github+json"},
@@ -164,7 +177,20 @@ class GithubService:
         usado como heurística de orçamento síncrono/assíncrono (research.md item 7)."""
         response = self._get(f"/repos/{owner}/{repo}")
         self._raise_for_github_error(response, owner, repo)
-        return int(response.json()["size"])
+        data = response.json()
+        self.repo_identity = self._identity_from(data)
+        return int(data["size"])
+
+    @staticmethod
+    def _identity_from(data: object) -> RepoIdentity | None:
+        if not isinstance(data, dict):
+            return None
+        github_id, full_name = data.get("id"), data.get("full_name")
+        if isinstance(github_id, int) and isinstance(full_name, str) and _URL_PATTERN.match(
+            f"https://github.com/{full_name}"
+        ):
+            return RepoIdentity(github_id=github_id, full_name=full_name)
+        return None
 
     def fetch_languages(self, owner: str, repo: str) -> list[str]:
         """Consulta as linguagens do repositório e valida contra FR-002."""
