@@ -28,6 +28,7 @@ from app.services.github_service import (
     RepositoryAccessError,
     parse_repo_url,
 )
+from app.services.repository_sync import SyncOutcome, sync_repository_identity
 from app.services.trend_service import calculate_trend
 
 router = APIRouter(prefix="/api/v1/repositories/{repository_id}/analyses", tags=["analyses"])
@@ -87,6 +88,17 @@ def _run_trigger(db: Session, analysis: Analysis, repository: Repository, github
         message = "O GitHub está indisponível no momento. Tente novamente em instantes."
         _fail_analysis(db, analysis, message)
         raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=message) from exc
+
+    # Alinha o cadastro ao GitHub: renomeação/transferência atualiza nome e URL, e um nome que passou a
+    # apontar para outro repositório barra a análise (não medimos o repositório errado em silêncio).
+    outcome = sync_repository_identity(db, repository, github_service.repo_identity)
+    if outcome is SyncOutcome.DIFFERENT_REPOSITORY:
+        message = (
+            f"O endereço cadastrado ({repository.owner_nome}) agora aponta para outro repositório do GitHub. "
+            "Remova este cadastro e cadastre o repositório novamente."
+        )
+        _fail_analysis(db, analysis, message)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=message)
 
     # O repositório respondeu: se estava marcado como inacessível (ex.: por uma resposta temporária
     # antiga), volta a ficar ativo — nada mais fazia essa transição.

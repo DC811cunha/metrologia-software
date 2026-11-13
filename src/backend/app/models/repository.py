@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, UniqueConstraint
+from sqlalchemy import JSON, BigInteger, DateTime, ForeignKey, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -27,6 +27,10 @@ class Repository(Base):
     usuario_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     url: Mapped[str] = mapped_column(String(500), nullable=False)
     owner_nome: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Id numérico do repositório no GitHub: nunca muda, mesmo que o repositório seja renomeado ou
+    # transferido. Preenchido na primeira análise e usado para detectar que o nome cadastrado
+    # passou a apontar para OUTRO repositório (nome reutilizado). Nulo até a primeira análise.
+    github_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
     linguagens_detectadas: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
     status_acesso: Mapped[AccessStatus] = mapped_column(
         String(20), nullable=False, default=AccessStatus.ATIVO
