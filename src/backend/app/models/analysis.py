@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db.session import Base
 
 if TYPE_CHECKING:
+    from app.models.report import Report
     from app.models.repository import Repository
 
 
@@ -38,6 +39,9 @@ class Analysis(Base):
 
     repository: Mapped["Repository"] = relationship(back_populates="analyses")
     medicoes: Mapped[list["Measurement"]] = relationship(
+        back_populates="analysis", cascade="all, delete-orphan"
+    )
+    reports: Mapped[list["Report"]] = relationship(
         back_populates="analysis", cascade="all, delete-orphan"
     )
 

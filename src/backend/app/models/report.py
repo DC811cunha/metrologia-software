@@ -3,9 +3,15 @@ from datetime import datetime, timezone
 from enum import Enum
 
 from sqlalchemy import DateTime, ForeignKey, String
-from sqlalchemy.orm import Mapped, mapped_column
+from typing import TYPE_CHECKING
+
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
+
+if TYPE_CHECKING:
+    from app.models.analysis import Analysis
+    from app.models.repository import Repository
 
 
 class ReportType(str, Enum):
@@ -29,3 +35,6 @@ class Report(Base):
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     caminho_arquivo: Mapped[str] = mapped_column(String(500), nullable=False)
+
+    repository: Mapped["Repository"] = relationship(back_populates="reports")
+    analysis: Mapped["Analysis | None"] = relationship(back_populates="reports")

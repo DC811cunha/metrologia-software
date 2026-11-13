@@ -1,10 +1,13 @@
+import logging
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.analysis import Analysis
@@ -117,6 +120,25 @@ def get_repository(
     return _get_owned_repository(db, repository_id, user)
 
 
+logger = logging.getLogger(__name__)
+
+
+def _remove_report_files(paths: list[str]) -> None:
+    """Apaga os PDFs de um repositório excluído. Melhor esforço: o registro já saiu do banco, então um
+    arquivo ausente ou que não pode ser removido só é registrado em log. Só toca em arquivos dentro do
+    diretório de relatórios, nunca em um caminho arbitrário vindo do banco."""
+    reports_dir = Path(settings.reports_dir).resolve()
+    for raw_path in paths:
+        if not raw_path:
+            continue
+        try:
+            path = Path(raw_path).resolve()
+            if path.parent == reports_dir and path.suffix == ".pdf":
+                path.unlink(missing_ok=True)
+        except OSError:
+            logger.warning("Não foi possível remover o arquivo de relatório %s", raw_path)
+
+
 @router.delete("/{repository_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_repository(
     repository_id: uuid.UUID,
@@ -124,5 +146,8 @@ def delete_repository(
     user: User = Depends(get_current_user),
 ) -> None:
     repository = _get_owned_repository(db, repository_id, user)
+    # Os caminhos precisam ser lidos antes: depois do commit os relatórios deixam de existir no banco.
+    report_files = [report.caminho_arquivo for report in repository.reports]
     db.delete(repository)
     db.commit()
+    _remove_report_files(report_files)

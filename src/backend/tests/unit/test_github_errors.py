@@ -130,3 +130,80 @@ class TestNetworkAndServerFailures:
             raise httpx.ConnectError("sem rede", request=request)
 
         assert service_with(down).fetch_latest_coverage_artifact_zips("o", "r") == []
+
+
+class TestRenamedOrTransferredRepositories:
+    """O GitHub responde 301 para repositórios renomeados/transferidos: o SoftMeter precisa segui-lo,
+    em vez de tratar o 301 como "GitHub indisponível" (caso real: Viaje-Mais -> NomadPlan)."""
+
+    def test_follows_a_301_to_the_new_location(self):
+        seen: list[str] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            seen.append(request.url.path)
+            if request.url.path == "/repos/old-owner/old-name":
+                return httpx.Response(301, headers={"location": "https://api.github.com/repositories/123"})
+            return httpx.Response(200, json={"size": 4321})
+
+        assert service_with(handler).fetch_repo_size_kb("old-owner", "old-name") == 4321
+        assert seen == ["/repos/old-owner/old-name", "/repositories/123"]
+
+    def test_the_languages_endpoint_follows_redirects_too(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/repos/o/old/languages":
+                return httpx.Response(301, headers={"location": "https://api.github.com/repositories/9/languages"})
+            return httpx.Response(200, json={"Python": 100})
+
+        assert service_with(handler).fetch_languages("o", "old") == ["python"]
+
+    def test_the_zipball_of_a_renamed_repository_downloads(self, tmp_path):
+        import io
+        import zipfile
+
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("repo-abc/main.py", "x = 1\n")
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/repos/o/old/zipball/HEAD":
+                return httpx.Response(301, headers={"location": "https://api.github.com/repositories/9/zipball/HEAD"})
+            if request.url.path == "/repositories/9/zipball/HEAD":
+                return httpx.Response(302, headers={"location": "https://codeload.github.com/o/new/legacy.zip/HEAD"})
+            return httpx.Response(200, content=buffer.getvalue())
+
+        root = service_with(handler).download_and_extract("o", "old", tmp_path)
+
+        assert (root / "main.py").read_text() == "x = 1\n"
+
+    def test_the_token_is_not_sent_to_another_origin_after_a_redirect(self, monkeypatch):
+        from app.core.config import settings
+
+        monkeypatch.setattr(settings, "github_token", "secret-token")
+        auth_by_host: dict[str, str | None] = {}
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            auth_by_host[request.url.host] = request.headers.get("authorization")
+            if request.url.host == "api.github.com":
+                return httpx.Response(302, headers={"location": "https://codeload.github.com/zip"})
+            return httpx.Response(200, json={"size": 1})
+
+        service_with(handler).fetch_repo_size_kb("o", "r")
+
+        assert auth_by_host["api.github.com"] == "Bearer secret-token"
+        assert auth_by_host["codeload.github.com"] is None
+
+    def test_a_redirect_loop_is_unavailability_and_not_a_server_error(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(301, headers={"location": "https://api.github.com/repos/o/r"})
+
+        with pytest.raises(GithubUnavailableError, match="TooManyRedirects"):
+            service_with(handler).fetch_repo_size_kb("o", "r")
+
+    def test_a_404_after_the_redirect_is_still_an_inaccessible_repository(self):
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path == "/repos/o/old":
+                return httpx.Response(301, headers={"location": "https://api.github.com/repositories/9"})
+            return httpx.Response(404)
+
+        with pytest.raises(RepositoryAccessError):
+            service_with(handler).fetch_repo_size_kb("o", "old")
