@@ -52,8 +52,8 @@ catálogo (`data-model.md`). Se o tamanho do repositório estiver dentro do orç
 (`sync_analysis_size_limit_kb`, padrão **5 000 KB**), devolve o resultado completo; acima disso, devolve
 `processando` e a análise termina de forma assíncrona via Celery/Redis (Princípio IV).
 
-**Toda tentativa é registrada**: mesmo quando falha, a análise é gravada com `status = falhou` e o
-`motivo_falha`, e continua visível no histórico.
+**Toda tentativa é registrada**: mesmo quando falha, a análise é gravada com `status = falhou`, o
+`motivo_falha` e a data de término (`concluida_em`), e continua visível no histórico.
 
 **Efeitos colaterais**: pode atualizar `url`/`owner_nome` do repositório se ele foi renomeado e gravar o
 `github_id` (ver *Identidade do repositório* em `repositories.md`); se o GitHub negar o acesso (403, 404
@@ -96,12 +96,20 @@ Lista o histórico de análises do repositório em **ordem cronológica** (FR-00
 reduzidos:
 
 ```json
-[{ "id": "uuid", "concluida_em": "timestamp | null", "status_conformidade_geral": "…|null", "medicoes": [] }]
+[{
+  "id": "uuid",
+  "status": "pendente | processando | concluida | falhou",
+  "motivo_falha": "string | null",
+  "solicitada_em": "timestamp",
+  "concluida_em": "timestamp | null",
+  "status_conformidade_geral": "…|null",
+  "medicoes": []
+}]
 ```
 
-O item **não traz** `status`, `motivo_falha` nem `solicitada_em`: para o detalhe de uma tentativa, usar
-`GET …/analyses/{analysis_id}`. Para saber se há medições válidas, olhar `medicoes` (vazia nas
-tentativas que não concluíram).
+`concluida_em` é a data de **término**, e toda tentativa encerrada a tem — inclusive as que `falharam`
+(a falha é o término). Só `pendente`/`processando` a têm `null`; o cliente deve decidir "em andamento"
+pelo `status`, não pela ausência da data. `medicoes` vem vazia nas tentativas que não concluíram.
 
 **Com `?metrica={chave}`**: devolve a série temporal de uma única métrica:
 

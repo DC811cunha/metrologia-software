@@ -56,6 +56,9 @@ export async function getAnalysis(repositoryId: string, analysisId: string): Pro
 
 export interface AnalysisHistoryItem {
   id: string;
+  status: 'pendente' | 'processando' | 'concluida' | 'falhou';
+  motivo_falha: string | null;
+  solicitada_em: string;
   concluida_em: string | null;
   status_conformidade_geral: string | null;
   medicoes: Measurement[];

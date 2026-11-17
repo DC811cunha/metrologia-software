@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.encoders import jsonable_encoder
@@ -43,7 +44,9 @@ def _get_owned_repository(db: Session, repository_id: uuid.UUID, user: User) -> 
 
 def _fail_analysis(db: Session, analysis: Analysis, message: str) -> None:
     analysis.status = AnalysisStatus.FALHOU
-    analysis.motivo_falha = message
+    analysis.motivo_falha = message[:1000]
+    # Toda tentativa encerrada tem data de término — sem ela o histórico a exibiria como "em andamento".
+    analysis.concluida_em = datetime.now(timezone.utc)
     db.commit()
 
 
@@ -63,6 +66,16 @@ def trigger_analysis(
     github_service = GithubService()
     try:
         return _run_trigger(db, analysis, repository, github_service)
+    except HTTPException:
+        raise  # erros previstos já registraram a falha em `_fail_analysis`
+    except Exception:
+        # Erro inesperado: sem isto a tentativa ficaria `pendente` para sempre e o histórico a
+        # mostraria como "em andamento" indefinidamente.
+        db.rollback()
+        db.refresh(analysis)
+        if analysis.status in (AnalysisStatus.PENDENTE, AnalysisStatus.PROCESSANDO):
+            _fail_analysis(db, analysis, "Erro inesperado ao iniciar a análise. Tente novamente.")
+        raise
     finally:
         github_service.close()
 

@@ -164,12 +164,21 @@ function HistoryPage() {
             >
               <div className="flex items-center gap-3">
                 <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-brand-500/20" />
-                <span className="text-sm font-medium text-fg-soft">
-                  {item.concluida_em ? new Date(item.concluida_em).toLocaleString('pt-BR') : 'Em andamento'}
-                </span>
+                <div className="min-w-0">
+                  <span className="text-sm font-medium text-fg-soft">
+                    {new Date(item.concluida_em ?? item.solicitada_em).toLocaleString('pt-BR')}
+                  </span>
+                  {item.status === 'falhou' && item.motivo_falha && (
+                    <p className="mt-0.5 text-xs text-fg-muted">{item.motivo_falha}</p>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-4">
-                {item.status_conformidade_geral ? (
+              <div className="flex shrink-0 items-center gap-4">
+                {item.status === 'falhou' ? (
+                  <StatusBadge label="Falhou" />
+                ) : item.status === 'pendente' || item.status === 'processando' ? (
+                  <StatusBadge label="Em andamento" />
+                ) : item.status_conformidade_geral ? (
                   <StatusBadge label={item.status_conformidade_geral} />
                 ) : (
                   <span className="text-sm font-medium text-fg-subtle">—</span>

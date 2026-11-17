@@ -12,12 +12,18 @@ jest.mock('../src/services/analysisService', () => ({
 const HISTORY = [
   {
     id: 'analysis-1',
+    status: 'concluida' as const,
+    motivo_falha: null,
+    solicitada_em: '2026-06-01T00:00:00Z',
     concluida_em: '2026-06-01T00:00:00Z',
     status_conformidade_geral: 'Condicional',
     medicoes: [],
   },
   {
     id: 'analysis-2',
+    status: 'concluida' as const,
+    motivo_falha: null,
+    solicitada_em: '2026-06-15T00:00:00Z',
     concluida_em: '2026-06-15T00:00:00Z',
     status_conformidade_geral: 'Conforme',
     medicoes: [],
@@ -57,6 +63,50 @@ describe('HistoryPage', () => {
     const list = await screen.findByRole('list', { name: 'Histórico de análises' });
     expect(within(list).getByText('Condicional')).toBeInTheDocument();
     expect(within(list).getByText('Conforme')).toBeInTheDocument();
+  });
+
+  it('shows a failed attempt as "Falhou" with its reason, not as in progress', async () => {
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce([
+      ...HISTORY,
+      {
+        id: 'analysis-3',
+        status: 'falhou' as const,
+        motivo_falha: 'O GitHub está indisponível no momento. Tente novamente em instantes.',
+        solicitada_em: '2026-06-20T00:00:00Z',
+        concluida_em: '2026-06-20T00:00:01Z',
+        status_conformidade_geral: null,
+        medicoes: [],
+      },
+    ]);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce(TREND);
+
+    renderHistoryPage();
+
+    const list = await screen.findByRole('list', { name: 'Histórico de análises' });
+    expect(within(list).getByText('Falhou')).toBeInTheDocument();
+    expect(within(list).getByText(/O GitHub está indisponível/)).toBeInTheDocument();
+    expect(within(list).queryByText('Em andamento')).not.toBeInTheDocument();
+  });
+
+  it('shows an attempt that is still running as "Em andamento" using its request date', async () => {
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce([
+      {
+        id: 'analysis-4',
+        status: 'processando' as const,
+        motivo_falha: null,
+        solicitada_em: '2026-06-21T10:00:00Z',
+        concluida_em: null,
+        status_conformidade_geral: null,
+        medicoes: [],
+      },
+    ]);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce(TREND);
+
+    renderHistoryPage();
+
+    const list = await screen.findByRole('list', { name: 'Histórico de análises' });
+    expect(within(list).getByText('Em andamento')).toBeInTheDocument();
+    expect(within(list).getByText(/2026/)).toBeInTheDocument();
   });
 
   it('shows the current status of the metric next to the trend', async () => {
