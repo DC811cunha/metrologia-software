@@ -4,6 +4,11 @@
 **Status:** Aceito
 **Autor:** Diego Cunha
 
+> **Nota (17/11/2026):** a decisão segue vigente. Depois dela, o [ADR-011](ADR-011-escopo-dos-arquivos-analisados.md) tornou a busca
+> de `coverage.xml`/`lcov.info` determinística e o [ADR-012](ADR-012-monorepo-e-escopo-visivel.md) passou a combinar **todos** os
+> artifacts de cobertura do run de CI mais recente (e não só o primeiro); o [ADR-009](ADR-009-limites-de-custo-da-analise.md) impôs
+> tetos de tamanho e o `defusedxml` na leitura.
+
 ---
 
 ## Contexto

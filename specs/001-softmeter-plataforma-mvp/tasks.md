@@ -221,7 +221,7 @@ próprio cadastrou.
 
 ---
 
-## Phase 9: Pós-MVP — entregas posteriores à v2.0 do RFC *(registradas retroativamente em 2026-11-05)*
+## Phase 9: Pós-MVP — entregas posteriores à v2.0 do RFC *(registradas retroativamente em 2026-11-05; atualizadas em 2026-11-17)*
 
 **Purpose**: rastrear no `tasks.md` o que foi entregue depois do MVP (US1–US5) e o que ficou em aberto.
 
@@ -232,8 +232,22 @@ próprio cadastrou.
 - [X] T077 [P] Redesign visual do frontend (identidade azul, acessibilidade) e tema escuro azul-navy com bordas luminosas — PRs #81 e #83
 - [X] T078 [US7] Página inicial pública de apresentação, com tutorial em carrossel, e `tests/e2e/home.spec.ts` — PR #84
 - [X] T083 Revisão geral da documentação contra o código (RFC-001 v2.1, ADRs, C4, README, CONTRIBUTING, specs) e correção da data da revisão por pares — PRs #85 e #86
+- [X] T084 Revisão por pares (Sandro Machiniski, issues #90–#100): sessão e senha longa — revogação por `token_version`, refresh só em cookie, limite de 72 bytes (ADR-006, #95/#96) — PR #101
+- [X] T085 Recusar iniciar em produção com configuração insegura e criar o `docker-compose.prod.yml` (ADR-007, #97) — PR #102
+- [X] T086 Rate limit compartilhado (memória/Redis), mais rotas cobertas, IP atrás de proxy e limite de corpo contado em bytes (ADR-008, #98) — PR #103
+- [X] T087 Limites de tamanho, tempo e memória ao baixar e analisar repositórios de terceiros (ADR-009, #99) — PR #104
+- [X] T088 Corretude do acoplamento, da duplicação e do LOC (ADR-010, #92/#93/#94) — PR #105
+- [X] T089 Escopo dos arquivos analisados (sem testes/gerados/minificados) e cobertura determinística (ADR-011, #100) — PR #106
+- [X] T090 Escopo visível no dashboard e no PDF, cobertura de monorepo e `extends` do tsconfig (ADR-012) — PR #107
+- [X] T091 Erros temporários do GitHub (cota e indisponibilidade) não bloqueiam o repositório nem travam a análise (ADR-013, #90/#91) — PR #108
+- [X] T092 Logo das telas de autenticação volta à página inicial (PR #109); status da métrica no gráfico do histórico e botão de voltar ao dashboard (PR #110)
+- [X] T093 Excluir repositório com relatórios (cascade, incl. PDFs) e seguir redirecionamento do GitHub — PR #111; cadastro acompanha a renomeação do repositório (ADR-014, `github_id`) — PR #112
+- [X] T094 [US1] Confirmação em janela secundária ao excluir repositório com análises (FR-020), com `tests/e2e/exclusao_repositorio.spec.ts` — PR #113
+- [X] T095 Logout revoga a sessão pelo cookie do refresh token, mesmo com o access token expirado; idempotente (ADR-006, atualização de 17/11/2026) — PR #114
+- [X] T096 Contratos de repositórios, análises e relatórios alinhados à API real (PR #115) e correção das análises que falham sem data de término, com o histórico exibindo "Falhou" e o motivo (FR-022, ADR-013) — PR #116
+- [X] T097 Revisão geral da documentação (README, `.env.example`, specs, contratos, C4, ADRs, RFC-001) contra o código, em 17/11/2026
 - [ ] T079 Registrar domínio próprio e verificá-lo no Resend (SPF/DKIM); atualizar `EMAIL_FROM` — pré-requisito para entregar o e-mail de recuperação a usuários externos e para o deploy público (ADR-005)
-- [ ] T080 Revisão das métricas solicitada na orientação de 15/09/2026 — escopo a definir com o orientador (o catálogo `metrics_catalog.py` não muda desde 25/06/2026)
+- [ ] T080 Revisão das métricas solicitada na orientação de 15/09/2026 — escopo a definir com o orientador. *(Nota de 2026-11-17: a revisão por pares do Sandro já corrigiu a corretude e o escopo das métricas — T088 a T090, ADR-010 a ADR-012 — e ajustou o texto de fórmula do catálogo; os limites de especificação continuam os de 25/06/2026.)*
 - [ ] T081 Se a suíte E2E passar a rodar no CI, propagar o `GITHUB_TOKEN` a ela para não esbarrar no limite anônimo de 60 req/h (comentário do PR #75)
 - [ ] T082 Deploy em ambiente público (marco M10 do RFC-001)
 

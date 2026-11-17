@@ -1,6 +1,6 @@
 # Quickstart: SoftMeter — Plataforma de Metrologia de Qualidade de Software
 
-**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-05 (recuperação de senha, E2E)
+**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-17 (exclusão com confirmação, histórico de falhas, produção)
 
 ## Pré-requisitos
 
@@ -34,7 +34,17 @@ A aplicação estará disponível em:
    conformidade.
 5. Repetir o passo 3 em outro dia/momento e confirmar que o histórico (US3) mostra a tendência.
 6. Gerar um relatório PDF (US4) e confirmar que cada métrica inclui fórmula, fonte bibliográfica
-   e limites.
+   e limites, e a nota de escopo da medição.
+7. Excluir o repositório: como ele já tem análise e relatório, a interface abre uma janela de
+   confirmação ("Deseja mesmo excluir este repositório?"); **Esc**/**Cancelar** mantêm o repositório e
+   **Excluir repositório** apaga o cadastro, as análises, os relatórios e os PDFs.
+
+## Validação manual — falhas na análise (ADR-013)
+
+1. Sem rede (ou com o `GITHUB_TOKEN` esgotado), dispare uma análise: a tela mostra a mensagem do
+   servidor (cota esgotada ou GitHub indisponível) e o repositório **continua ativo**.
+2. Abra o histórico: a tentativa aparece como **Falhou**, com a data e o motivo — não como "Em andamento".
+3. Tente de novo quando o GitHub voltar: a análise conclui normalmente.
 
 ## Validação manual — recuperação de senha (ADR-005)
 
@@ -46,6 +56,12 @@ A aplicação estará disponível em:
    (`/reset-password?token=…`), definir uma nova senha (mín. 8 caracteres) e fazer login com ela.
 3. Reabrir o mesmo link: deve ser recusado ("Token inválido ou expirado") — o token é de uso único
    e expira em 60 minutos.
+
+## Validação manual — sessão e logout (ADR-006)
+
+1. Entre, clique em "Sair" e tente reabrir uma rota protegida: a sessão está encerrada.
+2. O logout vale mesmo com o access token (15 min) já expirado — ele identifica a sessão pelo cookie do
+   refresh token — e revoga os tokens em todos os dispositivos.
 
 > O `.env` é opcional. `GITHUB_TOKEN` habilita a leitura de cobertura via artifact do GitHub
 > Actions (ADR-004) e `RESEND_API_KEY` o envio real do e-mail (ADR-005); sem eles, o sistema segue
@@ -71,6 +87,12 @@ npm install
 npx playwright install --with-deps chromium   # apenas na primeira vez
 npm test
 ```
+
+## Produção
+
+O `docker-compose.yml` é só para desenvolvimento. Para publicar, use o `docker-compose.prod.yml` e as
+variáveis obrigatórias descritas no [README](../../README.md#desenvolvimento--produção) e no
+`.env.example` (ADR-007).
 
 ## Critério de pronto (alinhado à Constitution Check do plan.md)
 

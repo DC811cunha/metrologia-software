@@ -1,6 +1,6 @@
 # Research: SoftMeter — Plataforma de Metrologia de Qualidade de Software
 
-**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24
+**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-17 (itens 13 a 16 e notas de revisão nos itens 1, 3 a 7 e 9)
 
 Este documento resolve as decisões técnicas necessárias para a Phase 1, derivadas da stack
 definida em ADR-003 e dos requisitos funcionais do `spec.md`.
@@ -10,6 +10,8 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 - **Decision**: Baixar o conteúdo do repositório via o endpoint público de arquivo compactado do
   GitHub (`GET /repos/{owner}/{repo}/zipball/{ref}`), extrair em um diretório de trabalho
   temporário isolado por análise, processar, e remover o diretório ao final (sucesso ou falha).
+  *(Atualização, ADR-009 e ADR-013: o download é em streaming com tetos de tamanho, de conteúdo extraído e de
+  número de arquivos; segue redirecionamentos do GitHub; erros de rede/cota viram erros tipados.)*
 - **Rationale**: Não exige o binário `git` no worker, funciona com requisições HTTP simples
   (`httpx`), e entrega todo o código de uma vez (mais rápido que a API de Conteúdo arquivo-a-
   arquivo para repositórios com muitos arquivos), favorecendo o orçamento de 10s do Princípio IV.
@@ -35,7 +37,8 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 - **Decision**: Para arquivos Python, usar **Radon** diretamente (já implementa as fórmulas
   publicadas de McCabe (1976) para Complexidade Ciclomática e de Coleman et al. (1994) para o
   Índice de Manutenibilidade, com LOC contado por SLOC lógico). Para arquivos JavaScript/
-  TypeScript, usar **tree-sitter** (bindings Python via `tree-sitter-languages`) para obter a AST
+  TypeScript, usar **tree-sitter** (bindings Python `tree-sitter`, `tree-sitter-javascript` e
+  `tree-sitter-typescript`) para obter a AST
   e aplicar exatamente a mesma fórmula documentada no catálogo de métricas (mesma definição de
   McCabe para nós de decisão; mesma fórmula de Coleman et al. para o Índice de Manutenibilidade),
   garantindo que a definição da métrica seja idêntica entre as duas linguagens suportadas
@@ -47,6 +50,9 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 - **Alternatives considered**: Invocar uma ferramenta Node (ex.: `escomplex`) via subprocesso a
   partir do backend Python — adicionaria uma segunda runtime/dependência de sistema operacional
   ao Docker image, contrariando a simplicidade pretendida pelo ADR-003.
+- **Atualização (ADR-010)**: LOC passou a ser a contagem de linhas **físicas** com código, igual em Python
+  (`sloc` do Radon, que alimenta também o Índice de Manutenibilidade) e em JS/TS (comentários identificados
+  pela AST do tree-sitter). Arquivos de teste, dependências e arquivos gerados/minificados ficam fora (ADR-011).
 
 ## 4. Acoplamento
 
@@ -60,6 +66,10 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
   amplamente citada (Robert C. Martin, *Agile Software Development: Principles, Patterns, and
   Practices*, 2002), aplicável de forma equivalente a ambas as linguagens suportadas via grafo de
   imports — exatamente o que o Princípio V exige (fórmula + fonte + limites).
+  *(Atualização, ADR-010 e ADR-012: os imports Python são casados com o **sufixo do caminho** dos módulos
+  (qualquer layout) e ignorados se ambíguos; em JS/TS valem `paths`/`baseUrl` do `tsconfig`/`jsconfig` mais
+  próximo, seguindo `extends`. Sem nenhum import interno resolvido, o resultado é "Não disponível" em vez
+  de um falso `0,0`.)*
 - **Alternatives considered**: CBO (Coupling Between Objects, Chidamber & Kemerer, 1994) — mais
   apropriado a paradigma orientado a objetos por classe; rejeitado porque parte do código-alvo
   (especialmente JS funcional) não é estruturado em classes, tornando a métrica inconsistente
@@ -70,7 +80,9 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 - **Decision**: Detecção de clones Tipo-1/Tipo-2 por *shingling* de blocos de tokens normalizados
   (identificadores e literais substituídos por placeholders), com janela mínima configurável
   (ex.: 6 linhas), usando a mesma AST do tree-sitter para tokenizar. Score = percentual de linhas
-  de código duplicadas em relação ao total de linhas analisadas.
+  de código duplicadas em relação ao total de linhas analisadas. *(Atualização, ADR-010: imports não
+  contam; a janela precisa de ao menos 4 linhas normalizadas distintas; janelas sobrepostas do mesmo arquivo
+  não casam entre si.)*
 - **Rationale**: É a mesma abordagem (normalização + comparação de blocos) usada por ferramentas
   de mercado de detecção de duplicação (ex.: a métrica de "duplicated lines density" do
   SonarQube), com formato comparável e fonte documentável.
@@ -97,6 +109,10 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
   maioria dos repositórios públicos não versiona artefato de build (é o próprio caso do
   SoftMeter), o que deixava a métrica quase sempre "Não disponível" na prática. A decisão de
   nunca executar código do repositório analisado permanece intacta.
+- **Atualização (ADR-011 e ADR-012)**: a busca por `coverage.xml`/`lcov.info` ignora diretórios de
+  dependências e é determinística (caminho mais raso primeiro, depois alfabético); relatórios múltiplos são
+  combinados por soma de linhas. Em monorepos, **todos** os artifacts de cobertura do run de CI mais recente
+  (até `MAX_COVERAGE_ARTIFACTS`) são baixados e combinados, e o XML é lido com `defusedxml` (ADR-009).
 
 ## 7. Processamento assíncrono e orçamento de 10 segundos (Princípio IV)
 
@@ -108,6 +124,9 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
   status "processando"; o frontend faz polling (a cada 2 s) até a conclusão. *(Redação original:
   heurística por número de arquivos elegíveis e orçamento de ~8 s; a implementação adotou o
   tamanho informado pelo GitHub, que é conhecido antes de baixar qualquer código.)*
+  *(Atualização, ADR-009: acima de `max_repo_size_kb` — 200 MB — a análise é recusada com HTTP 422; a análise
+  síncrona tem prazo cooperativo de 300 s e o worker Celery tem `soft_time_limit`/`time_limit` por cima.
+  Se a fila estiver fora do ar, a resposta é HTTP 503 e a análise fica `falhou`, nunca presa.)*
 - **Rationale**: Atende ao Princípio IV (resultado em até 10s para o caso padrão) sem impor um
   hard timeout abrupto que descartaria análises de repositórios maiores — a degradação graciosa é
   explicitamente exigida pela constituição.
@@ -131,6 +150,10 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 - **Decision**: JWT de acesso de curta duração (ex.: 15 min) + refresh token de longa duração
   (ex.: 7 dias), ambos assinados pelo backend; senhas hasheadas com bcrypt. Refresh token
   armazenado como cookie HTTPOnly; access token usado no header `Authorization: Bearer`.
+  *(Atualização, ADR-006: o refresh token vai **somente** no cookie (nunca no corpo); ambos os tokens
+  carregam a `token_version` do usuário, que sobe no logout e no reset de senha e revoga a sessão na hora —
+  o refresh continua sem estado e sem tabela de sessões. O logout é idempotente e identifica a sessão pelo
+  cookie do refresh, para funcionar mesmo com o access token expirado.)*
 - **Rationale**: Padrão de mercado para APIs FastAPI stateless, equilibra segurança (token de
   acesso de vida curta) e experiência do usuário (refresh evita logins repetidos).
 - **Alternatives considered**: Sessão baseada em cookie no servidor (stateful) — exigiria estado
@@ -141,8 +164,8 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 
 - **Decision**: Playwright, cobrindo os fluxos críticos através da UI real do frontend Vite/React.
   *(Redação original: apenas US1 e US2. Implementado: um arquivo por user story — US1 a US5 — mais
-  a página inicial pública; 11 cenários. A suíte roda localmente, contra a aplicação completa, e
-  não faz parte do job de CI.)*
+  a página inicial pública e a confirmação de exclusão de repositório; 15 cenários. A suíte roda localmente,
+  contra a aplicação completa, e não faz parte do job de CI.)*
 - **Rationale**: Suporta TypeScript nativamente, integra-se bem a um frontend Vite, e é a opção
   mais usada atualmente para E2E em aplicações React.
 - **Alternatives considered**: Cypress — também viável; Playwright foi preferido por suporte
@@ -167,6 +190,36 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
   os gauges, a semântica de cor de conformidade (verde/âmbar/vermelho — distinta do azul da marca)
   e a acessibilidade (foco visível, `prefers-reduced-motion`, status nunca só por cor).
 
+## 13. Limites de custo e de requisições (pós-MVP, 08/11/2026)
+
+- **Decision**: tetos configuráveis para tudo que o usuário pode forçar o servidor a baixar ou processar
+  (tamanho do repositório, download, conteúdo extraído, número de arquivos, arquivo-fonte, artifact de
+  cobertura, tempo de análise — ADR-009) e rate limit por IP, em memória ou Redis (ADR-008); com
+  `ENVIRONMENT=production`, a API se recusa a iniciar com configuração insegura (ADR-007).
+- **Rationale**: o SoftMeter processa conteúdo de terceiros em um serviço público; falhar alto e cedo é mais
+  seguro que degradar em silêncio.
+- **Alternatives considered**: rate limit só em memória (não vale entre réplicas); pré-hash da senha para
+  aceitar senhas longas (mudaria todos os hashes — ADR-006).
+
+## 14. Erros temporários do GitHub (pós-MVP, 08/11/2026)
+
+- **Decision**: classificar toda resposta de erro do GitHub em três famílias — acesso negado (403/404/451),
+  cota esgotada (429 ou 403 com sinal de limite, com `Retry-After`) e indisponibilidade (5xx/rede). Só a
+  primeira marca o repositório como `inacessivel`; as outras falham a análise com o motivo e deixam o
+  repositório ativo. Não há bloqueio antecipado: a análise sempre consulta o GitHub (ADR-013).
+
+## 15. Identidade do repositório (pós-MVP, 13/11/2026)
+
+- **Decision**: guardar o `id` numérico do GitHub (`repositories.github_id`) na primeira análise e, a cada
+  análise, atualizar `url`/`owner_nome` para o nome canônico e barrar a análise se o id mudou (nome
+  reaproveitado por outro repositório). Duplicatas não são fundidas automaticamente (ADR-014).
+
+## 16. Escopo da medição (pós-MVP, 08/11/2026)
+
+- **Decision**: medir apenas código de produção — testes, dependências e arquivos gerados/minificados ficam
+  de fora das métricas de código — e mostrar isso ao usuário no dashboard e no PDF (`SCOPE_NOTE`, mantido em
+  dois lugares: `analysis/metrics_catalog.py` e `frontend/src/metricsCatalog.ts`). Ver ADR-011 e ADR-012.
+
 ## Resumo das decisões
 
 | # | Tópico | Decisão |
@@ -180,8 +233,12 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 | 7 | Performance/assincronia | Síncrono até o limite de tamanho (5000 KB); acima, Celery+Redis com polling |
 | 8 | Relatório PDF | ReportLab |
 | 9 | Autenticação | JWT (access curto + refresh longo) + bcrypt |
-| 10 | E2E | Playwright (US1–US5 + página inicial) |
+| 10 | E2E | Playwright (US1–US5, página inicial e exclusão de repositório) |
 | 11 | Recuperação de senha *(pós-MVP)* | Token de uso único com hash SHA-256 + e-mail via Resend (ADR-005) |
 | 12 | Camada de estilo do frontend | Tailwind CSS 3 (MVP); tokens de tema em variáveis CSS e tema escuro *(pós-MVP)* |
+| 13 | Limites de custo e de requisições *(pós-MVP)* | Tetos configuráveis, rate limit por IP (memória/Redis), produção recusa configuração insegura (ADR-007/008/009) |
+| 14 | Erros temporários do GitHub *(pós-MVP)* | Erros tipados; cota/indisponibilidade falham a análise sem bloquear o repositório (ADR-013) |
+| 15 | Identidade do repositório *(pós-MVP)* | `github_id` + nome canônico; nome reaproveitado barra a análise (ADR-014) |
+| 16 | Escopo da medição *(pós-MVP)* | Só código de produção, com nota visível no dashboard e no PDF (ADR-011/012) |
 
 Nenhum item de Technical Context permanece como NEEDS CLARIFICATION após esta pesquisa.
