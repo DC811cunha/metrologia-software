@@ -11,6 +11,7 @@ um arquivo por user story:
 | `relatorio_pdf.spec.ts` | US4 — Relatório PDF | T058 |
 | `autenticacao.spec.ts` | US5 — Autenticação | T064 |
 | `home.spec.ts` | Página inicial pública (apresentação + tutorial) | — |
+| `exclusao_repositorio.spec.ts` | Confirmação ao excluir repositório com análise | — |
 
 Os fluxos de US1–US4 cadastram e analisam `github.com/pypa/sampleproject` (pequeno,
 Python, estável) — a suíte bate na API real do GitHub, sem autenticação se o backend não tiver

@@ -9,6 +9,9 @@ export interface Repository {
   criado_em: string;
   ultima_analise_status?: string | null;
   ultima_analise_id?: string | null;
+  /** Totais usados no aviso de confirmação ao excluir (ausentes = nada a perder). */
+  total_analises?: number;
+  total_relatorios?: number;
 }
 
 export async function listRepositories(): Promise<Repository[]> {

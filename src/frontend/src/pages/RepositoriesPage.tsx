@@ -5,6 +5,7 @@ import { isAxiosError } from 'axios';
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
 import Card from '../components/ui/Card';
+import ConfirmDialog from '../components/ui/ConfirmDialog';
 import { GaugeIcon, GithubIcon, PlayIcon, PlusIcon, TrashIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import PageHeader from '../components/ui/PageHeader';
@@ -24,6 +25,25 @@ function serverDetail(err: unknown): string | null {
     return err.response.data.detail;
   }
   return null;
+}
+
+function plural(count: number, singular: string, pluralForm: string): string {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+/** O que será apagado junto com o repositório, ex.: "10 análises e 2 relatórios emitidos". */
+function describeContents(repository: Repository): { text: string; hasReports: boolean } {
+  const analyses = repository.total_analises ?? 0;
+  const reports = repository.total_relatorios ?? 0;
+  const parts = [
+    ...(analyses > 0 ? [plural(analyses, 'análise', 'análises')] : []),
+    ...(reports > 0 ? [plural(reports, 'relatório emitido', 'relatórios emitidos')] : []),
+  ];
+  return { text: parts.join(' e '), hasReports: reports > 0 };
+}
+
+function hasContents(repository: Repository): boolean {
+  return (repository.total_analises ?? 0) > 0 || (repository.total_relatorios ?? 0) > 0;
 }
 
 function RepositoryAvatar({ name }: { name: string }) {
@@ -60,6 +80,9 @@ function RepositoriesPage() {
 
   const [url, setUrl] = useState('');
   const [submitting, setSubmitting] = useState(false);
+
+  const [pendingDelete, setPendingDelete] = useState<Repository | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [lastResultMessage, setLastResultMessage] = useState<string | null>(null);
@@ -109,6 +132,23 @@ function RepositoriesPage() {
     } catch {
       setError('Não foi possível remover o repositório.');
     }
+  }
+
+  /** Repositório com análises ou relatórios pede confirmação; sem nada a perder, exclui direto. */
+  function requestDelete(repository: Repository) {
+    if (hasContents(repository)) {
+      setPendingDelete(repository);
+    } else {
+      handleDelete(repository.id);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    setDeleting(true);
+    await handleDelete(pendingDelete.id);
+    setDeleting(false);
+    setPendingDelete(null);
   }
 
   async function handleAnalyze(id: string) {
@@ -237,7 +277,7 @@ function RepositoriesPage() {
                   <Button
                     variant="danger"
                     icon={<TrashIcon className="h-4 w-4" />}
-                    onClick={() => handleDelete(repository.id)}
+                    onClick={() => requestDelete(repository)}
                   >
                     Remover
                   </Button>
@@ -247,6 +287,30 @@ function RepositoriesPage() {
           </ul>
         </div>
       )}
+
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Deseja mesmo excluir este repositório?"
+        confirmLabel="Excluir repositório"
+        loading={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      >
+        {pendingDelete && (
+          <>
+            <p>
+              <strong className="font-semibold text-fg">{pendingDelete.owner_nome}</strong> já possui{' '}
+              <strong className="font-semibold text-fg">{describeContents(pendingDelete).text}</strong>.
+            </p>
+            <p>
+              Ao excluir, {describeContents(pendingDelete).hasReports
+                ? 'todo o histórico, os indicadores e os relatórios em PDF'
+                : 'todo o histórico e os indicadores'}{' '}
+              deste repositório serão apagados permanentemente. Esta ação não pode ser desfeita.
+            </p>
+          </>
+        )}
+      </ConfirmDialog>
     </div>
   );
 }

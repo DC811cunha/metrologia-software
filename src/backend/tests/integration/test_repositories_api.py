@@ -279,3 +279,80 @@ class TestDeleteRepositoryWithReports:
         assert client.delete(f"/api/v1/repositories/{repository['id']}", headers=auth_headers).status_code == 204
 
         assert precious.exists()
+
+
+class TestListCarriesTheTotalsShownBeforeDeleting:
+    """A tela avisa o que será apagado junto com o repositório: precisa dos totais na lista."""
+
+    @pytest.fixture(autouse=True)
+    def _isolated_reports_dir(self, tmp_path, monkeypatch):
+        import app.core.config as config_module
+
+        monkeypatch.setattr(config_module.settings, "reports_dir", str(tmp_path / "generated_reports"))
+
+    def _create(self, client, auth_headers, monkeypatch, url):
+        _patch_languages(monkeypatch, ["python"])
+        return client.post("/api/v1/repositories", json={"url": url}, headers=auth_headers).json()
+
+    def _analyze(self, client, auth_headers, monkeypatch, repository, times):
+        import app.api.analyses as analyses_module
+
+        monkeypatch.setattr(analyses_module.GithubService, "fetch_repo_size_kb", lambda self, o, r: 10)
+
+        def fake_download(self, owner, repo, dest_dir):
+            root = dest_dir / f"{owner}-{repo}-abc"
+            root.mkdir(parents=True)
+            (root / "main.py").write_text("def add(a, b):\n    return a + b\n", encoding="utf-8")
+            return root
+
+        monkeypatch.setattr(analyses_module.GithubService, "download_and_extract", fake_download)
+        return [
+            client.post(f"/api/v1/repositories/{repository['id']}/analyses", headers=auth_headers).json()
+            for _ in range(times)
+        ]
+
+    def test_a_repository_without_analyses_reports_zero_totals(self, client, auth_headers, monkeypatch):
+        self._create(client, auth_headers, monkeypatch, "https://github.com/octocat/Hello-World")
+
+        [item] = client.get("/api/v1/repositories", headers=auth_headers).json()
+
+        assert (item["total_analises"], item["total_relatorios"]) == (0, 0)
+
+    def test_counts_every_analysis_and_report_of_each_repository_separately(
+        self, client, auth_headers, monkeypatch
+    ):
+        first = self._create(client, auth_headers, monkeypatch, "https://github.com/octocat/Hello-World")
+        second = self._create(client, auth_headers, monkeypatch, "https://github.com/octocat/Spoon-Knife")
+        analyses = self._analyze(client, auth_headers, monkeypatch, first, 3)
+        self._analyze(client, auth_headers, monkeypatch, second, 1)
+        base = f"/api/v1/repositories/{first['id']}/reports"
+        client.post(base, json={"tipo": "analise_unica", "analise_id": analyses[0]["id"]}, headers=auth_headers)
+        client.post(base, json={"tipo": "historico_completo"}, headers=auth_headers)
+
+        by_name = {
+            item["owner_nome"]: item for item in client.get("/api/v1/repositories", headers=auth_headers).json()
+        }
+
+        assert (by_name["octocat/Hello-World"]["total_analises"], by_name["octocat/Hello-World"]["total_relatorios"]) == (3, 2)
+        assert (by_name["octocat/Spoon-Knife"]["total_analises"], by_name["octocat/Spoon-Knife"]["total_relatorios"]) == (1, 0)
+
+    def test_failed_analyses_are_counted_too_since_they_are_part_of_the_history(
+        self, client, auth_headers, monkeypatch
+    ):
+        import app.api.analyses as analyses_module
+        from app.services.github_service import GithubUnavailableError
+
+        repository = self._create(client, auth_headers, monkeypatch, "https://github.com/octocat/Hello-World")
+
+        def unavailable(self, owner, repo):
+            raise GithubUnavailableError("fora do ar")
+
+        monkeypatch.setattr(analyses_module.GithubService, "fetch_repo_size_kb", unavailable)
+        client.post(f"/api/v1/repositories/{repository['id']}/analyses", headers=auth_headers)
+
+        [item] = client.get("/api/v1/repositories", headers=auth_headers).json()
+
+        assert item["total_analises"] == 1
+
+    def test_an_empty_account_still_lists_fine(self, client, auth_headers):
+        assert client.get("/api/v1/repositories", headers=auth_headers).json() == []
