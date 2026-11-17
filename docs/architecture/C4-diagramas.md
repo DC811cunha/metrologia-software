@@ -120,7 +120,10 @@ Backend API (FastAPI) — src/backend/app/
 │   ├── analysis_runner.py     → orquestra download + 6 métricas + persistência
 │   ├── conformity_service.py  → classifica medições, calcula o índice agregado
 │   ├── trend_service.py       → tendência entre as duas análises mais recentes
-│   ├── report_service.py      → monta o PDF (ReportLab) com resumo interpretativo
+│   ├── report_service.py      → monta o Laudo PDF (ReportLab): veredito e índice, medidores,
+│   │                            comparação com a análise anterior, resumo interpretativo,
+│   │                            gráficos de evolução (histórico); usa report_theme.py
+│   │                            (identidade visual, formatação) e report_charts.py (gráficos)
 │   └── email_service.py       → e-mail de recuperação: Resend, ou log se sem chave
 │
 ├── workers/

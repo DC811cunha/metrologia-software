@@ -92,6 +92,7 @@ do uso real. Tudo entrou por Pull Request com CI verde; a decisão de cada mudan
 | **Nome canônico do repositório** acompanha renomeações e barra nome reaproveitado | #112 / ADR-014 | RF19, RN11, 3.2, 5.2 |
 | **Exclusão de repositório** com remoção em cascata e confirmação em janela secundária | #111, #113 | RF20, 3.2, 4.8 |
 | Ajustes de UX no histórico (status da métrica no gráfico, botão de voltar ao dashboard) e logo das telas de autenticação | #109, #110 | 4.6, 4.8 |
+| **Laudo PDF reformulado:** identidade visual, índice de conformidade, medidores por métrica, comparação com a análise anterior, "quanto falta para Conforme", limites com o sentido correto e, no histórico, gráficos de evolução | — | RF14, 4.7 |
 
 Os contratos da API (`specs/001-softmeter-plataforma-mvp/contracts/`) foram revisados contra o comportamento
 real (PR #115) e os KPIs da seção 1.6 foram atualizados com números medidos nesta revisão.
@@ -387,7 +388,7 @@ RF12 — O sistema deve permitir que o usuário visualize a sequência históric
 
 RF13 — O sistema deve permitir que o usuário gere um relatório em PDF de uma análise individual ou do histórico completo de um repositório, contendo: identificação do repositório, data, valor medido, limites de especificação, status de conformidade e a fonte bibliográfica de cada métrica.
 
-RF14 — O relatório deve incluir um resumo interpretativo automático (pontos fortes, pontos de atenção com implicação prática, e a conta do índice agregado) — adicionado na v2.0 (ver ADR extensão de cobertura).
+RF14 — O relatório deve incluir um resumo interpretativo automático (pontos fortes, pontos de atenção com implicação prática, e a conta do índice agregado) — adicionado na v2.0 (ver ADR extensão de cobertura). *(v2.2: o resumo passou a indicar quanto falta para cada métrica chegar a Conforme e a sugerir uma ação genérica; o laudo ganhou índice de conformidade, medidores por métrica, comparação com a análise anterior e, no histórico, gráficos de evolução e matriz de análises.)*
 
 RF15 — O sistema deve definir, para cada métrica, limites de especificação fixos baseados em literatura reconhecida, sem permitir customização por usuário nesta versão.
 
@@ -670,10 +671,20 @@ análises feitas no mesmo dia.
 
 ![Primeira página do laudo gerado](images/screenshots/05_laudo.png)
 
-Laudo real, gerado a partir de uma análise do repositório `NomadPlan` (que aparece na captura pelo nome anterior, `Viaje-Mais`). A seção "Resumo da
-análise" (adicionada nesta revisão) lista pontos fortes e pontos de atenção com a implicação
-prática de cada métrica fora do limite, seguida da tabela detalhada com fórmula e fonte
-bibliográfica de cada uma das 6 métricas.
+*(Atualizado na v2.2: o laudo foi reformulado; a captura mostra a primeira página de um laudo real, gerado a partir
+de uma análise do próprio SoftMeter, e substitui a da v2.1.)* A primeira página traz a identificação do repositório,
+o **veredito** (status geral, **índice de conformidade** de 0 a 100 com a barra de faixas e a contagem de métricas por
+status) e o **quadro de medições**: valor com unidade, posição do valor nas faixas de especificação e status — e,
+quando existe uma análise anterior, a variação em relação a ela. Em seguida vêm o resumo (pontos fortes e **pontos de
+atenção com a implicação prática, quanto falta para chegar a Conforme e uma sugestão de ação**), a ficha técnica de
+cada uma das 6 métricas (fórmula, fonte bibliográfica e faixas com o sentido correto de cada limite), "Como ler este
+laudo" (inclui a nota de escopo da medição) e as referências.
+
+![Laudo do histórico completo: variação e evolução por métrica](images/screenshots/05b_laudo_historico.png)
+
+O laudo do **histórico completo** acrescenta o gráfico de evolução do índice, a tabela de variação por métrica
+(primeira × mais recente análise) e um gráfico por métrica, com os pontos coloridos pelo status de cada análise,
+além da matriz de todas as análises.
 
 ---
 
@@ -814,7 +825,7 @@ Backend API (FastAPI)
 │   ├── analysis_runner.py     → orquestra download + 6 métricas + persistência
 │   ├── conformity_service.py  → classifica medições, calcula índice agregado
 │   ├── trend_service.py       → tendência entre as duas análises mais recentes
-│   └── report_service.py      → monta o PDF (ReportLab) com resumo interpretativo
+│   └── report_service.py      → monta o Laudo PDF (ReportLab) — v2.2: índice, medidores, comparação, gráficos
 │
 ├── workers/
 │   ├── analysis_tasks.py      → task Celery para análise assíncrona

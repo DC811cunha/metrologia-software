@@ -112,6 +112,13 @@ ele contém definição, valor, limites e status de conformidade de cada métric
 2. **Given** um repositório com histórico de análises, **When** o usuário solicita um relatório
    do histórico completo, **Then** o documento inclui adicionalmente a tendência de cada métrica
    ao longo das análises.
+3. **Given** uma análise concluída, **When** o relatório é gerado, **Then** ele mostra o índice de
+   conformidade e a posição de cada valor nas faixas de especificação, indica quanto falta para cada
+   métrica fora do limite chegar a Conforme e, se houver análise anterior, a variação em relação a ela.
+   *(Adicionado em 2026-11-17.)*
+4. **Given** um repositório com ao menos duas análises, **When** o usuário gera o relatório do histórico
+   completo, **Then** ele inclui gráficos da evolução do índice e de cada métrica e uma tabela com todas as
+   análises. *(Adicionado em 2026-11-17.)*
 
 ---
 

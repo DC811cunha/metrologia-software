@@ -5,6 +5,7 @@ from pypdf import PdfReader
 
 from app.analysis.metrics_catalog import METRICS_CATALOG
 from app.services.report_service import build_history_report, build_single_analysis_report
+from app.services.report_theme import format_limit
 
 MEASUREMENTS = [
     {"metrica_chave": "complexidade_ciclomatica", "valor_medido": 5, "status_conformidade": "Conforme"},
@@ -60,7 +61,7 @@ class TestBuildSingleAnalysisReport:
 
         for metric in METRICS_CATALOG.values():
             assert metric.nome in text
-            assert str(metric.limite_nominal) in text
+            assert format_limit(metric.limite_nominal) in text
             # Primeira palavra da fonte bibliográfica (ex.: autor) — um único token curto
             # tem baixíssima chance de ser quebrado pelo word-wrap da tabela, ao
             # contrário de truncar a frase em um ponto arbitrário.
@@ -188,3 +189,165 @@ class TestScopeNote:
         )
 
         assert "Escopo da medição" in _extract_text(pdf)
+
+
+MEASUREMENTS_PREVIOUS = [
+    {"metrica_chave": "complexidade_ciclomatica", "valor_medido": 8, "status_conformidade": "Conforme"},
+    {"metrica_chave": "loc", "valor_medido": 20, "status_conformidade": "Conforme"},
+    {"metrica_chave": "indice_manutenibilidade", "valor_medido": 80, "status_conformidade": "Conforme"},
+    {"metrica_chave": "cobertura_testes", "valor_medido": None, "status_conformidade": "Não disponível"},
+    {"metrica_chave": "acoplamento", "valor_medido": 0.3, "status_conformidade": "Conforme"},
+    {"metrica_chave": "score_duplicacao", "valor_medido": 30.12345, "status_conformidade": "Não-Conforme"},
+]
+MEASUREMENTS_CURRENT = [
+    {"metrica_chave": "complexidade_ciclomatica", "valor_medido": 5, "status_conformidade": "Conforme"},
+    {"metrica_chave": "loc", "valor_medido": 20, "status_conformidade": "Conforme"},
+    {"metrica_chave": "indice_manutenibilidade", "valor_medido": 80, "status_conformidade": "Conforme"},
+    {"metrica_chave": "cobertura_testes", "valor_medido": 91.6743, "status_conformidade": "Conforme"},
+    {"metrica_chave": "acoplamento", "valor_medido": 0.3, "status_conformidade": "Conforme"},
+    {"metrica_chave": "score_duplicacao", "valor_medido": 17.0529, "status_conformidade": "Não-Conforme"},
+]
+
+
+def _single(**overrides) -> str:
+    kwargs = dict(
+        repository_url="https://github.com/octocat/Hello-World",
+        analysis_id="analysis-1",
+        concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
+        measurements=MEASUREMENTS_CURRENT,
+        overall_status="Condicional",
+    )
+    kwargs.update(overrides)
+    return _extract_text(build_single_analysis_report(**kwargs))
+
+
+class TestReportData:
+    def test_limits_use_the_right_direction_for_each_metric(self):
+        # Regressão: a tabela antiga mostrava "≤ 80 / ≤ 50" para a Cobertura de Testes, em que MAIS é melhor.
+        text = _single()
+
+        assert "Conforme ≥ 80 · Condicional ≥ 50 · Não-Conforme < 50" in text  # cobertura
+        assert "Conforme ≤ 10 · Condicional ≤ 20 · Não-Conforme > 20" in text  # complexidade
+
+    def test_numbers_use_brazilian_format_and_sensible_precision(self):
+        text = _single()
+
+        assert "17,1%" in text  # 17.0529 -> uma casa, vírgula decimal
+        assert "91,7%" in text
+        assert "17.0529" not in text
+        assert "91.6743" not in text
+
+    def test_shows_the_overall_conformity_index_and_counts(self):
+        text = _single()
+
+        # 5 Conformes (500) + 1 Não-Conforme (0) = 83,3
+        assert "83,3" in text
+        assert "ÍNDICE DE CONFORMIDADE" in text
+
+    def test_dates_are_shown_in_brasilia_time(self):
+        text = _single()  # 12:00 UTC
+
+        assert "01/06/2026 09:00" in text
+        assert "horário de Brasília" in text
+
+    def test_shows_languages_and_repository_name(self):
+        text = _single(linguagens=["Python", "TypeScript"])
+
+        assert "Python, TypeScript" in text
+        assert "octocat/Hello-World" in text
+
+    def test_compares_with_the_previous_analysis_when_available(self):
+        text = _single(
+            previous={
+                "concluida_em": datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc),
+                "measurements": MEASUREMENTS_PREVIOUS,
+                "status_conformidade_geral": "Condicional",
+            }
+        )
+
+        assert "vs. anterior" in text
+        assert "melhorou" in text  # complexidade 8 -> 5 e duplicação 30,1 -> 17,1
+        assert "desde a análise de 01/05/2026" in text
+
+    def test_has_no_comparison_column_without_a_previous_analysis(self):
+        assert "vs. anterior" not in _single()
+
+    def test_attention_points_say_how_far_each_metric_is_from_conforme(self):
+        text = _single()
+
+        assert "Para chegar a Conforme, reduzir de 17,1% para no máximo 5%" in text
+        assert "Sugestão:" in text
+
+    def test_pages_are_numbered_with_the_total(self):
+        assert "Página 1 de" in _single()
+
+    def test_survives_special_characters_in_the_repository_url(self):
+        text = _single(repository_url="https://github.com/octocat/a&b<c>")
+
+        assert "a&b" in text
+
+    def test_measurement_order_from_the_database_does_not_matter(self):
+        shuffled = list(reversed(MEASUREMENTS_CURRENT))
+
+        assert _single(measurements=shuffled) == _single(measurements=MEASUREMENTS_CURRENT)
+
+    def test_has_a_references_section_and_a_reading_guide(self):
+        text = _single()
+
+        assert "Como ler este laudo" in text
+        assert "Referências" in text
+        assert "McCabe" in text
+
+
+class TestHistoryReportCharts:
+    ANALYSES = [
+        {
+            "id": "analysis-1",
+            "concluida_em": datetime(2026, 5, 1, tzinfo=timezone.utc),
+            "measurements": MEASUREMENTS_PREVIOUS,
+            "status_conformidade_geral": "Condicional",
+        },
+        {
+            "id": "analysis-2",
+            "concluida_em": datetime(2026, 6, 1, tzinfo=timezone.utc),
+            "measurements": MEASUREMENTS_CURRENT,
+            "status_conformidade_geral": "Condicional",
+        },
+    ]
+
+    def _history(self, analyses=None) -> str:
+        return _extract_text(
+            build_history_report(
+                repository_url="https://github.com/octocat/Hello-World",
+                analyses=analyses or self.ANALYSES,
+                linguagens=["Python"],
+            )
+        )
+
+    def test_has_overview_evolution_and_variation_sections(self):
+        text = self._history()
+
+        assert "Evolução do índice de conformidade" in text
+        assert "Evolução de cada métrica" in text
+        assert "Variação por métrica" in text
+        assert "Primeira análise" in text
+        assert "Análises incluídas" in text
+        assert "Período" in text
+
+    def test_variation_table_shows_total_change_and_recent_trend(self):
+        text = self._history()
+
+        assert "−13,1" in text  # duplicação 30,12 -> 17,05
+        assert "Melhorando" in text
+
+    def test_a_single_analysis_has_no_variation_table_but_still_renders(self):
+        text = self._history(self.ANALYSES[:1])
+
+        assert "Variação por métrica" not in text
+        assert "Evolução do índice de conformidade" in text
+
+    def test_matrix_lists_every_analysis_id_with_its_index(self):
+        text = self._history()
+
+        assert "analysis-1" in text and "analysis-2" in text
+        assert "83,3" in text
