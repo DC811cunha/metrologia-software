@@ -19,10 +19,10 @@
   12/04/2026
 
 - **Data desta revisão:**
-  05/11/2026
+  17/11/2026
 
 - **Versão:**
-  2.1 — atualização pós-v2.0 (recuperação de senha, nova identidade visual, página inicial pública, endurecimento de segurança). A v2.0 (16/09/2026) foi a revisão pós-implementação do MVP; a v1.0 foi avaliada pelo comitê (anexo, seção 10)
+  2.2 — atualização pós-v2.1 (revisão por pares de 05/11: segurança de sessão, limites de custo, correção das métricas e tratamento de falhas do GitHub; mais exclusão com confirmação, acompanhamento de renomeação e histórico de falhas). A v2.1 (05/11/2026) trouxe recuperação de senha, nova identidade visual e página inicial pública. A v2.0 (16/09/2026) foi a revisão pós-implementação do MVP; a v1.0 foi avaliada pelo comitê (anexo, seção 10)
 
 ---
 
@@ -72,6 +72,29 @@ Também foram atualizados os KPIs (seção 1.6) com números **verificados no ar
 cronograma (seção 7) e foi adicionada a seção **"Revisões desde a v2.0"** (após a resposta ao
 parecer), que registra a orientação de 15/09/2026 e a revisão por pares, ponto a ponto — inclusive
 o que **continua em aberto** (em especial, a revisão das métricas).
+
+---
+
+# Nota sobre a revisão v2.2 (17/11/2026)
+
+Entre a v2.1 (05/11) e esta revisão, o produto recebeu a **segunda rodada de revisão por pares** do Sandro
+Machiniski (11 issues, #90 a #100, abertas em 05/11/2026 — ver "Revisões desde a v2.0") e três ajustes vindos
+do uso real. Tudo entrou por Pull Request com CI verde; a decisão de cada mudança está em um ADR (006 a 014).
+
+| Mudança | PRs / ADR | Onde aparece neste RFC |
+|---|---|---|
+| **Sessão revogável e senha longa:** `token_version` invalida os tokens no logout e no reset; refresh token só em cookie; senha de 8 a 72 bytes; logout pelo cookie do refresh, mesmo com o access token expirado | #101, #114 / ADR-006 | RF18, RNF04, 5.2, 6.1 |
+| **Configuração segura de produção:** a API recusa iniciar com padrões inseguros; `docker-compose.prod.yml` | #102 / ADR-007 | RNF13, 6.1 |
+| **Rate limit compartilhado** (memória/Redis), mais rotas e limite de corpo contado em bytes | #103 / ADR-008 | RNF07, 6.1 |
+| **Limites de custo da análise** (tamanho, download, extração, arquivos, tempo) | #104 / ADR-009 | RNF14, 3.2, 6.1 |
+| **Corretude das métricas** (acoplamento, duplicação, LOC), **escopo** só de código de produção e **cobertura de monorepo**, com a nota de escopo visível no dashboard e no PDF | #105, #106, #107 / ADR-010 a 012 | RN03, RN10, 1.6, 5.3 |
+| **Erros temporários do GitHub** (cota e indisponibilidade) não bloqueiam o repositório nem travam a análise; toda tentativa é registrada | #108, #116 / ADR-013 | RF06, RF22, 3.2 |
+| **Nome canônico do repositório** acompanha renomeações e barra nome reaproveitado | #112 / ADR-014 | RF19, RN11, 3.2, 5.2 |
+| **Exclusão de repositório** com remoção em cascata e confirmação em janela secundária | #111, #113 | RF20, 3.2, 4.8 |
+| Ajustes de UX no histórico (status da métrica no gráfico, botão de voltar ao dashboard) e logo das telas de autenticação | #109, #110 | 4.6, 4.8 |
+
+Os contratos da API (`specs/001-softmeter-plataforma-mvp/contracts/`) foram revisados contra o comportamento
+real (PR #115) e os KPIs da seção 1.6 foram atualizados com números medidos nesta revisão.
 
 ---
 
@@ -253,15 +276,15 @@ Desenvolver o **SoftMeter**, uma plataforma web que implementa o framework de Me
 
 *(Atualizado na v2.0: o KPI "redução de 50% no tempo de documentação de QA" da v1.0 foi removido — o parecer do comitê identificou corretamente que ele não tinha método de medição definido nem baseline. Os KPIs abaixo são objetivos, mensuráveis e já verificados nesta revisão.)*
 
-*(Atualizado na v2.1: números extraídos dos artifacts de cobertura e do resultado do CI do último
-merge na `main` — execução de 03/11/2026, PR #84, todos os jobs verdes.)*
+*(Atualizado na v2.2: números medidos localmente em 17/11/2026, na `main` (PR #116), com `pytest --cov`,
+`jest --coverage` e a suíte Playwright contra a stack Docker; os jobs de CI do último merge estão verdes.)*
 
 | KPI | Meta | Resultado verificado nesta revisão |
 |---|---|---|
-| Cobertura de testes automatizados (backend) | ≥ 80% | **92,2%** de linhas (161 testes, pytest) — v2.0: 92% / 145 testes |
-| Cobertura de testes automatizados (frontend) | ≥ 80% | **91,2%** de *statements* (46 testes, Jest) — v2.0: 86% / 28 testes |
+| Cobertura de testes automatizados (backend) | ≥ 80% | **95%** de *statements* (392 testes, pytest) — v2.1: 92,2% / 161 testes; v2.0: 92% / 145 testes |
+| Cobertura de testes automatizados (frontend) | ≥ 80% | **89,2%** de *statements* e 91,6% de linhas (78 testes, Jest) — v2.1: 91,2% / 46 testes; v2.0: 86% / 28 testes |
 | Tempo de análise síncrona (repositório pequeno/médio) | < 10s (p95) | Verificado por teste de performance dedicado; repositórios acima do limiar usam fila assíncrona (Celery/Redis) sem bloquear a interface |
-| Cenários E2E cobertos (Playwright) | 1 por user story | **11/11** cenários passando: 8 cobrindo as 5 user stories + 3 da página inicial pública (v2.0: 8/8) |
+| Cenários E2E cobertos (Playwright) | 1 por user story | **15/15** cenários passando: 9 cobrindo as 5 user stories + 4 da página inicial pública + 2 da exclusão de repositório (v2.1: 11/11; v2.0: 8/8) |
 | Métricas com fórmula, unidade e fonte bibliográfica documentadas | 6/6 | **6/6** (catálogo completo, Princípio V) |
 | Pipeline CI/CD executando a cada push | Sim | Sim — GitHub Actions, jobs de lint + type-check + testes para backend e frontend |
 
@@ -342,7 +365,7 @@ RF04 — O sistema deve validar que a(s) linguagem(ns) principal(is) do reposit�
 
 RF05 — O sistema deve impedir o cadastro duplicado da mesma URL de repositório dentro da conta do mesmo usuário.
 
-RF06 — O sistema deve rejeitar tentativas de análise sobre repositórios inacessíveis (privados, renomeados ou excluídos), informando o motivo da falha.
+RF06 — O sistema deve rejeitar tentativas de análise sobre repositórios inacessíveis (privados ou excluídos), informando o motivo da falha. *(v2.2: repositórios renomeados ou transferidos deixaram de ser inacessíveis — ver RF19; cota esgotada e indisponibilidade do GitHub não tornam o repositório inacessível — ver RF22.)*
 
 **Análise Automática**
 
@@ -378,6 +401,20 @@ RF16 — O sistema deve permitir que um usuário que esqueceu a senha solicite u
 
 RF17 — O sistema deve disponibilizar na raiz (`/`) uma página inicial pública de apresentação — o que é o produto, como funciona, catálogo das 6 métricas, perguntas frequentes e tutorial com capturas reais — com acesso direto a "Criar conta" e "Entrar" (ou "Ir para a plataforma", se já autenticado).
 
+**Sessão, identidade do repositório, exclusão e registro de falhas (adicionados na v2.2)**
+
+*(RF18 a RF22 correspondem a FR-018 a FR-022 de `spec.md`, adicionados em 17/11/2026.)*
+
+RF18 — O sistema deve encerrar a sessão no servidor: o logout e a redefinição de senha invalidam imediatamente todos os tokens emitidos (acesso e renovação); o logout deve funcionar mesmo com o token de acesso expirado e é idempotente (ADR-006).
+
+RF19 — O sistema deve acompanhar a renomeação ou transferência de um repositório no GitHub, atualizando nome e URL do cadastro na análise seguinte, e deve barrar a análise quando o nome cadastrado passar a apontar para outro repositório (ADR-014).
+
+RF20 — O sistema deve permitir excluir um repositório, removendo em cascata suas análises, medições e relatórios (inclusive os arquivos PDF); a interface deve pedir confirmação em janela secundária quando houver análises ou relatórios a perder.
+
+RF21 — O sistema deve limitar o custo de cada análise (repositórios acima de 200 MB são recusados; tetos de download, extração, número de arquivos e tempo) e a taxa de requisições por IP nas rotas sensíveis (ADR-008, ADR-009).
+
+RF22 — O sistema deve registrar toda tentativa de análise, inclusive as que falham, com o motivo e a data de término, e o histórico deve distinguir a falha de uma análise em andamento (ADR-013).
+
 ---
 
 ## 2.4 Requisitos Não Funcionais (RNF)
@@ -388,13 +425,13 @@ RNF02 — O sistema deve ter cobertura de testes automatizados de no mínimo 80%
 
 RNF03 — O sistema deve ter testes em três camadas (unitário, integração e E2E) para toda funcionalidade nova.
 
-RNF04 — O sistema deve utilizar autenticação com JWT (access token de curta duração + refresh token) e senhas com hash bcrypt.
+RNF04 — O sistema deve utilizar autenticação com JWT (access token de curta duração + refresh token) e senhas com hash bcrypt. *(v2.2: o refresh token trafega apenas em cookie `HttpOnly`; ambos os tokens são revogáveis por `token_version`; senha de 8 a 72 bytes — ADR-006.)*
 
 RNF05 — O sistema deve ter pipeline CI/CD configurado via GitHub Actions, com execução automática de lint, checagem de tipos e testes a cada push.
 
 RNF06 — O sistema deve utilizar banco de dados PostgreSQL e ser executável via Docker Compose em ambiente local idêntico ao de CI.
 
-RNF07 — O sistema deve limitar tentativas nos endpoints de autenticação (rate limiting de 10 requisições/minuto por IP em `/login`, `/forgot-password` e `/reset-password`) para mitigar força bruta e disparo abusivo de e-mails. *(v2.1: ampliado de apenas `/login`.)*
+RNF07 — O sistema deve limitar tentativas nos endpoints de autenticação (rate limiting de 10 requisições/minuto por IP em `/login`, `/forgot-password` e `/reset-password`) para mitigar força bruta e disparo abusivo de e-mails. *(v2.1: ampliado de apenas `/login`. v2.2: em produção, também cadastro — 10/hora —, refresh — 30/min — e criação de análises — 20/hora —, com contador compartilhável via Redis e limite de corpo de 64 KB contado em bytes — ADR-008.)*
 
 RNF08 — O dashboard deve usar um único componente de gauge reutilizável para as 6 métricas, com faixas de cor consistentes com a classificação de conformidade do projeto.
 
@@ -407,6 +444,12 @@ RNF10 — As respostas dos endpoints de recuperação de senha não podem revela
 RNF11 — A interface deve seguir diretrizes de acessibilidade: foco visível, *skip-link*, respeito a `prefers-reduced-motion`, alvos de toque de 44 px, status de conformidade nunca indicado apenas por cor, estados de carregamento/vazio/erro em todas as telas, carrossel sem rotação automática (WCAG 2.2, critério 2.2.2) e layout validado em 1024 px e 375 px. *(Diretrizes aplicadas e verificadas visualmente; não há auditoria formal de conformidade WCAG.)*
 
 RNF12 — Dependências externas opcionais não podem quebrar o caminho principal quando ausentes ou inválidas: sem `RESEND_API_KEY` o link de recuperação é registrado em log (ADR-005); com `GITHUB_TOKEN` expirado ou revogado (HTTP 401) o sistema repete a requisição sem credenciais e segue anonimamente, com limite de 60 req/h em vez de 5000 req/h (ADR-004).
+
+*(RNF13 e RNF14 adicionados na v2.2.)*
+
+RNF13 — Com `ENVIRONMENT=production`, a API deve se recusar a iniciar com segredos JWT padrão ou curtos (< 32 caracteres), segredos iguais entre si, `COOKIE_SECURE` desligado ou senha padrão do banco; o `docker-compose.prod.yml` não expõe Postgres/Redis e exige todas as credenciais (ADR-007).
+
+RNF14 — O download e a análise de repositórios de terceiros devem ter custo limitado e configurável: 200 MB de tamanho segundo o GitHub, 100 MB de download, 400 MB extraídos, 30 000 arquivos, 1 MB por arquivo-fonte e 300 s de análise; o XML de cobertura é lido com `defusedxml` (ADR-009).
 
 > **Nota sobre `RNF02 — Disponibilidade em produção` da v1.0:** este RFC não afirma mais um
 > requisito de deploy em ambiente de produção público. Até esta revisão, a aplicação roda em
@@ -422,17 +465,21 @@ RN01 — O índice de conformidade geral é a média dos escores por métrica av
 
 RN02 — Classificação final: Conforme (índice ≥ 90%), Condicional (70%–89%), Não-Conforme (< 70%).
 
-RN03 — A métrica de Cobertura de Testes pode ser classificada como "Não disponível" quando nenhuma fonte de dado é encontrada (artifact de CI, arquivo versionado ou badge); esse status é excluído do cálculo do índice, nunca contando como reprovação.
+RN03 — A métrica de Cobertura de Testes pode ser classificada como "Não disponível" quando nenhuma fonte de dado é encontrada (artifact de CI, arquivo versionado ou badge); o mesmo vale para o Acoplamento quando nenhum import interno é resolvido (ADR-010). Esse status é excluído do cálculo do índice, nunca contando como reprovação.
 
 RN04 — Apenas o usuário proprietário de um repositório pode cadastrá-lo, analisá-lo, consultar seu histórico ou gerar relatórios sobre ele.
 
 RN05 — A mesma URL de repositório não pode ser cadastrada duas vezes pela mesma conta.
 
-*(RN06 e RN07 permanecem reservadas aos itens históricos da v1.0, discutidos abaixo e na resposta ao parecer; as regras novas da v2.1 começam em RN08.)*
+*(RN06 e RN07 permanecem reservadas aos itens históricos da v1.0, discutidos abaixo e na resposta ao parecer; as regras novas da v2.1 começam em RN08 e as da v2.2 em RN10.)*
 
 RN08 — O token de redefinição de senha é de uso único, expira em 60 minutos (configurável) e é armazenado apenas como hash SHA-256 — o valor bruto existe somente no e-mail enviado ao usuário.
 
 RN09 — Uma solicitação de redefinição para e-mail não cadastrado não gera token nem e-mail, mas recebe exatamente a mesma resposta de uma solicitação válida.
+
+RN10 — *(v2.2)* As métricas de código (Complexidade Ciclomática, LOC, Índice de Manutenibilidade, Acoplamento e Duplicação) consideram apenas o código-fonte de produção em Python/JS/TS: arquivos de teste, dependências e arquivos gerados ou minificados ficam de fora (ADR-011), e essa nota de escopo é exibida no dashboard e no PDF (ADR-012). A Cobertura de Testes é lida dos relatórios publicados pelo repositório, combinando os artifacts do run de CI mais recente em monorepos.
+
+RN11 — *(v2.2)* O cadastro de um repositório é identificado pelo id numérico do GitHub (gravado na primeira análise): renomeações são acompanhadas, duplicatas não são fundidas automaticamente e um nome que passou a apontar para outro repositório barra a análise (ADR-014).
 
 > **Nota sobre `RN06` da v1.0 (peso por criticidade):** a v1.0 previa que uma métrica de
 > criticidade "Crítica" reprovada forçasse Não-Conforme independentemente do índice geral. O
@@ -495,8 +542,20 @@ Esta seção demonstra **como o sistema funciona**.
 **Repositório com linguagem não suportada:**
 O cadastro é rejeitado com mensagem explicando que apenas Python, JavaScript e TypeScript são suportados nesta versão.
 
-**Repositório inacessível no momento da análise (renomeado, excluído ou tornado privado):**
-A análise é marcada como "falhou", com o motivo registrado, sem derrubar o restante da aplicação.
+**Repositório inacessível no momento da análise (excluído ou tornado privado):**
+A análise é marcada como "falhou", com o motivo registrado (HTTP 409), e o repositório fica `inacessivel` até voltar a responder — a análise sempre consulta o GitHub, então um repositório que volta ao ar volta a `ativo` sozinho.
+
+**Repositório renomeado ou transferido no GitHub (v2.2):**
+O SoftMeter segue o redirecionamento do GitHub e, na análise seguinte, atualiza o nome e a URL do cadastro. Se outro repositório passar a usar o nome antigo, a análise é barrada (HTTP 409) com a orientação de remover o cadastro e cadastrar de novo — nada é medido (ADR-014).
+
+**GitHub com cota esgotada ou indisponível (v2.2):**
+A análise falha com mensagem clara (HTTP 429 com `Retry-After`, ou 502), fica registrada no histórico e o repositório continua ativo; não há retry automático (ADR-013).
+
+**Repositório grande demais ou análise além do prazo (v2.2):**
+Acima de 200 MB a análise é recusada (HTTP 422); estouros de download, extração ou tempo falham a análise com o motivo, sem marcar o repositório como inacessível (ADR-009).
+
+**Excluir um repositório com análises (v2.2):**
+A interface abre uma janela de confirmação explicando o que será apagado (análises, relatórios e arquivos PDF) e que a ação não pode ser desfeita; Esc ou "Cancelar" mantêm o repositório. Sem nada a perder, a exclusão é imediata.
 
 **Cobertura de Testes sem fonte disponível:**
 A métrica é exibida como "Não disponível" no dashboard e excluída do cálculo do índice agregado — não é contada como reprovação.
@@ -627,6 +686,8 @@ condição que verificava apenas "a série tem itens" em vez de "a série tem al
 Corrigido e coberto por teste de regressão. Este é um exemplo concreto de como o uso real da
 aplicação (e não apenas a leitura da especificação) revela lacunas que nenhuma etapa de design
 havia previsto.
+
+**Achados da v2.2.** Quatro problemas reais apareceram no uso da aplicação depois da revisão por pares, e nenhum teste os havia previsto: (1) excluir um repositório que tinha relatórios respondia HTTP 500 (chave estrangeira sem cascata) e, ao analisar o repositório do próprio revisor, a análise falhava porque o GitHub havia redirecionado o nome antigo — corrigidos nos PRs #111 e #112 (esta última, com o acompanhamento de renomeações); (2) ao conferir o logout contra o comportamento real, constatou-se que ele exigia um access token válido: depois de 15 minutos parado, "Sair" respondia 401, não revogava nada e deixava a sessão aberta por 7 dias enquanto a tela mostrava o usuário como deslogado — corrigido no PR #114; (3) ao conferir os contratos, as análises que falhavam por GitHub fora do ar ou cota esgotada ficavam sem data de término e o histórico as exibia como "Em andamento" — corrigido no PR #116, com migração dos dados existentes. Em todos os casos o defeito foi encontrado por **verificação ao vivo do comportamento**, não pela leitura do código ou dos testes existentes.
 
 **Achado da v2.1.** Na validação visual do redesign (PR #81), o cadastro de um repositório público
 falhou com erro genérico. O log do backend mostrou `401 Unauthorized` vindo do GitHub: o
@@ -771,13 +832,13 @@ Backend API (FastAPI)
 substitui as 6 tabelas genéricas da v1.0):
 
 ```
-users (id, email, senha_hash, criado_em)
+users (id, email, senha_hash, criado_em, token_version)
 
 password_reset_tokens (id, usuario_id FK, token_hash UNIQUE, expira_em,
                        usado_em NULL, criado_em)
 
 repositories (id, usuario_id FK, url, owner_nome, linguagens_detectadas,
-              status_acesso, criado_em)
+              status_acesso, github_id NULL, criado_em)
               UNIQUE(usuario_id, url)
 
 analyses (id, repositorio_id FK, status, status_conformidade_geral,
@@ -797,6 +858,9 @@ reports (id, usuario_id FK, repositorio_id FK, analise_id FK NULL,
 - `analyses` (1) → (N) `measurements`
 - `repositories` (1) → (N) `reports`
 
+Excluir um repositório apaga, em cascata, suas análises, medições e relatórios (e os PDFs no disco). `token_version`
+(v2.2) revoga os tokens da sessão; `github_id` (v2.2) identifica o repositório mesmo após renomeações.
+
 O catálogo das 6 métricas (`metrics_catalog.py`) não é uma tabela do banco — é um catálogo fixo
 versionado no código-fonte, por decisão explícita do Princípio V da constituição: nenhuma
 métrica pode ser exibida sem que fórmula, unidade e fonte bibliográfica já estejam definidas
@@ -808,11 +872,13 @@ métrica pode ser exibida sem que fórmula, unidade e fonte bibliográfica já e
 
 | Componente | Responsabilidade |
 |---|---|
-| GithubService | Detecção de linguagem, download do código-fonte, leitura de artifacts de CI (ADR-004); segue sem token quando o `GITHUB_TOKEN` é rejeitado (v2.1) |
+| GithubService | Detecção de linguagem, download do código-fonte (com tetos de tamanho), leitura de artifacts de CI (ADR-004); segue sem token quando o `GITHUB_TOKEN` é rejeitado (v2.1); classifica os erros do GitHub em acesso negado, cota esgotada e indisponibilidade (v2.2, ADR-013) |
+| Repository Sync *(v2.2)* | Alinha o cadastro ao GitHub: nome canônico, `github_id` e detecção de nome reaproveitado (ADR-014) |
+| Rate Limiter *(v2.2)* | Limite de requisições por IP, em memória ou Redis (ADR-008) |
 | EmailService + task Celery *(v2.1)* | Envio do e-mail de recuperação de senha via Resend, com fallback de log (ADR-005); executado em segundo plano para não vazar informação por tempo de resposta |
-| Metric Engine (Radon + tree-sitter) | Complexidade Ciclomática, LOC e Índice de Manutenibilidade |
+| Metric Engine (Radon + tree-sitter) | Complexidade Ciclomática, LOC e Índice de Manutenibilidade, sobre o código de produção (ADR-010, ADR-011) |
 | Coupling / Duplication (parser AST próprio) | Acoplamento (Instabilidade de Módulo) e Score de Duplicação |
-| Coverage Reader | Cascata de 4 fontes para Cobertura de Testes (artifact de CI → arquivo versionado → badge) |
+| Coverage Reader | Cascata para Cobertura de Testes: artifacts do run de CI mais recente (combinados em monorepos) → `coverage.xml` → `lcov.info` → badge (ADR-004, ADR-012) |
 | Conformity Service | Classificação por métrica e cálculo do índice agregado |
 | Trend Service | Tendência (melhorando/piorando/estável) entre as duas análises mais recentes |
 | Report Service | Geração do PDF com resumo interpretativo e tabela detalhada por métrica |
@@ -890,7 +956,8 @@ Pipeline configurado para lint, checagem de tipos e testes a cada push nas branc
   os tokens — a mitigação real adotada é a vida curta do token exposto ao JavaScript (15 min),
   não sua ausência total do localStorage.
 - Middleware de autenticação (`get_current_user`) aplicado a todas as rotas protegidas
-- Senhas com hash bcrypt
+- Senhas com hash bcrypt, de 8 a 72 bytes (limite do algoritmo; antes da v2.2 uma senha maior derrubava a API com HTTP 500 e revelava quais e-mails existem)
+- **Sessão revogável (v2.2, ADR-006):** o refresh token vai somente no cookie `HttpOnly` (com `Max-Age` e `Secure` configurável), nunca no corpo; os dois tokens carregam a `token_version` do usuário, que sobe no logout e no reset de senha e invalida a sessão na hora, em todos os dispositivos. O logout é idempotente e identifica a sessão pelo cookie do refresh, funcionando mesmo com o access token expirado. Limitação conhecida: o access token continua em `localStorage` (15 min) e não há rotação do refresh token
 - Isolamento de dados por usuário verificado por teste de integração dedicado (`test_data_isolation.py`) — nenhum usuário acessa repositórios, análises ou relatórios de outra conta
 
 **Proteção contra ataques OWASP Top 10:**
@@ -900,12 +967,15 @@ Pipeline configurado para lint, checagem de tipos e testes a cada push nas branc
 - **Sem side-channel de timing na recuperação** (PR #79): o envio do e-mail, que no modo Resend é uma chamada HTTP síncrona de até 10 s, foi movido para uma task Celery. Antes, o caminho "e-mail cadastrado" demorava muito mais que o "não cadastrado" e a latência revelava quais e-mails têm conta, anulando a mensagem genérica; depois, ambos respondem em ~0,11 s
 - Falha de envio de e-mail nunca propaga: erros de rede ou resposta não-2xx do Resend são capturados e registrados em log, sem derrubar a autenticação nem vazar detalhes ao usuário
 - Degradação graciosa de segredos externos: `GITHUB_TOKEN` rejeitado (401) não quebra o sistema nem é registrado em log (PR #82)
-- Limite de tamanho de payload: requisições acima de 64 KB são rejeitadas (mitiga payload flooding)
+- Limite de tamanho de payload: requisições acima de 64 KB são rejeitadas, inclusive as sem `Content-Length` (os bytes recebidos são contados; mitiga payload flooding)
+- **Rate limit ampliado (v2.2, ADR-008):** além dos 10/min por IP de login e recuperação de senha, em produção valem cadastro (10/h), refresh (30/min) e criação de análises (20/h); o IP real vem do proxy confiável (`FORWARDED_ALLOW_IPS`), sem ler `X-Forwarded-For` no código, e o contador pode ser compartilhado via Redis
+- **Custo limitado ao processar código de terceiros (v2.2, ADR-009):** teto de tamanho do repositório (200 MB), de download, de conteúdo extraído, de número de arquivos e de tempo; arquivos patológicos são ignorados sem derrubar a análise; XML de cobertura lido com `defusedxml` contra expansão de entidades. O SoftMeter continua **sem executar** código do repositório analisado
 - CORS restrito às origens configuradas
 - Validação de entrada: URL de repositório validada por padrão restrito a `github.com/owner/repo`, evitando SSRF via URL arbitrária
 - Segredos gerenciados via variáveis de ambiente (`.env`, nunca versionado — confirmado no `.gitignore`)
 
 **Configuração segura:**
+- **Produção recusa configuração insegura (v2.2, ADR-007):** com `ENVIRONMENT=production` a API não inicia com segredos JWT padrão ou curtos, iguais entre si, cookie sem `Secure` ou senha padrão do banco; o `docker-compose.prod.yml` não publica portas de banco/Redis e torna obrigatórias todas as credenciais
 - Branch `main` do repositório protegida: exige Pull Request e CI verde antes de merge, com `enforce_admins` ativo (nem o dono do repositório pode contornar a regra)
 
 ---
@@ -948,12 +1018,16 @@ Pipeline configurado para lint, checagem de tipos e testes a cada push nas branc
 | M13 — Recuperação de senha *(v2.1)* | Fluxo completo + endurecimento (ADR-005; PRs #78, #79) | ✅ Concluído (entrega a e-mails externos depende de domínio) |
 | M14 — Nova identidade visual e página inicial *(v2.1)* | Tema escuro azul, acessibilidade, landing pública (PRs #81, #83, #84) | ✅ Concluído |
 | M15 — Domínio próprio e e-mail verificado | Registro de domínio, SPF/DKIM no Resend, atualização de `EMAIL_FROM` | ⏳ Pendente (pré-requisito de M10) |
+| M16 — Revisão por pares de 05/11 *(v2.2)* | 11 issues (#90–#100): sessão, produção, rate limit, custos, métricas, escopo, erros do GitHub (ADR-006 a ADR-013; PRs #101 a #108) | ✅ Concluído — todas as issues fechadas |
+| M17 — Ajustes do uso real *(v2.2)* | Exclusão com cascata e confirmação, acompanhamento de renomeação, logout pelo cookie, histórico de falhas, UX do histórico (PRs #109 a #114, #116; ADR-014) | ✅ Concluído |
 
-> **Status atual (05/11/2026):** MVP completo e validado com dados reais, agora com recuperação
-> de senha, página inicial pública e nova identidade visual. Verificado no CI do último merge:
-> 161 testes de backend (92,2% de cobertura de linhas), 46 de frontend (91,2% de *statements*), 11
-> cenários E2E, pipeline de CI ativo com branch `main` protegida. Deploy em produção pública ainda
-> não realizado.
+> **Status atual (17/11/2026):** MVP completo e validado com dados reais, com recuperação de senha,
+> página inicial pública, nova identidade visual e as correções da revisão por pares (sessão
+> revogável, limites de custo e de requisições, métricas corrigidas e escopo visível, erros do GitHub
+> tratados). Medido nesta revisão: 392 testes de backend (95% de cobertura de *statements*), 78 de
+> frontend (89,2% de *statements*), 15 cenários E2E, pipeline de CI ativo com branch `main`
+> protegida. A aplicação já tem o `docker-compose.prod.yml` e a validação de configuração de
+> produção, mas o deploy em ambiente público ainda não foi realizado (M10 e M15).
 
 ## 7.1 Trabalhos Futuros
 
@@ -1160,8 +1234,32 @@ Colega de squad e colaborador do repositório, deixou 5 comentários de código 
 | PR #78 — side-channel de timing em `/forgot-password` (envio síncrono do e-mail só no caminho "e-mail cadastrado") | PR #79: envio movido para task Celery; ~0,11 s nos dois caminhos | ✅ Resolvido |
 | PR #78 — `/reset-password` fora da janela de rate limit | PR #79: endpoint incluído na mesma janela (10/min/IP); o 429 na 11ª chamada foi verificado manualmente | ✅ Resolvido |
 | PR #76 — ADR-004 e um fix de mapeamento bundlados em um PR cujo título trata só do RFC (rastreabilidade em `git blame`/`bisect`) | Aceito: os PRs seguintes passaram a ter um único assunto (feature, fix ou decisão) | ✅ Prática adotada |
-| PR #75 — tarefa T072 fechada com validação em SQLite, que não é equivalente ao PostgreSQL (UUID, timezone) | As suítes E2E dos PRs #81, #83 e #84 foram executadas contra a stack Docker completa (PostgreSQL); o texto de T072 em `tasks.md` ainda cita SQLite e precisa ser atualizado | 🟡 Atendido na prática; documentação pendente |
+| PR #75 — tarefa T072 fechada com validação em SQLite, que não é equivalente ao PostgreSQL (UUID, timezone) | As suítes E2E dos PRs #81, #83 e #84 foram executadas contra a stack Docker completa (PostgreSQL); o texto de T072 em `tasks.md` recebeu a nota correspondente em 05/11/2026 | ✅ Resolvido |
 | PR #75 — propagar o `GITHUB_TOKEN` para a suíte E2E (limite anônimo de 60 req/h pode torná-la instável no CI) | A suíte E2E hoje roda localmente e não faz parte do job de CI, então o risco ainda não se materializou; ao incluí-la no CI, o token deve ser propagado | ⏳ Em aberto (condicionado) |
+
+## Revisão por pares — Sandro Machiniski (05/11/2026, 2ª rodada: issues #90 a #100)
+
+Depois da primeira rodada (17/09), o colega abriu 11 issues com defeitos reproduzíveis, de robustez e de
+segurança. Cada uma foi reproduzida **antes** de ser corrigida, e as respostas foram publicadas nas issues.
+Todas foram corrigidas e mescladas em 08/11/2026, e as issues foram fechadas em seguida.
+
+| Issue | Achado | Correção | Status |
+|---|---|---|---|
+| #90 | Cota do GitHub (403) marcava o repositório como inacessível para sempre | Erros tipados e auto-cura do estado (ADR-013, PR #108) | ✅ Resolvido |
+| #91 | Falha de rede/5xx/429 do GitHub virava HTTP 500 e deixava a análise `pendente` | Idem: análise falha com o motivo (429/502/503) e nunca fica presa (ADR-013, PR #108) | ✅ Resolvido |
+| #92 | Acoplamento retornava 0,0 ("Conforme") quando o pacote não estava na raiz ou usava alias `@/` | Imports resolvidos por sufixo de caminho e por `tsconfig`; sem resolução, "Não disponível" (ADR-010, PR #105) | ✅ Resolvido |
+| #93 | Duplicação marcava imports e enums como clones de si mesmos | Imports não contam; janela com ≥ 4 linhas distintas; sem sobreposição no mesmo arquivo (ADR-010, PR #105) | ✅ Resolvido |
+| #94 | LOC de JS/TS contava comentário de bloco como código e diferia do Python | LOC físico via AST, igual nas duas linguagens e no Índice de Manutenibilidade (ADR-010, PR #105) | ✅ Resolvido |
+| #95 | Senha > 72 bytes causava HTTP 500 (bcrypt 5) e revelava e-mails cadastrados | Limite de 72 bytes, login sem 500 e custo de tempo igualado (ADR-006, PR #101) | ✅ Resolvido |
+| #96 | Refresh token sobrevivia ao reset de senha e ao logout; cookie sem `Secure` nem validade | `token_version`, refresh só em cookie, `Max-Age` e `Secure` (ADR-006, PR #101; logout pelo cookie no PR #114) | ✅ Resolvido |
+| #97 | API subia em produção com segredos padrão; compose expunha Postgres e Redis | Produção recusa configuração insegura e `docker-compose.prod.yml` (ADR-007, PR #102) | ✅ Resolvido |
+| #98 | Rate limit falhava atrás de proxy, crescia em memória e não cobria cadastro nem análises | Módulo próprio (memória/Redis), mais rotas, IP do proxy confiável e limite de corpo em bytes (ADR-008, PR #103) | ✅ Resolvido |
+| #99 | Download e análise sem limite de tamanho, tempo ou memória | Tetos configuráveis, streaming, prazo cooperativo e `defusedxml` (ADR-009, PR #104) | ✅ Resolvido |
+| #100 | Arquivos gerados/minificados distorciam as métricas; a cobertura lia um `coverage.xml` arbitrário | Escopo só de produção, cobertura determinística, monorepo e `extends` (ADR-011, ADR-012, PRs #106 e #107) | ✅ Resolvido |
+
+Observação sobre a orientação de 15/09 ("revisão das métricas"): essa rodada corrigiu a **corretude e o escopo**
+das métricas, mas os limites de especificação e as fontes do catálogo continuam os de 25/06/2026; o ponto
+segue aberto com o orientador.
 
 ---
 

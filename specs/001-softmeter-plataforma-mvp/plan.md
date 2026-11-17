@@ -13,7 +13,7 @@ de Testes, Acoplamento, Score de Duplicação), visualiza o resultado em um dash
 metrológicos com valor medido/limites/status de conformidade, consulta o histórico/tendência de
 análises anteriores e gera um relatório técnico em PDF rastreável (definição, fórmula, fonte
 bibliográfica e limites por métrica). Abordagem técnica: backend FastAPI (Python 3.12) com
-Celery+Redis para análises assíncronas e Radon + parser AST próprio como motor de métricas;
+Celery+Redis para análises assíncronas e Radon (Python) + tree-sitter (JS/TS) como motor de métricas;
 frontend React 18 + TypeScript + Vite com Recharts para os gauges/gráficos; PostgreSQL 16 como
 armazenamento; JWT (access+refresh) com bcrypt para autenticação; ReportLab para os PDFs.
 
@@ -22,7 +22,7 @@ armazenamento; JWT (access+refresh) com bcrypt para autenticação; ReportLab pa
 **Language/Version**: Backend: Python 3.12. Frontend: TypeScript 5.x (React 18, via Vite).
 
 **Primary Dependencies**: Backend: FastAPI, SQLAlchemy + Alembic, Celery, Redis (broker/result
-backend), Radon, PyJWT, bcrypt (hashing direto — ver nota de implementação sobre incompatibilidade
+backend e, opcionalmente, rate limit), Radon, tree-sitter (JS/TS), defusedxml, PyJWT, bcrypt (hashing direto — ver nota de implementação sobre incompatibilidade
 passlib/bcrypt 5.x), ReportLab, httpx (cliente para a API REST do GitHub e do Resend, pós-MVP).
 Frontend: React 18, Vite, React Router, Recharts, Axios, Tailwind CSS 3.
 
@@ -47,17 +47,22 @@ processamento" com conclusão assíncrona via Celery, sem bloquear a UI.
 **Constraints**: Cobertura de testes ≥ 80% em backend e frontend (Princípio I); apenas
 repositórios GitHub **públicos**; apenas código Python e/ou JavaScript/TypeScript (FR-002);
 nenhuma personalização de limites de especificação por usuário nesta versão (FR-013); análise
-disparada apenas sob demanda, sem agendamento em segundo plano (FR-012).
+disparada apenas sob demanda, sem agendamento em segundo plano (FR-012); custo da análise limitado
+(repositório até 200 MB, 300 s, tetos de download e extração — ADR-009) e requisições limitadas por IP
+(ADR-008); em produção, a API só inicia com configuração segura (ADR-007).
 
 **Scale/Scope**: Uso acadêmico individual (TCC) — poucos usuários concorrentes esperados, sem
 exigência de escala horizontal; 6 métricas, 5 telas principais (cadastro/lista de repositórios,
 dashboard, histórico, relatório, autenticação) — mais, pós-MVP, a página inicial pública e as telas
 de recuperação de senha (US6–US7).
 
-> **Atualização (2026-11-05):** este plano descreve o MVP (US1–US5), já implementado. Mudanças
-> posteriores — recuperação de senha (ADR-005), leitura de cobertura via artifact de CI (ADR-004),
-> redesign visual e página inicial — estão registradas em `spec.md` (US6–US7, FR-016/FR-017),
-> `research.md` (itens 6, 11 e 12), `tasks.md` (Fase 9) e no RFC-001 v2.1.
+> **Atualização (2026-11-17):** este plano descreve o MVP (US1–US5), já implementado. Mudanças
+> posteriores estão registradas em `spec.md` (US6–US7, FR-016 a FR-022), `research.md` (itens 6, 11 a 16),
+> `tasks.md` (Fases 9 e 10), nos ADRs 004 a 014 e no RFC-001 v2.1: recuperação de senha (ADR-005), cobertura
+> via artifact de CI (ADR-004, ADR-012), redesign e página inicial, e — após a revisão por pares — revogação
+> de sessão (ADR-006), configuração segura de produção (ADR-007), rate limit (ADR-008), limites de custo
+> (ADR-009), correção das métricas e escopo (ADR-010 a ADR-012), erros do GitHub (ADR-013) e nome canônico
+> do repositório (ADR-014). O comportamento da API está em `contracts/`.
 
 ## Constitution Check
 
@@ -102,15 +107,15 @@ specs/001-softmeter-plataforma-mvp/
 src/backend/                  # FastAPI (substitui o backend Node/Express do ADR-001, ver ADR-003)
 ├── app/
 │   ├── main.py                # Bootstrap da aplicação FastAPI
-│   ├── core/                  # Config, segurança (JWT/bcrypt), Celery app
+│   ├── core/                  # Config, segurança (JWT/bcrypt), rate limit, Celery app
 │   ├── api/                   # Routers: auth, repositories, analyses, reports
 │   ├── models/                # Modelos SQLAlchemy (Usuário, Repositório, Análise, Medição, Relatório, Token de Redefinição); Métrica é catálogo em código
 │   ├── schemas/                # Schemas Pydantic (request/response)
-│   ├── services/                # Regras de negócio (github_service, conformity_service, report_service)
-│   ├── analysis/                 # Motor de métricas: adapter Radon + parser AST próprio (acoplamento/duplicação)
-│   ├── repositories/              # Acesso a dados (camada de persistência)
+│   ├── services/                # Regras de negócio (github_service, analysis_runner, repository_sync, conformity_service, trend_service, report_service, email_service)
+│   ├── analysis/                 # Motor de métricas: Radon + tree-sitter; acoplamento, duplicação, leitor de cobertura, limites
+│   ├── repositories/              # Reservado para a camada de persistência (hoje só o pacote vazio; o acesso a dados está nos routers/serviços)
 │   ├── workers/                    # Tasks Celery (análise assíncrona; envio do e-mail de recuperação)
-│   └── db/                          # Sessão SQLAlchemy, migrations Alembic
+│   └── db/                          # Sessão SQLAlchemy (as migrations Alembic ficam em src/backend/alembic/)
 └── tests/
     ├── unit/                        # Regras de negócio e motor de métricas isolados
     └── integration/                  # Routers + repositórios + PostgreSQL de teste

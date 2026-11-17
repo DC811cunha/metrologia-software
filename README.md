@@ -37,10 +37,10 @@ metrologia-software/
 │   │   ├── app/
 │   │   │   ├── api/                # Routers: auth, repositories, analyses, reports
 │   │   │   ├── analysis/           # Motores de métricas (CC, LOC, MI, acoplamento, duplicação)
-│   │   │   ├── core/               # Config, segurança JWT, dependências
+│   │   │   ├── core/               # Config, segurança JWT, rate limit, dependências
 │   │   │   ├── models/             # SQLAlchemy ORM models
 │   │   │   ├── schemas/            # Pydantic request/response schemas
-│   │   │   ├── services/           # GitHub, análise, relatório, conformidade, tendência
+│   │   │   ├── services/           # GitHub, análise, relatório, conformidade, tendência, sincronia do cadastro
 │   │   │   └── workers/            # Celery tasks (análise assíncrona, e-mail de recuperação)
 │   │   ├── alembic/                # Migrations do banco de dados
 │   │   ├── tests/
@@ -60,14 +60,16 @@ metrologia-software/
 ├── tests/
 │   └── e2e/                        # Playwright — fluxos ponta a ponta pela UI real
 ├── docs/
-│   ├── rfc/                        # RFC-001 (v2.1): proposta, requisitos, arquitetura, segurança
-│   ├── adr/                        # Decisões de arquitetura (ADR-001 a ADR-005)
+│   ├── rfc/                        # RFC-001 (v2.2): proposta, requisitos, arquitetura, segurança
+│   ├── adr/                        # Decisões de arquitetura (ADR-001 a ADR-014)
 │   ├── architecture/               # Diagramas C4 e fluxos de dados
-│   └── archive/                    # Backend Node/Express original (descontinuado, ADR-003)
+│   ├── archive/                    # Backend Node/Express original (descontinuado, ADR-003)
+│   └── outros/                     # Relatório do PAC (docx/pdf)
 ├── .github/
 │   └── workflows/
-│       └── ci.yml                  # CI: lint + mypy + pytest (≥80%) + ESLint + Jest (≥80%)
-├── docker-compose.yml              # PostgreSQL + Redis + backend + worker Celery + frontend
+│       └── ci.yml                  # CI: ruff + mypy + pytest (≥80%) + ESLint + tsc + Jest (≥80%)
+├── docker-compose.yml              # Desenvolvimento: PostgreSQL + Redis + backend + worker Celery + frontend
+├── docker-compose.prod.yml         # Produção: sem portas de banco/Redis, credenciais obrigatórias (ADR-007)
 ├── .env.example                    # Modelo das variáveis de ambiente (copie para .env)
 └── README.md
 ```
@@ -158,6 +160,24 @@ docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
 Com `ENVIRONMENT=production` a API **se recusa a iniciar** com segredos JWT padrão ou curtos (< 32
 caracteres), `JWT_SECRET` igual a `JWT_REFRESH_SECRET`, `COOKIE_SECURE` desligado ou a senha padrão do banco.
 
+### Segurança e limites
+
+Resumo do que a API faz para ser exposta publicamente (detalhes nos ADRs):
+
+- **Sessão (ADR-006):** access token de 15 min; refresh token de 7 dias **somente** em cookie `HttpOnly`.
+  O logout e o reset de senha revogam os tokens no servidor (`token_version`), em todos os dispositivos.
+  Senhas de 8 a 72 bytes (limite do bcrypt).
+- **Rate limit por IP (ADR-008):** login, recuperação e redefinição de senha: 10/min. Em produção, também
+  cadastro (10/h), refresh (30/min) e criação de análises (20/h). `RATE_LIMIT_BACKEND=redis` compartilha o
+  contador entre réplicas. Corpo das requisições limitado a 64 KB.
+- **Custo da análise (ADR-009):** repositórios acima de 200 MB são recusados; download (100 MB),
+  conteúdo extraído (400 MB), número de arquivos (30 000) e tempo (300 s) têm teto. Todos configuráveis
+  por `MAX_*` / `ANALYSIS_TIME_LIMIT_S` (ver `.env.example`).
+- **GitHub fora do ar ou cota esgotada (ADR-013):** a análise falha com o motivo (HTTP 429/502) e fica
+  registrada no histórico, sem marcar o repositório como inacessível.
+- **Código de terceiros nunca é executado:** o SoftMeter só lê o código-fonte e os relatórios de cobertura
+  já publicados.
+
 ## 🏗️ Stack Tecnológica
 
 | Camada | Tecnologia | Justificativa |
@@ -197,8 +217,14 @@ caracteres), `JWT_SECRET` igual a `JWT_REFRESH_SECRET`, `COOKIE_SECURE` desligad
 | < 70% | ❌ Não-Conforme |
 
 > **Como o índice é calculado:** média dos escores por métrica (Conforme = 100, Condicional = 50,
-> Não-Conforme = 0). Uma métrica "Não disponível" (ex.: Cobertura de Testes sem fonte) fica fora do
-> cálculo — nunca conta como reprovação. Todas as métricas têm o mesmo peso.
+> Não-Conforme = 0). Uma métrica "Não disponível" (Cobertura de Testes sem fonte, ou Acoplamento quando
+> nenhum import interno é resolvido) fica fora do cálculo — nunca conta como reprovação. Todas as
+> métricas têm o mesmo peso.
+
+> **Escopo da medição (ADR-011/012):** CC, LOC, Manutenibilidade, Acoplamento e Duplicação consideram
+> apenas o **código-fonte de produção**. Arquivos de teste, dependências e arquivos gerados ou minificados
+> ficam de fora (o dashboard e o PDF trazem essa nota). A Cobertura de Testes é lida dos relatórios
+> publicados pelo próprio repositório — inclusive de monorepos, combinando os artifacts do mesmo run de CI.
 
 ---
 
@@ -207,7 +233,9 @@ caracteres), `JWT_SECRET` igual a `JWT_REFRESH_SECRET`, `COOKIE_SECURE` desligad
 - 📄 [RFC-001 — Documento de Proposta do Projeto](docs/rfc/RFC-001-SoftMeter-Avaliacao.md)
 - 🏛️ [Decisões de Arquitetura (ADR)](docs/adr/)
 - 🖼️ [Diagramas C4](docs/architecture/C4-diagramas.md)
-- 🧭 [Especificação, plano e contratos da API](specs/001-softmeter-plataforma-mvp/)
+- 🧭 [Especificação, plano e contratos da API](specs/001-softmeter-plataforma-mvp/) — os contratos em
+  [`contracts/`](specs/001-softmeter-plataforma-mvp/contracts/) descrevem o comportamento real da API
+  (a documentação interativa fica em <http://localhost:3001/docs>)
 - 🤝 [Guia de contribuição](CONTRIBUTING.md)
 
 ---

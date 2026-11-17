@@ -4,7 +4,8 @@
 
 **Created**: 2026-06-24
 
-**Status**: Implemented (MVP, US1–US5) — emendada em 2026-11-05 com US6–US7 e FR-016/FR-017 (pós-MVP)
+**Status**: Implemented (MVP, US1–US5) — emendada em 2026-11-05 com US6–US7 e FR-016/FR-017 e em 2026-11-17 com
+FR-018 a FR-022 (pós-MVP, decorrentes da revisão por pares e do uso real)
 
 **Input**: User description: "Desenvolver o SoftMeter, uma plataforma web de TCC que aplica metrologia industrial à qualidade de software. O sistema permite que desenvolvedores cadastrem repositórios GitHub, executem análises automáticas e visualizem métricas de qualidade como Complexidade Ciclomática, LOC, Índice de Manutenibilidade, Cobertura de Testes, Acoplamento e Score de Duplicação em um dashboard estilo gauge metrológico com valor medido, limites de especificação e status de conformidade. O sistema mantém histórico de análises para identificar tendências, gera relatórios PDF técnicos adequados para inclusão em TCC, e possui autenticação de usuários. Linguagens suportadas: Python e JavaScript/TypeScript. Repositórios GitHub públicos apenas nesta versão."
 
@@ -192,6 +193,22 @@ a partir de uma página que explica o produto, as 6 métricas e o fluxo de uso.
 - Como o sistema deve tratar o cadastro repetido da mesma URL de repositório pelo mesmo usuário,
   ou por usuários diferentes?
 
+### Resolução dos casos de borda *(registrada em 2026-11-17, conforme implementado)*
+
+- **Privado/excluído:** a análise falha com o motivo (HTTP 409) e o repositório fica `inacessivel` até
+  voltar a responder (FR-014). **Renomeado/transferido:** o SoftMeter acompanha o novo nome (FR-019).
+- **Linguagens mistas:** aceita-se o repositório se ao menos uma linguagem suportada estiver presente
+  (FR-002) e **só os arquivos Python/JS/TS** de produção são medidos; testes, dependências e arquivos
+  gerados/minificados ficam de fora (ADR-011), e o dashboard e o PDF informam esse escopo.
+- **GitHub indisponível ou cota esgotada:** a análise falha com mensagem clara (HTTP 502/429, com o prazo
+  para tentar de novo quando conhecido), fica registrada no histórico e **não** marca o repositório como
+  inacessível (FR-022).
+- **Sem testes/cobertura:** a Cobertura de Testes fica "Não disponível" e sai do índice geral. O mesmo vale
+  para o Acoplamento quando nenhum import interno é resolvido (ADR-010).
+- **Relatório sem análise concluída:** recusado (HTTP 422) com mensagem clara.
+- **URL repetida:** recusada com HTTP 409 dentro da mesma conta; contas diferentes podem cadastrar o mesmo
+  repositório (FR-015, FR-011).
+
 ## Requirements *(mandatory)*
 
 ### Functional Requirements
@@ -230,7 +247,8 @@ a partir de uma página que explica o produto, as 6 métricas e o fluxo de uso.
   igualmente a todos os repositórios analisados nesta versão; o sistema NÃO permite customização
   desses limites por usuário ou por repositório nesta versão.
 - **FR-014**: O sistema DEVE rejeitar tentativas de análise sobre repositórios inacessíveis
-  (privados, renomeados ou excluídos), informando ao usuário o motivo da falha.
+  (privados ou excluídos), informando ao usuário o motivo da falha. *(Revisado em 2026-11-17: repositórios
+  renomeados ou transferidos deixaram de ser tratados como inacessíveis — ver FR-019.)*
 - **FR-015**: O sistema DEVE impedir o cadastro duplicado da mesma URL de repositório dentro da
   conta do mesmo usuário.
 - **FR-016** *(pós-MVP)*: O sistema DEVE permitir que um usuário que esqueceu a senha solicite um
@@ -240,21 +258,42 @@ a partir de uma página que explica o produto, as 6 métricas e o fluxo de uso.
 - **FR-017** *(pós-MVP)*: O sistema DEVE disponibilizar uma página inicial pública que apresenta o
   produto (o que é, como funciona, métricas, perguntas frequentes e tutorial) com acesso direto a
   cadastro e login.
+- **FR-018** *(pós-MVP, ADR-006)*: O sistema DEVE encerrar a sessão no servidor: o logout e a
+  redefinição de senha invalidam imediatamente todos os tokens (de acesso e de renovação) emitidos até
+  então, e o logout funciona mesmo com o token de acesso já expirado. O token de renovação trafega apenas
+  em cookie `HttpOnly`. A senha aceita tem de 8 a 72 bytes.
+- **FR-019** *(pós-MVP, ADR-014)*: O sistema DEVE acompanhar a renomeação ou transferência de um
+  repositório no GitHub, atualizando nome e URL do cadastro na análise seguinte, e DEVE barrar a análise
+  (sem medir nada) quando o nome cadastrado passar a apontar para **outro** repositório.
+- **FR-020** *(pós-MVP)*: O sistema DEVE permitir excluir um repositório, removendo também suas análises,
+  medições e relatórios (inclusive os arquivos PDF); a interface DEVE pedir confirmação em janela
+  secundária quando houver análises ou relatórios a perder.
+- **FR-021** *(pós-MVP, ADR-007, ADR-008, ADR-009)*: O sistema DEVE limitar o custo e o abuso:
+  repositórios acima de 200 MB são recusados, download, conteúdo extraído, número de arquivos e tempo de
+  análise têm tetos configuráveis; as rotas sensíveis têm limite de requisições por IP; e, em produção, a API
+  DEVE se recusar a iniciar com configuração insegura (segredos padrão, cookie sem `Secure`).
+- **FR-022** *(pós-MVP, ADR-013)*: O sistema DEVE registrar **toda** tentativa de análise — inclusive as que
+  falham (acesso negado, cota esgotada, GitHub indisponível, repositório grande demais, fila indisponível) —
+  com o motivo e a data de término, e o histórico DEVE distinguir a falha de uma análise em andamento.
 
 ### Key Entities
 
 - **Usuário**: conta autenticada, proprietária dos repositórios cadastrados e relatórios
-  gerados; possui identificador, email, credenciais e a lista de repositórios próprios.
+  gerados; possui identificador, email, credenciais, uma versão de sessão (que revoga tokens) e a lista
+  de repositórios próprios.
 - **Repositório**: repositório GitHub público cadastrado por um usuário; possui URL, nome,
-  linguagem(ns) detectada(s), data de cadastro e o usuário proprietário.
-- **Análise**: execução pontual de medição sobre um repositório; possui data/hora, repositório
-  associado, o conjunto de medições por métrica e um status de conformidade geral.
+  linguagem(ns) detectada(s), identificador numérico no GitHub, estado de acesso, data de cadastro e o
+  usuário proprietário.
+- **Análise**: execução pontual de medição sobre um repositório; possui data/hora de início e de término,
+  repositório associado, estado (pendente, processando, concluída ou falhou, com o motivo), o conjunto de
+  medições por métrica e um status de conformidade geral.
 - **Métrica**: tipo de medição metrológica suportado pela plataforma (Complexidade Ciclomática,
   LOC, Índice de Manutenibilidade, Cobertura de Testes, Acoplamento, Score de Duplicação);
   possui nome, unidade, fórmula, fonte bibliográfica e limites de especificação fixos
   (nominal/superior/inferior).
 - **Medição**: valor de uma métrica específica dentro de uma análise; possui a métrica de
-  referência, o valor medido e o status de conformidade (Conforme/Condicional/Não-Conforme).
+  referência, o valor medido e o status de conformidade (Conforme/Condicional/Não-Conforme, ou Não
+  disponível quando a métrica não pôde ser calculada).
 - **Relatório**: documento PDF gerado a partir de uma ou mais análises de um repositório; possui
   a(s) análise(s) referenciada(s), data de geração e o conteúdo completo (métricas, limites,
   status, fontes bibliográficas).
@@ -292,7 +331,8 @@ a partir de uma página que explica o produto, as 6 métricas e o fluxo de uso.
 - Cada execução de análise processa o conteúdo do repositório no momento da execução, sem
   exigência de sincronização contínua entre execuções; cada execução é uma "medição"
   independente no tempo.
-- Não há limite definido para a quantidade de repositórios ou análises por usuário nesta versão.
+- Não há limite definido para a quantidade de repositórios ou análises por usuário nesta versão; há, porém,
+  limites de custo por análise e de requisições por IP (FR-021).
 - O relatório PDF pode ser gerado tanto para uma análise individual quanto, opcionalmente, para o
   histórico completo de um repositório, sem exigência de um template institucional específico
   além de conter os dados metrológicos completos.

@@ -52,3 +52,12 @@ O `GithubService` só distinguia dois mundos: sucesso ou `RepositoryAccessError`
 - Cada tentativa que falha por cota ou indisponibilidade gera um registro `falhou` no histórico do repositório.
 - A cobertura via artifacts continua "melhor esforço": nenhum desses erros a derruba nem aparece para o usuário.
 - Não há retry automático: a mensagem informa quando tentar de novo, mas a nova tentativa é do usuário.
+
+## Atualização (17/11/2026): falhas têm data de término
+
+Ao conferir os contratos da API verificou-se que as falhas gravadas pela rota (`_fail_analysis`: 409, 429, 502, 503) não
+preenchiam `concluida_em`, ao contrário das falhas do pipeline. A tela de histórico mostrava essas tentativas como
+"Em andamento", e o item do histórico não trazia `status` para distingui-las. Corrigido: toda falha grava `concluida_em`
+(uma migração preencheu as já existentes com `solicitada_em`), o item do histórico passa a incluir `status`,
+`motivo_falha` e `solicitada_em`, a tela mostra "Falhou" com o motivo, e um erro inesperado ao disparar a análise também a
+marca como `falhou` em vez de deixá-la `pendente`.

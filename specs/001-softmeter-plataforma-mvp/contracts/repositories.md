@@ -49,11 +49,11 @@ Cadastra um novo repositório GitHub público.
 { "url": "https://github.com/{owner}/{repo}" }
 ```
 
-**Comportamento**: consulta o GitHub (ver `research.md` item 2) e grava, além da URL, o identificador
-numérico do repositório (`github_id`) e o nome canônico (`owner/repo`, com a capitalização oficial) —
-ver *Identidade do repositório* abaixo. Rejeita se a interseção das linguagens com
-`{python, javascript, typescript}` for vazia (FR-002) e se já existir um cadastro do mesmo repositório
-para o usuário autenticado (FR-015).
+**Comportamento**: consulta as linguagens do repositório no GitHub (ver `research.md` item 2) e grava a
+`url` **como foi informada** e o `owner_nome` (`owner/repo`) extraído dela; o nome canônico e o
+identificador numérico (`github_id`) só são sincronizados na primeira análise (ver *Identidade do
+repositório* abaixo). Rejeita se a interseção das linguagens com `{python, javascript, typescript}` for
+vazia (FR-002) e se já existir um cadastro com a mesma URL para o usuário autenticado (FR-015).
 
 **Responses**:
 - `201 Created` → objeto **Repositório** (sem os campos extras da lista)
@@ -103,8 +103,10 @@ registro:
 
 - **Renomeado ou transferido** (mesmo id, outro `owner/repo`): a `url` e o `owner_nome` são atualizados
   automaticamente e a análise segue.
-- **Duplicata**: se o usuário já tiver outro cadastro com o nome novo, o cadastro redundante é unificado
-  em vez de gerar conflito.
+- **Duplicata**: se o usuário já tiver outro cadastro com a URL atual, o cadastro **não é renomeado** (a
+  restrição de unicidade impediria) e a análise segue normalmente; os históricos **não são fundidos**
+  automaticamente — isso fica a critério do usuário.
 - **Nome reaproveitado por outro repositório** (id diferente): a análise é recusada com `409` e o
   usuário deve remover o cadastro e cadastrar de novo.
-- Cadastros antigos, sem `github_id`, recebem o valor na primeira análise bem-sucedida.
+- Todo cadastro começa sem `github_id` e o recebe na primeira análise; a troca de dono do nome só é
+  detectada a partir daí.
