@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import Alert from '../components/ui/Alert';
+import ConformityIndexNote from '../components/ConformityIndexNote';
 import Card from '../components/ui/Card';
 import { ArrowLeftIcon, ChartIcon, TrendDownIcon, TrendFlatIcon, TrendUpIcon } from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader';
 import Skeleton from '../components/ui/Skeleton';
 import StatusBadge from '../components/ui/StatusBadge';
 import TrendChart from '../components/TrendChart';
+import { attentionMetrics, conformityIndex, formatIndex } from '../conformity';
 import { METRICS_GAUGE_CONFIG } from '../metricsCatalog';
 import {
   AnalysisHistoryItem,
@@ -33,6 +35,22 @@ const TREND_ICONS: Record<string, typeof TrendUpIcon> = {
   piorando: TrendDownIcon,
   estavel: TrendFlatIcon,
 };
+
+function IndexValue({ item }: { item: AnalysisHistoryItem }) {
+  const index = conformityIndex(item.medicoes);
+  return index === null ? null : <span className="font-semibold tabular-nums text-fg-soft">{formatIndex(index)}</span>;
+}
+
+/** Métricas que não estão Conformes naquela análise: explicam por que o índice geral não é Conforme. */
+function AttentionLine({ item }: { item: AnalysisHistoryItem }) {
+  const attention = attentionMetrics(item.medicoes);
+  if (attention.length === 0) return null;
+  return (
+    <p className="mt-0.5 text-xs text-fg-muted">
+      Pontos de atenção: {attention.map((metric) => `${metric.label} (${metric.status})`).join(', ')}
+    </p>
+  );
+}
 
 /** Status da métrica selecionada naquela análise — distinto do índice geral, que agrega as 6 métricas. */
 function MetricOfAnalysis({
@@ -181,6 +199,8 @@ function HistoryPage() {
       ) : history.length === 0 ? (
         <Card className="text-center text-sm text-fg-muted">Nenhuma análise registrada ainda.</Card>
       ) : (
+        <div className="flex flex-col gap-3">
+          <ConformityIndexNote />
         <ul aria-label="Histórico de análises" className="flex flex-col gap-2.5">
           {history.map((item, index) => (
             <Card
@@ -198,6 +218,7 @@ function HistoryPage() {
                   {item.status === 'falhou' && item.motivo_falha && (
                     <p className="mt-0.5 text-xs text-fg-muted">{item.motivo_falha}</p>
                   )}
+                  {item.status === 'concluida' && <AttentionLine item={item} />}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-x-5 gap-y-2 sm:shrink-0 sm:justify-end">
@@ -209,6 +230,7 @@ function HistoryPage() {
                   <>
                     <span className="flex items-center gap-2 text-xs text-fg-muted">
                       Índice geral
+                      <IndexValue item={item} />
                       <StatusBadge label={item.status_conformidade_geral} />
                     </span>
                     {metricConfig && (
@@ -230,6 +252,7 @@ function HistoryPage() {
             </Card>
           ))}
         </ul>
+        </div>
       )}
     </div>
   );

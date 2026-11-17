@@ -62,6 +62,11 @@ do histórico ou do relatório PDF.
 2. **Given** uma métrica cujo valor medido está fora dos limites de especificação, **When** ela
    é exibida no dashboard, **Then** o gauge indica visualmente Não-Conforme (ou Condicional,
    conforme a faixa), de forma consistente com a classificação de conformidade do projeto.
+3. **Given** uma análise concluída (no dashboard ou no histórico), **When** o usuário vê o status de
+   conformidade geral, **Then** a interface mostra o índice numérico (0–100), explica como ele é
+   calculado (média dos escores das métricas, com os cortes de 90 e 70) e, no histórico, indica quais
+   métricas não estão Conformes — para que um geral "Condicional" não pareça contradizer métricas
+   individuais Conformes. *(Adicionado em 2026-11-17.)*
 
 ---
 

@@ -9,6 +9,23 @@ jest.mock('../src/services/analysisService', () => ({
   getMetricTrend: jest.fn(),
 }));
 
+const KEYS = [
+  'complexidade_ciclomatica',
+  'loc',
+  'indice_manutenibilidade',
+  'cobertura_testes',
+  'acoplamento',
+  'score_duplicacao',
+];
+
+/** 6 medições: `cc` para a Complexidade Ciclomática, `others` para as demais (a última é a Duplicação). */
+function medicoes(cc: [number, string], others: string[]) {
+  return [
+    { metrica_chave: KEYS[0], valor_medido: cc[0], status_conformidade: cc[1] },
+    ...others.map((status, i) => ({ metrica_chave: KEYS[i + 1], valor_medido: 1, status_conformidade: status })),
+  ];
+}
+
 const HISTORY = [
   {
     id: 'analysis-1',
@@ -17,7 +34,8 @@ const HISTORY = [
     solicitada_em: '2026-06-01T00:00:00Z',
     concluida_em: '2026-06-01T00:00:00Z',
     status_conformidade_geral: 'Condicional',
-    medicoes: [{ metrica_chave: 'complexidade_ciclomatica', valor_medido: 15, status_conformidade: 'Condicional' }],
+    // 4 Conformes + 2 Condicionais = (400 + 100) / 6 = 83,3 → Condicional
+    medicoes: medicoes([15, 'Condicional'], ['Conforme', 'Conforme', 'Conforme', 'Condicional', 'Conforme']),
   },
   {
     id: 'analysis-2',
@@ -27,7 +45,7 @@ const HISTORY = [
     concluida_em: '2026-06-15T00:00:00Z',
     // O índice geral agrega as 6 métricas: pode ser Condicional mesmo com esta métrica Conforme.
     status_conformidade_geral: 'Condicional',
-    medicoes: [{ metrica_chave: 'complexidade_ciclomatica', valor_medido: 5, status_conformidade: 'Conforme' }],
+    medicoes: medicoes([5, 'Conforme'], ['Conforme', 'Conforme', 'Conforme', 'Conforme', 'Não-Conforme']),
   },
 ];
 
@@ -74,11 +92,35 @@ describe('HistoryPage', () => {
     // Regressão: a linha mostrava só o índice geral ("Condicional") enquanto o gráfico, da métrica
     // selecionada, mostrava "Conforme" — parecia contradição. Agora cada linha rotula os dois.
     const list = await screen.findByRole('list', { name: 'Histórico de análises' });
-    const rows = within(list).getAllByText('Índice geral').map((label) => label.parentElement as HTMLElement);
-    const secondRow = rows[1].parentElement as HTMLElement;
-    expect(within(secondRow).getByText('Índice geral').parentElement).toHaveTextContent('Índice geralCondicional');
+    const secondRow = within(list).getAllByText('Índice geral')[1].closest('[class*="rounded-2xl"]') as HTMLElement;
+    expect(within(secondRow).getByText('Índice geral').parentElement).toHaveTextContent('Índice geral83,3Condicional');
     expect(within(secondRow).getByText('Complexidade Ciclomática').parentElement).toHaveTextContent('5');
     expect(within(secondRow).getByText('Complexidade Ciclomática').parentElement).toHaveTextContent('Conforme');
+  });
+
+  it('says which metrics hold the overall index down in each analysis', async () => {
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce(HISTORY);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce(TREND);
+
+    renderHistoryPage();
+
+    const list = await screen.findByRole('list', { name: 'Histórico de análises' });
+    expect(within(list).getByText(/Pontos de atenção: Score de Duplicação \(Não-Conforme\)/)).toBeInTheDocument();
+    expect(
+      within(list).getByText(/Pontos de atenção: Complexidade Ciclomática \(Condicional\), Acoplamento \(Instabilidade\) \(Condicional\)/),
+    ).toBeInTheDocument();
+  });
+
+  it('explains how the overall index is calculated', async () => {
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce(HISTORY);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce(TREND);
+
+    renderHistoryPage();
+
+    const note = await screen.findByTestId('index-note');
+    expect(within(note).getByText('Como o índice geral é calculado?')).toBeInTheDocument();
+    expect(note).toHaveTextContent('Conforme vale 100, Condicional vale 50 e Não-Conforme vale 0');
+    expect(note).toHaveTextContent('uma única Não-Conforme já tira 16,7 pontos');
   });
 
   it('shows a failed attempt as "Falhou" with its reason, not as in progress', async () => {
