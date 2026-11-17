@@ -17,7 +17,7 @@ const HISTORY = [
     solicitada_em: '2026-06-01T00:00:00Z',
     concluida_em: '2026-06-01T00:00:00Z',
     status_conformidade_geral: 'Condicional',
-    medicoes: [],
+    medicoes: [{ metrica_chave: 'complexidade_ciclomatica', valor_medido: 15, status_conformidade: 'Condicional' }],
   },
   {
     id: 'analysis-2',
@@ -25,8 +25,9 @@ const HISTORY = [
     motivo_falha: null,
     solicitada_em: '2026-06-15T00:00:00Z',
     concluida_em: '2026-06-15T00:00:00Z',
-    status_conformidade_geral: 'Conforme',
-    medicoes: [],
+    // O índice geral agrega as 6 métricas: pode ser Condicional mesmo com esta métrica Conforme.
+    status_conformidade_geral: 'Condicional',
+    medicoes: [{ metrica_chave: 'complexidade_ciclomatica', valor_medido: 5, status_conformidade: 'Conforme' }],
   },
 ];
 
@@ -61,8 +62,23 @@ describe('HistoryPage', () => {
     renderHistoryPage();
 
     const list = await screen.findByRole('list', { name: 'Histórico de análises' });
-    expect(within(list).getByText('Condicional')).toBeInTheDocument();
-    expect(within(list).getByText('Conforme')).toBeInTheDocument();
+    expect(within(list).getAllByText('Índice geral')).toHaveLength(2);
+  });
+
+  it('separates the overall index from the status of the selected metric in each row', async () => {
+    (listAnalysesHistory as jest.Mock).mockResolvedValueOnce(HISTORY);
+    (getMetricTrend as jest.Mock).mockResolvedValueOnce(TREND);
+
+    renderHistoryPage();
+
+    // Regressão: a linha mostrava só o índice geral ("Condicional") enquanto o gráfico, da métrica
+    // selecionada, mostrava "Conforme" — parecia contradição. Agora cada linha rotula os dois.
+    const list = await screen.findByRole('list', { name: 'Histórico de análises' });
+    const rows = within(list).getAllByText('Índice geral').map((label) => label.parentElement as HTMLElement);
+    const secondRow = rows[1].parentElement as HTMLElement;
+    expect(within(secondRow).getByText('Índice geral').parentElement).toHaveTextContent('Índice geralCondicional');
+    expect(within(secondRow).getByText('Complexidade Ciclomática').parentElement).toHaveTextContent('5');
+    expect(within(secondRow).getByText('Complexidade Ciclomática').parentElement).toHaveTextContent('Conforme');
   });
 
   it('shows a failed attempt as "Falhou" with its reason, not as in progress', async () => {

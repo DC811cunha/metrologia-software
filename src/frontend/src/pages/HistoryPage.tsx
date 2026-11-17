@@ -34,6 +34,33 @@ const TREND_ICONS: Record<string, typeof TrendUpIcon> = {
   estavel: TrendFlatIcon,
 };
 
+/** Status da métrica selecionada naquela análise — distinto do índice geral, que agrega as 6 métricas. */
+function MetricOfAnalysis({
+  item,
+  metrica,
+  label,
+  unidade,
+}: {
+  item: AnalysisHistoryItem;
+  metrica: string;
+  label: string;
+  unidade: string;
+}) {
+  const medicao = item.medicoes.find((m) => m.metrica_chave === metrica);
+  if (!medicao) return null;
+  const valor =
+    medicao.valor_medido === null
+      ? null
+      : `${medicao.valor_medido.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}${unidade ? ` ${unidade}` : ''}`;
+  return (
+    <span className="flex items-center gap-2 text-xs text-fg-muted">
+      {label}
+      {valor && <span className="font-semibold text-fg-soft">{valor}</span>}
+      <StatusBadge label={medicao.status_conformidade} />
+    </span>
+  );
+}
+
 function HistoryPage() {
   const { repositoryId } = useParams<{ repositoryId: string }>();
   const [history, setHistory] = useState<AnalysisHistoryItem[]>([]);
@@ -160,7 +187,7 @@ function HistoryPage() {
               key={item.id}
               interactive
               style={{ animationDelay: `${index * 50}ms` }}
-              className="flex animate-fade-up items-center justify-between gap-4 px-5 py-4"
+              className="flex animate-fade-up flex-col items-start gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
             >
               <div className="flex items-center gap-3">
                 <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-brand-500/20" />
@@ -173,13 +200,21 @@ function HistoryPage() {
                   )}
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-4">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 sm:shrink-0 sm:justify-end">
                 {item.status === 'falhou' ? (
                   <StatusBadge label="Falhou" />
                 ) : item.status === 'pendente' || item.status === 'processando' ? (
                   <StatusBadge label="Em andamento" />
                 ) : item.status_conformidade_geral ? (
-                  <StatusBadge label={item.status_conformidade_geral} />
+                  <>
+                    <span className="flex items-center gap-2 text-xs text-fg-muted">
+                      Índice geral
+                      <StatusBadge label={item.status_conformidade_geral} />
+                    </span>
+                    {metricConfig && (
+                      <MetricOfAnalysis item={item} metrica={metrica} label={metricConfig.label} unidade={metricConfig.unidade} />
+                    )}
+                  </>
                 ) : (
                   <span className="text-sm font-medium text-fg-subtle">—</span>
                 )}
