@@ -3,7 +3,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
 from app.models.analysis import Analysis
+from app.models.report import Report
 from app.models.repository import Repository
 from app.models.user import User
 from app.schemas.repository import (
@@ -93,6 +94,25 @@ def list_repositories(
         db.execute(select(Repository).where(Repository.usuario_id == user.id)).scalars().all()
     )
 
+    repository_ids = [repository.id for repository in repositories]
+    # Duas consultas agrupadas para a lista toda (em vez de uma por repositório).
+    analyses_per_repository: dict[uuid.UUID, int] = {
+        repository_id: total
+        for repository_id, total in db.execute(
+            select(Analysis.repositorio_id, func.count())
+            .where(Analysis.repositorio_id.in_(repository_ids))
+            .group_by(Analysis.repositorio_id)
+        ).tuples()
+    }
+    reports_per_repository: dict[uuid.UUID, int] = {
+        repository_id: total
+        for repository_id, total in db.execute(
+            select(Report.repositorio_id, func.count())
+            .where(Report.repositorio_id.in_(repository_ids))
+            .group_by(Report.repositorio_id)
+        ).tuples()
+    }
+
     results = []
     for repository in repositories:
         last_analysis = db.execute(
@@ -106,6 +126,8 @@ def list_repositories(
                 **RepositoryResponse.model_validate(repository).model_dump(),
                 ultima_analise_status=last_analysis.status if last_analysis else None,
                 ultima_analise_id=last_analysis.id if last_analysis else None,
+                total_analises=analyses_per_repository.get(repository.id, 0),
+                total_relatorios=reports_per_repository.get(repository.id, 0),
             )
         )
     return results
