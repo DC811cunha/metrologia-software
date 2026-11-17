@@ -254,3 +254,22 @@ class TestFailedAnalysesInTheHistory:
 
         assert item["status"] == "concluida"
         assert item["motivo_falha"] is None
+
+
+class TestUnexpectedErrorsNeverLeaveTheAttemptPending:
+    def test_an_unexpected_error_marks_the_attempt_as_failed(
+        self, client, auth_headers, monkeypatch, db_session
+    ):
+        import pytest
+
+        repository = register_repository(client, auth_headers, monkeypatch)
+        monkeypatch.setattr(GithubService, "fetch_repo_size_kb", raising(RuntimeError("bug inesperado")))
+
+        with pytest.raises(RuntimeError):
+            trigger(client, auth_headers, repository)
+
+        [analysis] = analyses_of(db_session, repository["id"])
+        db_session.refresh(analysis)
+        assert analysis.status == AnalysisStatus.FALHOU
+        assert "Erro inesperado" in analysis.motivo_falha
+        assert analysis.concluida_em is not None
