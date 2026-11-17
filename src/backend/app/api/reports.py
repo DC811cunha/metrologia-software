@@ -64,12 +64,33 @@ def create_report(
             )
         # invariante do analysis_runner: toda Analysis CONCLUIDA tem status_conformidade_geral
         assert analysis.status_conformidade_geral is not None
+        # A concluída imediatamente anterior habilita a comparação ("vs. anterior") no laudo.
+        previous = db.execute(
+            select(Analysis)
+            .where(
+                Analysis.repositorio_id == repository_id,
+                Analysis.status == AnalysisStatus.CONCLUIDA,
+                Analysis.solicitada_em < analysis.solicitada_em,
+            )
+            .order_by(Analysis.solicitada_em.desc())
+            .limit(1)
+        ).scalar_one_or_none()
         pdf_bytes = build_single_analysis_report(
             repository_url=repository.url,
             analysis_id=str(analysis.id),
             concluida_em=analysis.concluida_em,
             measurements=_measurements_payload(analysis),
             overall_status=analysis.status_conformidade_geral,
+            linguagens=repository.linguagens_detectadas,
+            previous=(
+                {
+                    "concluida_em": previous.concluida_em,
+                    "measurements": _measurements_payload(previous),
+                    "status_conformidade_geral": previous.status_conformidade_geral,
+                }
+                if previous is not None
+                else None
+            ),
         )
     elif payload.tipo == ReportType.HISTORICO_COMPLETO.value:
         analyses = (
@@ -100,6 +121,7 @@ def create_report(
                 }
                 for a in analyses
             ],
+            linguagens=repository.linguagens_detectadas,
         )
     else:
         raise HTTPException(
