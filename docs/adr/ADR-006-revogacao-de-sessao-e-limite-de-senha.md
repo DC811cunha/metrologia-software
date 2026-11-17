@@ -65,3 +65,16 @@ Dois problemas de autenticação foram apontados na revisão:
   complementar a considerar no deploy público.
 - Exige a migration `add token_version to users` (`alembic upgrade head`) antes de subir esta versão.
 - No deploy público com HTTPS, definir `COOKIE_SECURE=true`.
+
+## Atualização (17/11/2026): logout pelo cookie do refresh token
+
+A primeira versão do logout exigia um access token válido (`get_current_user`). Como o access token dura
+só 15 minutos, quem clicava em "Sair" depois de um tempo parado recebia `401`: nada era revogado, o cookie
+não era apagado e a sessão seguia válida por 7 dias — enquanto o frontend, que ignora o erro, mostrava o
+usuário como deslogado. Verificado ao vivo antes da correção.
+
+O logout agora identifica a sessão pelo **cookie do refresh token** (com o access token como alternativa),
+só revoga uma sessão **vigente** (um token de versão antiga não derruba o login posterior de outra pessoa
+nem sobe a versão duas vezes) e é **idempotente**: `204` e cookie apagado mesmo sem sessão válida. Não abre
+CSRF, pois o cookie é `SameSite=Lax`. O frontend não precisou mudar. O contrato (`contracts/auth.md`) foi
+atualizado, pois descrevia o comportamento anterior ao ADR.

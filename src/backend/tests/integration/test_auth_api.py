@@ -74,7 +74,7 @@ def test_logout_clears_refresh_cookie(client):
 
 
 def test_protected_route_without_token_returns_401(client):
-    response = client.post("/api/v1/auth/logout")
+    response = client.get("/api/v1/repositories")
     assert response.status_code == 401
 
 
@@ -274,9 +274,7 @@ class TestSessionHardening:
         client.cookies.set(REFRESH_COOKIE, old_refresh, path="/api/v1/auth")
         assert client.post("/api/v1/auth/refresh").status_code == 401
         assert (
-            client.post(
-                "/api/v1/auth/logout", headers={"Authorization": f"Bearer {old_access}"}
-            ).status_code
+            client.get("/api/v1/repositories", headers={"Authorization": f"Bearer {old_access}"}).status_code
             == 401
         )
 
@@ -303,3 +301,129 @@ class TestSessionHardening:
 
         assert response.status_code == 200
         assert client.post("/api/v1/auth/refresh").status_code == 200
+
+
+class TestLogoutRevokesTheSession:
+    """O logout precisa revogar no servidor mesmo quando o access token (15 min) já expirou, que é o
+    caso mais comum; antes, ele exigia um access token válido e falhava em silêncio com 401."""
+
+    PAYLOAD = {"password": "super-secret-123"}
+
+    @staticmethod
+    def _expired_access_token(access_token: str) -> str:
+        from datetime import timedelta
+
+        from app.core.config import settings
+        from app.core.security import TokenType, _create_token, decode_access_token
+
+        claims = decode_access_token(access_token)
+        return _create_token(claims.user_id, TokenType.ACCESS, settings.jwt_secret, timedelta(minutes=-1), claims.version)
+
+    @staticmethod
+    def _signed_in(client, email: str) -> tuple[str, str]:
+        register = client.post("/api/v1/auth/register", json={"email": email, **TestLogoutRevokesTheSession.PAYLOAD})
+        return register.json()["access_token"], client.cookies.get(REFRESH_COOKIE)
+
+    @staticmethod
+    def _refresh_with(client, cookie: str) -> int:
+        client.cookies.clear()
+        client.cookies.set(REFRESH_COOKIE, cookie, path="/api/v1/auth")
+        return client.post("/api/v1/auth/refresh").status_code
+
+    def test_logout_with_an_expired_access_token_still_revokes_the_session(self, client):
+        access, cookie = self._signed_in(client, "expired-access@example.com")
+        expired = self._expired_access_token(access)
+
+        response = client.post("/api/v1/auth/logout", headers={"Authorization": f"Bearer {expired}"})
+
+        assert response.status_code == 204
+        assert self._refresh_with(client, cookie) == 401
+
+    def test_logout_works_with_only_the_refresh_cookie(self, client):
+        _, cookie = self._signed_in(client, "cookie-only@example.com")
+
+        response = client.post("/api/v1/auth/logout")
+
+        assert response.status_code == 204
+        assert self._refresh_with(client, cookie) == 401
+
+    def test_logout_works_with_only_a_valid_access_token(self, client):
+        access, cookie = self._signed_in(client, "access-only@example.com")
+        client.cookies.clear()
+
+        response = client.post("/api/v1/auth/logout", headers={"Authorization": f"Bearer {access}"})
+
+        assert response.status_code == 204
+        assert self._refresh_with(client, cookie) == 401
+
+    def test_a_garbage_access_token_does_not_stop_the_cookie_from_revoking(self, client):
+        _, cookie = self._signed_in(client, "garbage-access@example.com")
+
+        response = client.post("/api/v1/auth/logout", headers={"Authorization": "Bearer nao-e-um-token"})
+
+        assert response.status_code == 204
+        assert self._refresh_with(client, cookie) == 401
+
+    def test_the_response_always_clears_the_cookie(self, client):
+        self._signed_in(client, "clears@example.com")
+
+        with_session = client.post("/api/v1/auth/logout")
+        client.cookies.clear()
+        without_session = client.post("/api/v1/auth/logout")
+
+        for response in (with_session, without_session):
+            assert response.status_code == 204
+            assert f"{REFRESH_COOKIE}=" in response.headers["set-cookie"]
+            assert "Max-Age=0" in response.headers["set-cookie"]
+
+    def test_logout_without_any_credentials_is_a_harmless_204(self, client):
+        client.cookies.clear()
+
+        assert client.post("/api/v1/auth/logout").status_code == 204
+        assert client.post("/api/v1/auth/logout", headers={"Authorization": "Bearer lixo"}).status_code == 204
+
+    def test_logging_out_twice_revokes_only_once(self, client, db_session):
+        from app.models.user import User
+
+        access, cookie = self._signed_in(client, "twice@example.com")
+        client.post("/api/v1/auth/logout")
+        client.cookies.set(REFRESH_COOKIE, cookie, path="/api/v1/auth")  # a mesma cópia, já revogada
+
+        client.post("/api/v1/auth/logout")
+
+        user = db_session.query(User).filter_by(email="twice@example.com").one()
+        db_session.refresh(user)
+        assert user.token_version == 1
+
+    def test_a_stale_token_cannot_log_out_the_session_of_a_later_login(self, client):
+        payload = {"email": "stale@example.com", **self.PAYLOAD}
+        _, old_cookie = self._signed_in(client, payload["email"])
+        client.post("/api/v1/auth/logout")  # encerra a sessão A (versão 0)
+        client.cookies.clear()
+        new_login = client.post("/api/v1/auth/login", json=payload)
+        new_cookie = client.cookies.get(REFRESH_COOKIE)
+        assert new_login.status_code == 200
+
+        # quem ainda guarda o cookie antigo chama o logout: não pode derrubar a sessão nova
+        client.cookies.clear()
+        client.cookies.set(REFRESH_COOKIE, old_cookie, path="/api/v1/auth")
+        assert client.post("/api/v1/auth/logout").status_code == 204
+
+        assert self._refresh_with(client, new_cookie) == 200
+
+    def test_an_access_token_placed_in_the_cookie_is_not_accepted_as_a_refresh_token(self, client):
+        access, cookie = self._signed_in(client, "swap@example.com")
+        client.cookies.clear()
+        client.cookies.set(REFRESH_COOKIE, access, path="/api/v1/auth")  # tipo errado
+
+        client.post("/api/v1/auth/logout")
+
+        assert self._refresh_with(client, cookie) == 200  # nada foi revogado
+
+    def test_the_access_token_also_dies_with_the_logout(self, client):
+        access, _ = self._signed_in(client, "dies@example.com")
+        client.post("/api/v1/auth/logout")
+
+        response = client.get("/api/v1/repositories", headers={"Authorization": f"Bearer {access}"})
+
+        assert response.status_code == 401

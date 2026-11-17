@@ -7,11 +7,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
-from app.core.dependencies import get_current_user
+from app.core.dependencies import oauth2_scheme
 from app.core.security import (
     InvalidTokenError,
     create_access_token,
     create_refresh_token,
+    decode_access_token,
     decode_refresh_token,
     equalize_login_timing,
     hash_password,
@@ -179,14 +180,49 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
     db.commit()
 
 
+def _session_owner(db: Session, refresh_token: str | None, access_token: str | None) -> User | None:
+    """Dono da sessão apresentada, ou None se não há sessão vigente.
+
+    O cookie do refresh token vem primeiro: ele é justamente o que precisa ser revogado e está presente
+    mesmo quando o access token (15 min) já expirou — o caso mais comum de logout. O access token fica
+    como alternativa. Só vale uma sessão VIGENTE: um token de versão antiga (já revogado, ou anterior a
+    um reset de senha) não identifica ninguém, para não derrubar a sessão nova de um login posterior.
+    """
+    candidates = (
+        (refresh_token, decode_refresh_token),
+        (access_token, decode_access_token),
+    )
+    for token, decode in candidates:
+        if not token:
+            continue
+        try:
+            claims = decode(token)
+        except InvalidTokenError:
+            continue
+        user = db.get(User, claims.user_id)
+        if user is not None and user.token_version == claims.version:
+            return user
+    return None
+
+
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 def logout(
     response: Response,
-    user: User = Depends(get_current_user),
+    refresh_token: str | None = Cookie(default=None, alias=REFRESH_COOKIE_NAME),
+    access_token: str | None = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> None:
-    """Encerra a sessão no servidor (não só apaga o cookie): incrementar a versão invalida o
-    refresh token mesmo que uma cópia dele tenha vazado. Efeito: sai de todos os dispositivos."""
-    user.token_version += 1
-    db.commit()
+    """Encerra a sessão no servidor (não só apaga o cookie): incrementar a versão invalida o refresh
+    token mesmo que uma cópia dele tenha vazado, e o access token também. Efeito: sai de todos os
+    dispositivos.
+
+    Idempotente: responde 204 e apaga o cookie mesmo sem sessão válida (token ausente, expirado ou já
+    revogado), em vez de falhar com 401 — antes, um logout depois de 15 min parado devolvia 401 sem
+    revogar nada e deixava a sessão aberta por 7 dias. Não é CSRF-ável: o cookie é SameSite=Lax e não
+    acompanha um POST vindo de outro site.
+    """
+    user = _session_owner(db, refresh_token, access_token)
+    if user is not None:
+        user.token_version += 1
+        db.commit()
     response.delete_cookie(REFRESH_COOKIE_NAME, path="/api/v1/auth")
