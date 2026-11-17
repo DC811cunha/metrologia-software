@@ -32,7 +32,9 @@ A aplicação estará disponível em:
 3. Disparar uma análise e aguardar o resultado (síncrono em até ~10s, ou polling se assíncrono).
 4. Verificar que o dashboard exibe as 6 métricas como gauges com valor, limites e status de
    conformidade.
-5. Repetir o passo 3 em outro dia/momento e confirmar que o histórico (US3) mostra a tendência.
+5. Repetir o passo 3 em outro dia/momento e confirmar que o histórico (US3) mostra a tendência. Em
+   cada linha do histórico, conferir o **índice geral** (valor e selo), a métrica selecionada no gráfico e,
+   se houver, os "pontos de atenção"; o bloco "Como o índice geral é calculado?" explica a conta.
 6. Gerar um relatório PDF (US4) e confirmar que cada métrica inclui fórmula, fonte bibliográfica
    e limites, e a nota de escopo da medição.
 7. Excluir o repositório: como ele já tem análise e relatório, a interface abre uma janela de

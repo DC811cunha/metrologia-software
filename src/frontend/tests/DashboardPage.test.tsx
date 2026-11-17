@@ -71,6 +71,26 @@ describe('DashboardPage', () => {
     );
   });
 
+  it('shows the numeric overall index and explains how it is calculated', async () => {
+    // 4 Conformes + 1 Não-Conforme (a Cobertura, "Não disponível", fica fora): 400 / 5 = 80 → Condicional.
+    (getAnalysis as jest.Mock).mockResolvedValueOnce({
+      ...COMPLETED_ANALYSIS,
+      status_conformidade_geral: 'Condicional',
+      medicoes: COMPLETED_ANALYSIS.medicoes.map((m) =>
+        m.metrica_chave === 'score_duplicacao' ? { ...m, valor_medido: 30, status_conformidade: 'Não-Conforme' } : m,
+      ),
+    });
+
+    renderDashboard();
+
+    await waitFor(() =>
+      expect(screen.getByText((_, el) => el?.tagName === 'SPAN' && el.textContent === 'índice 80 de 100')).toBeInTheDocument(),
+    );
+    const note = screen.getByTestId('index-note');
+    expect(note).toHaveTextContent('Como o índice geral é calculado?');
+    expect(note).toHaveTextContent('"Não disponível" ficam de fora da conta');
+  });
+
   it('shows the overall conformity status', async () => {
     (getAnalysis as jest.Mock).mockResolvedValueOnce(COMPLETED_ANALYSIS);
 

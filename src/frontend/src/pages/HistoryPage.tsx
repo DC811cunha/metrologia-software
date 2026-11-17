@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import Alert from '../components/ui/Alert';
+import ConformityIndexNote from '../components/ConformityIndexNote';
 import Card from '../components/ui/Card';
 import { ArrowLeftIcon, ChartIcon, TrendDownIcon, TrendFlatIcon, TrendUpIcon } from '../components/ui/Icon';
 import PageHeader from '../components/ui/PageHeader';
 import Skeleton from '../components/ui/Skeleton';
 import StatusBadge from '../components/ui/StatusBadge';
 import TrendChart from '../components/TrendChart';
+import { attentionMetrics, conformityIndex, formatIndex } from '../conformity';
 import { METRICS_GAUGE_CONFIG } from '../metricsCatalog';
 import {
   AnalysisHistoryItem,
@@ -33,6 +35,49 @@ const TREND_ICONS: Record<string, typeof TrendUpIcon> = {
   piorando: TrendDownIcon,
   estavel: TrendFlatIcon,
 };
+
+function IndexValue({ item }: { item: AnalysisHistoryItem }) {
+  const index = conformityIndex(item.medicoes);
+  return index === null ? null : <span className="font-semibold tabular-nums text-fg-soft">{formatIndex(index)}</span>;
+}
+
+/** Métricas que não estão Conformes naquela análise: explicam por que o índice geral não é Conforme. */
+function AttentionLine({ item }: { item: AnalysisHistoryItem }) {
+  const attention = attentionMetrics(item.medicoes);
+  if (attention.length === 0) return null;
+  return (
+    <p className="mt-0.5 text-xs text-fg-muted">
+      Pontos de atenção: {attention.map((metric) => `${metric.label} (${metric.status})`).join(', ')}
+    </p>
+  );
+}
+
+/** Status da métrica selecionada naquela análise — distinto do índice geral, que agrega as 6 métricas. */
+function MetricOfAnalysis({
+  item,
+  metrica,
+  label,
+  unidade,
+}: {
+  item: AnalysisHistoryItem;
+  metrica: string;
+  label: string;
+  unidade: string;
+}) {
+  const medicao = item.medicoes.find((m) => m.metrica_chave === metrica);
+  if (!medicao) return null;
+  const valor =
+    medicao.valor_medido === null
+      ? null
+      : `${medicao.valor_medido.toLocaleString('pt-BR', { maximumFractionDigits: 2 })}${unidade ? ` ${unidade}` : ''}`;
+  return (
+    <span className="flex items-center gap-2 text-xs text-fg-muted">
+      {label}
+      {valor && <span className="font-semibold text-fg-soft">{valor}</span>}
+      <StatusBadge label={medicao.status_conformidade} />
+    </span>
+  );
+}
 
 function HistoryPage() {
   const { repositoryId } = useParams<{ repositoryId: string }>();
@@ -154,13 +199,15 @@ function HistoryPage() {
       ) : history.length === 0 ? (
         <Card className="text-center text-sm text-fg-muted">Nenhuma análise registrada ainda.</Card>
       ) : (
+        <div className="flex flex-col gap-3">
+          <ConformityIndexNote />
         <ul aria-label="Histórico de análises" className="flex flex-col gap-2.5">
           {history.map((item, index) => (
             <Card
               key={item.id}
               interactive
               style={{ animationDelay: `${index * 50}ms` }}
-              className="flex animate-fade-up items-center justify-between gap-4 px-5 py-4"
+              className="flex animate-fade-up flex-col items-start gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
             >
               <div className="flex items-center gap-3">
                 <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-brand-500/20" />
@@ -171,15 +218,25 @@ function HistoryPage() {
                   {item.status === 'falhou' && item.motivo_falha && (
                     <p className="mt-0.5 text-xs text-fg-muted">{item.motivo_falha}</p>
                   )}
+                  {item.status === 'concluida' && <AttentionLine item={item} />}
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-4">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-2 sm:shrink-0 sm:justify-end">
                 {item.status === 'falhou' ? (
                   <StatusBadge label="Falhou" />
                 ) : item.status === 'pendente' || item.status === 'processando' ? (
                   <StatusBadge label="Em andamento" />
                 ) : item.status_conformidade_geral ? (
-                  <StatusBadge label={item.status_conformidade_geral} />
+                  <>
+                    <span className="flex items-center gap-2 text-xs text-fg-muted">
+                      Índice geral
+                      <IndexValue item={item} />
+                      <StatusBadge label={item.status_conformidade_geral} />
+                    </span>
+                    {metricConfig && (
+                      <MetricOfAnalysis item={item} metrica={metrica} label={metricConfig.label} unidade={metricConfig.unidade} />
+                    )}
+                  </>
                 ) : (
                   <span className="text-sm font-medium text-fg-subtle">—</span>
                 )}
@@ -195,6 +252,7 @@ function HistoryPage() {
             </Card>
           ))}
         </ul>
+        </div>
       )}
     </div>
   );
