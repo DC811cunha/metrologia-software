@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.encoders import jsonable_encoder
@@ -43,7 +44,9 @@ def _get_owned_repository(db: Session, repository_id: uuid.UUID, user: User) -> 
 
 def _fail_analysis(db: Session, analysis: Analysis, message: str) -> None:
     analysis.status = AnalysisStatus.FALHOU
-    analysis.motivo_falha = message
+    analysis.motivo_falha = message[:1000]
+    # Toda tentativa encerrada tem data de término — sem ela o histórico a exibiria como "em andamento".
+    analysis.concluida_em = datetime.now(timezone.utc)
     db.commit()
 
 

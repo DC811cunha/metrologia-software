@@ -96,6 +96,7 @@ class TestTriggeringWhileGithubMisbehaves:
         [analysis] = analyses_of(db_session, repository["id"])
         assert analysis.status == AnalysisStatus.FALHOU
         assert "Limite de requisições" in analysis.motivo_falha
+        assert analysis.concluida_em is not None
         stored = db_session.get(Repository, uuid.UUID(repository["id"]))
         db_session.refresh(stored)
         assert stored.status_acesso == AccessStatus.ATIVO
@@ -122,6 +123,7 @@ class TestTriggeringWhileGithubMisbehaves:
         [analysis] = analyses_of(db_session, repository["id"])
         assert analysis.status == AnalysisStatus.FALHOU
         assert "indisponível" in analysis.motivo_falha
+        assert analysis.concluida_em is not None
 
     def test_a_repository_that_answers_again_is_no_longer_inaccessible(
         self, client, auth_headers, monkeypatch, db_session
@@ -221,3 +223,34 @@ def _fake_download(self, owner, repo, dest_dir: Path) -> Path:
     )
     return root
 
+
+
+class TestFailedAnalysesInTheHistory:
+    """Uma tentativa que falhou tem data de término e aparece no histórico como falha, nunca como
+    "em andamento" (bug: `concluida_em` ficava nulo e a tela não distinguia falha de execução)."""
+
+    def test_a_failed_attempt_is_listed_with_status_reason_and_dates(self, client, auth_headers, monkeypatch):
+        repository = register_repository(client, auth_headers, monkeypatch)
+        monkeypatch.setattr(GithubService, "fetch_repo_size_kb", raising(GithubUnavailableError("timeout")))
+        assert trigger(client, auth_headers, repository).status_code == 502
+
+        response = client.get(f"/api/v1/repositories/{repository['id']}/analyses", headers=auth_headers)
+
+        [item] = response.json()
+        assert item["status"] == "falhou"
+        assert "indisponível" in item["motivo_falha"]
+        assert item["concluida_em"] is not None
+        assert item["solicitada_em"] is not None
+        assert item["status_conformidade_geral"] is None
+        assert item["medicoes"] == []
+
+    def test_a_completed_attempt_reports_status_concluida(self, client, auth_headers, monkeypatch):
+        repository = register_repository(client, auth_headers, monkeypatch)
+        monkeypatch.setattr(GithubService, "fetch_repo_size_kb", lambda self, owner, repo: 10)
+        monkeypatch.setattr(GithubService, "download_and_extract", _fake_download)
+        assert trigger(client, auth_headers, repository).status_code == 201
+
+        [item] = client.get(f"/api/v1/repositories/{repository['id']}/analyses", headers=auth_headers).json()
+
+        assert item["status"] == "concluida"
+        assert item["motivo_falha"] is None

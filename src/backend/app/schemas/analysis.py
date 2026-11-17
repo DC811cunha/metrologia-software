@@ -32,6 +32,9 @@ class AnalysisAcceptedResponse(BaseModel):
 
 class AnalysisHistoryItemResponse(BaseModel):
     id: uuid.UUID
+    status: str
+    motivo_falha: str | None = None
+    solicitada_em: datetime
     concluida_em: datetime | None = None
     status_conformidade_geral: str | None = None
     medicoes: list[MeasurementResponse] = []

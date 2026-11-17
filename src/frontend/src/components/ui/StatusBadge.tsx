@@ -6,6 +6,8 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   concluida: 'bg-conforme-bg text-conforme-text',
   processando: 'bg-brand-500/20 text-brand-200',
   falhou: 'bg-nao-conforme-bg text-nao-conforme-text',
+  Falhou: 'bg-nao-conforme-bg text-nao-conforme-text',
+  'Em andamento': 'bg-brand-500/20 text-brand-200',
 };
 
 /** Selo de status com ponto colorido — a cor nunca é o único indicador (o texto sempre aparece). */
