@@ -3,9 +3,11 @@ import { Link, useParams } from 'react-router-dom';
 
 import Alert from '../components/ui/Alert';
 import Button from '../components/ui/Button';
+import ConformityIndexNote from '../components/ConformityIndexNote';
 import Gauge from '../components/Gauge';
 import { ArrowLeftIcon, DocumentIcon, InfoIcon } from '../components/ui/Icon';
 import Skeleton from '../components/ui/Skeleton';
+import { conformityIndex, formatIndex } from '../conformity';
 import { METRICS_GAUGE_CONFIG, SCOPE_NOTE } from '../metricsCatalog';
 import { Analysis, getAnalysis } from '../services/analysisService';
 import { generateAndDownloadReport } from '../services/reportService';
@@ -97,6 +99,7 @@ function DashboardPage() {
       analysis.medicoes.find((m) => m.metrica_chave === config.chave)?.status_conformidade ??
       'Não disponível',
   );
+  const index = conformityIndex(analysis.medicoes);
   const overallPill = PILL_CLASSES[analysis.status_conformidade_geral ?? ''] ?? 'bg-white/10 text-fg-soft';
 
   return (
@@ -130,6 +133,11 @@ function DashboardPage() {
               >
                 {analysis.status_conformidade_geral}
               </span>
+              {index !== null && (
+                <span className="text-sm text-brand-100">
+                  índice <strong className="tabular-nums text-white">{formatIndex(index)}</strong> de 100
+                </span>
+              )}
             </p>
           </div>
 
@@ -174,6 +182,8 @@ function DashboardPage() {
           </div>
         ))}
       </section>
+
+      <ConformityIndexNote />
 
       <section className="flex flex-col gap-4">
         <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
