@@ -440,7 +440,7 @@ RNF09 — Nenhuma métrica pode ser exibida em tela ou relatório sem que sua f�
 
 *(RNF10–RNF12 adicionados na v2.1.)*
 
-RNF10 — As respostas dos endpoints de recuperação de senha não podem revelar, nem pelo conteúdo nem pelo tempo de resposta, se um e-mail está cadastrado: o envio do e-mail é feito de forma assíncrona (task Celery), de modo que os caminhos "e-mail existe" e "e-mail não existe" respondem em tempo equivalente (medido: ~0,11 s em ambos).
+RNF10 — As respostas dos endpoints de recuperação de senha não podem revelar, nem pelo conteúdo nem pelo tempo de resposta, se um e-mail está cadastrado: o endpoint apenas enfileira o pedido (task Celery) sem consultar o banco, de modo que os caminhos "e-mail existe" e "e-mail não existe" respondem em tempo equivalente (v2.2, medido: ~147 ms × ~150 ms; antes da mudança havia uma diferença consistente de ~23 ms). Há ainda um limite de 3 pedidos por conta por hora.
 
 RNF11 — A interface deve seguir diretrizes de acessibilidade: foco visível, *skip-link*, respeito a `prefers-reduced-motion`, alvos de toque de 44 px, status de conformidade nunca indicado apenas por cor, estados de carregamento/vazio/erro em todas as telas, carrossel sem rotação automática (WCAG 2.2, critério 2.2.2) e layout validado em 1024 px e 375 px. *(Diretrizes aplicadas e verificadas visualmente; não há auditoria formal de conformidade WCAG.)*
 

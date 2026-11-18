@@ -20,6 +20,7 @@ cobertura, e isso é esperado, não uma falha.
 from __future__ import annotations
 
 import io
+import os
 import re
 import zipfile
 from dataclasses import dataclass
@@ -31,13 +32,16 @@ from defusedxml.common import DefusedXmlException
 
 from app.core.config import settings
 
-_BADGE_PATTERNS = [
-    # Badge shields.io/Codecov/Coveralls, ex.: "coverage-87%25-brightgreen" ou "coverage-87%"
-    re.compile(r"coverage[-/](\d+(?:\.\d+)?)%(?:25)?", re.IGNORECASE),
-    # Menção textual simples, ex.: "Coverage: 87%" ou "87% coverage"
+# Badge shields.io/Codecov/Coveralls, ex.: "coverage-87%25-brightgreen" ou "coverage-87%": o formato é
+# específico o bastante para valer em qualquer ponto do README.
+_SHIELDS_BADGE = re.compile(r"coverage[-/](\d+(?:\.\d+)?)%(?:25)?", re.IGNORECASE)
+# Menção textual, ex.: "Coverage: 87%" ou "87% coverage". Só vale em linhas que parecem um badge (imagem,
+# <img> ou link de badge): em prosa ("meta: coverage 100% nos módulos novos") seria uma meta, não uma medição.
+_TEXT_BADGES = [
     re.compile(r"coverage[:\s]+(\d+(?:\.\d+)?)%", re.IGNORECASE),
     re.compile(r"(\d+(?:\.\d+)?)%\s+coverage", re.IGNORECASE),
 ]
+_BADGE_LINE_HINTS = ("![", "<img", "badge", "shields.io")
 
 
 @dataclass(frozen=True)
@@ -71,11 +75,16 @@ def _read_coverage_xml(content: str) -> _Reading | None:
 def _read_lcov_info(content: str) -> _Reading | None:
     lines_found = lines_hit = 0
     for line in content.splitlines():
-        if line.startswith("LF:"):
-            lines_found += int(line.removeprefix("LF:"))
-        elif line.startswith("LH:"):
-            lines_hit += int(line.removeprefix("LH:"))
-    if lines_found == 0:
+        # O arquivo vem de um repositório de terceiros: uma linha malformada (ex.: "LF:" vazio) é
+        # ignorada, nunca derruba a análise inteira.
+        try:
+            if line.startswith("LF:"):
+                lines_found += int(line.removeprefix("LF:"))
+            elif line.startswith("LH:"):
+                lines_hit += int(line.removeprefix("LH:"))
+        except ValueError:
+            continue
+    if lines_found <= 0 or lines_hit < 0 or lines_hit > lines_found:
         return None
     return _Reading(lines_hit / lines_found * 100, float(lines_hit), float(lines_found))
 
@@ -123,11 +132,11 @@ _MAX_REPORTS = 20
 def _find_all(root: Path, filename: str) -> list[Path]:
     """Relatórios de cobertura do projeto, em ordem estável: caminho mais raso primeiro e depois
     alfabético — nunca a ordem do sistema de arquivos, que variava entre execuções e máquinas."""
-    matches = [
-        path
-        for path in root.rglob(filename)
-        if path.is_file() and not _THIRD_PARTY_DIRS & set(path.relative_to(root).parts[:-1])
-    ]
+    matches: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [name for name in dirnames if name not in _THIRD_PARTY_DIRS]  # poda antes de descer
+        if filename in filenames and (Path(dirpath) / filename).is_file():
+            matches.append(Path(dirpath) / filename)
     matches.sort(key=lambda path: (len(path.relative_to(root).parts), path.relative_to(root).as_posix()))
     return matches[:_MAX_REPORTS]
 
@@ -138,10 +147,16 @@ def _read_readme_badge(root: Path) -> float | None:
         if not path.exists():
             continue
         content = path.read_text(encoding="utf-8", errors="ignore")
-        for pattern in _BADGE_PATTERNS:
-            match = pattern.search(content)
-            if match:
-                return float(match.group(1))
+        match = _SHIELDS_BADGE.search(content)
+        if match:
+            return float(match.group(1))
+        for line in content.splitlines():
+            if not any(hint in line.lower() for hint in _BADGE_LINE_HINTS):
+                continue
+            for pattern in _TEXT_BADGES:
+                match = pattern.search(line)
+                if match:
+                    return float(match.group(1))
     return None
 
 

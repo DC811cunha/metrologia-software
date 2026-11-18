@@ -79,15 +79,26 @@ def test_protected_route_without_token_returns_401(client):
 
 
 def _fake_email_capture(monkeypatch):
+    """Faz o worker rodar na hora (no mesmo banco de teste) e captura o e-mail que ele enviaria."""
     import app.api.auth as auth_module
+    import app.services.password_reset_service as service_module
+    from tests.conftest import TestingSessionLocal
 
     sent = {}
 
-    def fake_delay(to_email, reset_link):
+    def fake_send(to_email, reset_link):
         sent["to_email"] = to_email
         sent["reset_link"] = reset_link
 
-    monkeypatch.setattr(auth_module.send_password_reset_email_task, "delay", fake_delay)
+    def run_worker_now(email):
+        db = TestingSessionLocal()
+        try:
+            service_module.issue_password_reset(db, email)
+        finally:
+            db.close()
+
+    monkeypatch.setattr(service_module, "send_password_reset_email", fake_send)
+    monkeypatch.setattr(auth_module.request_password_reset_task, "delay", run_worker_now)
     return sent
 
 
@@ -427,3 +438,64 @@ class TestLogoutRevokesTheSession:
         response = client.get("/api/v1/repositories", headers={"Authorization": f"Bearer {access}"})
 
         assert response.status_code == 401
+
+
+class TestEmailsIgnoreCase:
+    """Regressão: "Pessoa@Example.com" e "pessoa@example.com" criavam duas contas e o login com outra
+    caixa falhava com 401."""
+
+    PASSWORD = "super-secret-123"
+
+    def test_register_stores_the_email_in_lowercase(self, client, db_session):
+        from app.models.user import User
+
+        response = client.post("/api/v1/auth/register", json={"email": "Pessoa@Example.COM", "password": self.PASSWORD})
+
+        assert response.status_code == 201
+        assert db_session.query(User).one().email == "pessoa@example.com"
+
+    def test_the_same_email_in_another_case_is_a_conflict(self, client):
+        client.post("/api/v1/auth/register", json={"email": "Pessoa@Example.com", "password": self.PASSWORD})
+
+        response = client.post("/api/v1/auth/register", json={"email": "pessoa@example.com", "password": self.PASSWORD})
+
+        assert response.status_code == 409
+
+    def test_login_works_with_any_case(self, client):
+        client.post("/api/v1/auth/register", json={"email": "pessoa@example.com", "password": self.PASSWORD})
+
+        for email in ("PESSOA@example.com", "Pessoa@Example.com", " pessoa@example.com "):
+            response = client.post("/api/v1/auth/login", json={"email": email, "password": self.PASSWORD})
+            assert response.status_code == 200, email
+
+    def test_forgot_password_finds_the_account_with_any_case(self, client, monkeypatch):
+        sent = _fake_email_capture(monkeypatch)
+        client.post("/api/v1/auth/register", json={"email": "pessoa@example.com", "password": self.PASSWORD})
+
+        response = client.post("/api/v1/auth/forgot-password", json={"email": "PESSOA@Example.com"})
+
+        assert response.status_code == 200
+        assert sent["to_email"] == "pessoa@example.com"
+
+
+class TestSessionVersionIsAtomic:
+    """`token_version` sobe com uma expressão SQL (`token_version + 1`), não lendo e somando em Python: dois
+    pedidos simultâneos não podem perder um incremento."""
+
+    def test_logout_increments_in_the_database(self, client, db_session):
+        from sqlalchemy import event
+
+        client.post("/api/v1/auth/register", json={"email": "atomic@example.com", "password": "super-secret-123"})
+        statements: list[str] = []
+        bind = db_session.get_bind()
+
+        def capture(conn, cursor, statement, *args):
+            statements.append(statement)
+
+        event.listen(bind, "before_cursor_execute", capture)
+        try:
+            client.post("/api/v1/auth/logout")
+        finally:
+            event.remove(bind, "before_cursor_execute", capture)
+
+        assert any("UPDATE users" in s and "users.token_version +" in s for s in statements), statements

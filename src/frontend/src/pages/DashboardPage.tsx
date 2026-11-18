@@ -9,7 +9,7 @@ import { ArrowLeftIcon, DocumentIcon, InfoIcon } from '../components/ui/Icon';
 import Skeleton from '../components/ui/Skeleton';
 import { conformityIndex, formatIndex } from '../conformity';
 import { METRICS_GAUGE_CONFIG, SCOPE_NOTE } from '../metricsCatalog';
-import { Analysis, getAnalysis } from '../services/analysisService';
+import { Analysis, POLL_INTERVAL_MS, POLL_TIMEOUT_MS, getAnalysis } from '../services/analysisService';
 import { generateAndDownloadReport } from '../services/reportService';
 
 const PILL_CLASSES: Record<string, string> = {
@@ -62,6 +62,23 @@ function DashboardPage() {
       .catch(() => setError('Não foi possível carregar a análise.'))
       .finally(() => setLoading(false));
   }, [repositoryId, analysisId]);
+
+  // Análise ainda em andamento: reconsulta até terminar (com tempo máximo), em vez de mostrar um aviso estático.
+  const inProgress = analysis?.status === 'pendente' || analysis?.status === 'processando';
+  useEffect(() => {
+    if (!inProgress || !repositoryId || !analysisId) return;
+    const startedAt = Date.now();
+    const timer = setInterval(() => {
+      if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+        clearInterval(timer);
+        return;
+      }
+      getAnalysis(repositoryId, analysisId)
+        .then(setAnalysis)
+        .catch(() => undefined); // falha momentânea: tenta de novo no próximo ciclo
+    }, POLL_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [inProgress, repositoryId, analysisId]);
 
   async function handleGenerateReport() {
     if (!repositoryId || !analysisId) return;

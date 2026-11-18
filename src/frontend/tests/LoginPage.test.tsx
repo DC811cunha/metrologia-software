@@ -1,4 +1,5 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import LoginPage from '../src/pages/LoginPage';
@@ -42,6 +43,28 @@ describe('LoginPage', () => {
       email: 'dev@example.com',
       password: 'super-secret-123',
     });
+  });
+
+  it('shows the server message when the login is rate limited, not "invalid credentials"', async () => {
+    // Regressão: o 429 do limite de requisições aparecia como "Credenciais inválidas." (ou como erro de rede).
+    const config = { headers: new AxiosHeaders() };
+    (api.post as jest.Mock).mockRejectedValueOnce(
+      new AxiosError('Too Many Requests', 'ERR_BAD_REQUEST', config, {}, {
+        status: 429,
+        statusText: 'Too Many Requests',
+        headers: {},
+        config,
+        data: { detail: 'Muitas tentativas. Tente novamente em 57 segundos.' },
+      }),
+    );
+
+    renderLoginPage();
+    fireEvent.change(screen.getByLabelText('E-mail'), { target: { value: 'dev@example.com' } });
+    fireEvent.change(screen.getByLabelText('Senha'), { target: { value: 'super-secret-123' } });
+    fireEvent.click(screen.getByRole('button', { name: /entrar/i }));
+
+    expect(await screen.findByText('Muitas tentativas. Tente novamente em 57 segundos.')).toBeInTheDocument();
+    expect(screen.queryByText('Credenciais inválidas.')).not.toBeInTheDocument();
   });
 
   it('links the logo back to the home page so the visitor is never stuck on the login screen', () => {

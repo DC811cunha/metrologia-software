@@ -348,7 +348,8 @@ def calculate_average_instability(root: Path, languages: list[str]) -> float | N
 
     if instabilities:
         return sum(instabilities) / len(instabilities)
-    # Um único módulo isolado realmente não tem acoplamento interno (0.0). Com vários módulos e
-    # nenhuma aresta resolvida, não dá para distinguir "sem acoplamento" de "não consegui
-    # resolver os imports": a métrica fica "Não disponível" em vez de um falso "Conforme".
-    return 0.0 if len(modules_by_key) == 1 else None
+    # Nenhuma aresta interna: a instabilidade I = Ce / (Ce + Ca) é 0/0, indefinida. Com um único módulo não há
+    # com quem acoplar; com vários, não dá para distinguir "sem acoplamento" de "não consegui resolver os
+    # imports". Nos dois casos a métrica fica "Não disponível" em vez de um falso "Conforme" (ADR-015; antes, o
+    # módulo único rendia 0.0).
+    return None

@@ -21,17 +21,16 @@ class TestCalculateAverageInstability:
         assert average is not None
         assert 0.0 <= average <= 1.0
 
-    def test_isolated_file_has_zero_instability(self, tmp_path):
-        # Sem nenhuma aresta de acoplamento interno, a métrica não pode ficar "Não
-        # disponível" (regra exclusiva de cobertura_testes) — convenciona-se 0.0.
+    def test_isolated_file_has_no_defined_instability(self, tmp_path):
+        # Sem nenhuma aresta interna, I = Ce / (Ce + Ca) é 0/0: indefinida, "Não disponível" (ADR-015).
         _write(tmp_path, "standalone.py", "def foo():\n    return 1\n")
 
-        assert calculate_average_instability(tmp_path, ["python"]) == 0.0
+        assert calculate_average_instability(tmp_path, ["python"]) is None
 
     def test_external_imports_do_not_count_as_internal_coupling(self, tmp_path):
         _write(tmp_path, "app.py", "import os\nimport requests\n\nrequests.get('https://example.com')\n")
 
-        assert calculate_average_instability(tmp_path, ["python"]) == 0.0
+        assert calculate_average_instability(tmp_path, ["python"]) is None
 
     def test_javascript_relative_imports_build_coupling_graph(self, tmp_path):
         _write(tmp_path, "src/utils.js", "export function helper() { return 1; }\n")

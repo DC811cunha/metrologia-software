@@ -36,7 +36,9 @@ o redirecionamento e o cadastro antigo passaria a medir o repositório errado, s
   no GitHub (o SoftMeter não é notificado).
 - Cadastros anteriores a esta mudança têm `github_id` nulo até a primeira análise; se o nome já tiver sido
   reutilizado antes disso, não há como detectar (só se detecta a partir do primeiro id gravado).
-- No cadastro, a URL ainda é gravada como foi digitada; cadastrar o nome antigo de um repositório que já foi
-  renomeado e atualizado cria um segundo cadastro até a primeira análise dele. Resolver isso exigiria uma
-  chamada extra ao GitHub durante o cadastro.
+- No cadastro, a URL é normalizada (https, sem `.git` nem barra final) e a duplicata é recusada sem distinguir
+  caixa *(atualização de 18/11/2026; antes ela era gravada como digitada e `Foo/Bar` e `foo/bar` viravam dois
+  cadastros)*. Cadastrar o **nome antigo** de um repositório que já foi renomeado e atualizado ainda cria um
+  segundo cadastro até a primeira análise dele: resolver isso exigiria uma chamada extra ao GitHub durante o
+  cadastro.
 - Exige a migration `add github_id to repositories` (`alembic upgrade head`).
