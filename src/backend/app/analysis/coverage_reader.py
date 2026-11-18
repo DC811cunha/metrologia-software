@@ -20,6 +20,7 @@ cobertura, e isso é esperado, não uma falha.
 from __future__ import annotations
 
 import io
+import os
 import re
 import zipfile
 from dataclasses import dataclass
@@ -131,11 +132,11 @@ _MAX_REPORTS = 20
 def _find_all(root: Path, filename: str) -> list[Path]:
     """Relatórios de cobertura do projeto, em ordem estável: caminho mais raso primeiro e depois
     alfabético — nunca a ordem do sistema de arquivos, que variava entre execuções e máquinas."""
-    matches = [
-        path
-        for path in root.rglob(filename)
-        if path.is_file() and not _THIRD_PARTY_DIRS & set(path.relative_to(root).parts[:-1])
-    ]
+    matches: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [name for name in dirnames if name not in _THIRD_PARTY_DIRS]  # poda antes de descer
+        if filename in filenames and (Path(dirpath) / filename).is_file():
+            matches.append(Path(dirpath) / filename)
     matches.sort(key=lambda path: (len(path.relative_to(root).parts), path.relative_to(root).as_posix()))
     return matches[:_MAX_REPORTS]
 

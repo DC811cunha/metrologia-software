@@ -468,3 +468,57 @@ class TestEmailsIgnoreCase:
 
         assert response.status_code == 200
         assert sent == ["pessoa@example.com"]
+
+
+class TestSessionVersionIsAtomic:
+    """`token_version` sobe com uma expressão SQL (`token_version + 1`), não lendo e somando em Python: dois
+    pedidos simultâneos não podem perder um incremento."""
+
+    def test_logout_increments_in_the_database(self, client, db_session):
+        from sqlalchemy import event
+
+        client.post("/api/v1/auth/register", json={"email": "atomic@example.com", "password": "super-secret-123"})
+        statements: list[str] = []
+        bind = db_session.get_bind()
+
+        def capture(conn, cursor, statement, *args):
+            statements.append(statement)
+
+        event.listen(bind, "before_cursor_execute", capture)
+        try:
+            client.post("/api/v1/auth/logout")
+        finally:
+            event.remove(bind, "before_cursor_execute", capture)
+
+        assert any("UPDATE users" in s and "users.token_version +" in s for s in statements), statements
+
+
+class TestPasswordResetTokensHousekeeping:
+    PASSWORD = "super-secret-123"
+
+    def test_issuing_a_new_token_removes_used_and_expired_ones(self, client, db_session, monkeypatch):
+        from datetime import datetime, timedelta, timezone
+
+        import app.api.auth as auth_module
+        from app.models.password_reset import PasswordResetToken
+        from app.models.user import User
+
+        monkeypatch.setattr(auth_module.send_password_reset_email_task, "delay", lambda email, link: None)
+        client.post("/api/v1/auth/register", json={"email": "reset@example.com", "password": self.PASSWORD})
+        user = db_session.query(User).one()
+        now = datetime.now(timezone.utc)
+        db_session.add_all(
+            [
+                PasswordResetToken(usuario_id=user.id, token_hash="a" * 64, expira_em=now - timedelta(hours=1)),  # vencido
+                PasswordResetToken(usuario_id=user.id, token_hash="b" * 64, expira_em=now + timedelta(hours=1), usado_em=now),  # usado
+                PasswordResetToken(usuario_id=user.id, token_hash="c" * 64, expira_em=now + timedelta(hours=1)),  # ainda vale
+            ]
+        )
+        db_session.commit()
+
+        client.post("/api/v1/auth/forgot-password", json={"email": "reset@example.com"})
+
+        remaining = {t.token_hash for t in db_session.query(PasswordResetToken).all()}
+        assert "a" * 64 not in remaining and "b" * 64 not in remaining
+        assert "c" * 64 in remaining  # um link ainda válido não é invalidado por um novo pedido
+        assert len(remaining) == 2  # o válido + o novo

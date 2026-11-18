@@ -127,6 +127,12 @@ def forgot_password(
     if user is None:
         return ForgotPasswordResponse(message=_GENERIC_FORGOT_PASSWORD_MESSAGE)
 
+    # Tokens já usados ou vencidos não servem mais: limpa ao emitir um novo (a tabela não cresce sem fim).
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.usuario_id == user.id,
+        (PasswordResetToken.usado_em.is_not(None)) | (PasswordResetToken.expira_em < datetime.now(timezone.utc)),
+    ).delete(synchronize_session=False)
+
     raw_token = secrets.token_urlsafe(32)
     db.add(
         PasswordResetToken(
@@ -174,8 +180,9 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         )
 
     user.password_hash = hash_password(payload.new_password)
-    # Quem tinha acesso à conta antes do reset (ex.: sessão roubada) perde as sessões ativas.
-    user.token_version += 1
+    # Quem tinha acesso à conta antes do reset (ex.: sessão roubada) perde as sessões ativas. A expressão SQL
+    # (`token_version + 1`, e não ler-e-somar em Python) evita perder um incremento se dois pedidos coincidirem.
+    user.token_version = User.token_version + 1
     reset_token.usado_em = now
     db.commit()
 
@@ -223,6 +230,6 @@ def logout(
     """
     user = _session_owner(db, refresh_token, access_token)
     if user is not None:
-        user.token_version += 1
+        user.token_version = User.token_version + 1  # atômico no banco
         db.commit()
     response.delete_cookie(REFRESH_COOKIE_NAME, path="/api/v1/auth")

@@ -207,3 +207,22 @@ class TestRenamedOrTransferredRepositories:
 
         with pytest.raises(RepositoryAccessError):
             service_with(handler).fetch_repo_size_kb("o", "old")
+
+
+class TestUnexpectedMetadata:
+    def test_a_response_without_the_size_is_a_temporary_github_error_not_a_500(self):
+        handler = respond(200, json={"id": 1, "full_name": "o/r"})  # sem "size"
+
+        with pytest.raises(GithubUnavailableError, match="sem o tamanho"):
+            service_with(handler).fetch_repo_size_kb("o", "r")
+
+    def test_a_non_numeric_size_is_rejected_too(self):
+        handler = respond(200, json={"id": 1, "full_name": "o/r", "size": "grande"})
+
+        with pytest.raises(GithubUnavailableError):
+            service_with(handler).fetch_repo_size_kb("o", "r")
+
+    def test_a_valid_size_is_returned(self):
+        handler = respond(200, json={"id": 1, "full_name": "o/r", "size": 1234})
+
+        assert service_with(handler).fetch_repo_size_kb("o", "r") == 1234
