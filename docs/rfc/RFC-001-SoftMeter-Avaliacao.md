@@ -19,10 +19,10 @@
   12/04/2026
 
 - **Data desta revisão:**
-  17/11/2026
+  18/11/2026
 
 - **Versão:**
-  2.2 — atualização pós-v2.1 (revisão por pares de 05/11: segurança de sessão, limites de custo, correção das métricas e tratamento de falhas do GitHub; mais exclusão com confirmação, acompanhamento de renomeação e histórico de falhas). A v2.1 (05/11/2026) trouxe recuperação de senha, nova identidade visual e página inicial pública. A v2.0 (16/09/2026) foi a revisão pós-implementação do MVP; a v1.0 foi avaliada pelo comitê (anexo, seção 10)
+  2.2 — atualização pós-v2.1 (revisão por pares de 05/11: segurança de sessão, limites de custo, correção das métricas e tratamento de falhas do GitHub; mais exclusão com confirmação, acompanhamento de renomeação e histórico de falhas; e a revisão geral de 18/11: concorrência de análises, recuperação de senha sem diferença de tempo, ajustes de métricas — ADR-015 — e dependências). A v2.1 (05/11/2026) trouxe recuperação de senha, nova identidade visual e página inicial pública. A v2.0 (16/09/2026) foi a revisão pós-implementação do MVP; a v1.0 foi avaliada pelo comitê (anexo, seção 10)
 
 ---
 
@@ -92,6 +92,13 @@ do uso real. Tudo entrou por Pull Request com CI verde; a decisão de cada mudan
 | **Nome canônico do repositório** acompanha renomeações e barra nome reaproveitado | #112 / ADR-014 | RF19, RN11, 3.2, 5.2 |
 | **Exclusão de repositório** com remoção em cascata e confirmação em janela secundária | #111, #113 | RF20, 3.2, 4.8 |
 | Ajustes de UX no histórico (status da métrica no gráfico, botão de voltar ao dashboard) e logo das telas de autenticação | #109, #110 | 4.6, 4.8 |
+| **Revisão geral de 18/11 — robustez:** o CORS passou a cobrir os erros 429/413 (a mensagem do servidor chegava ao navegador como "Network Error"), e-mail sem distinção de caixa, repositório sem funções e leitura de cobertura de terceiros robusta | #120 / ADR-008, ADR-011 | RF04, 3.2, 4.8 |
+| **Análises presas e tela de repositórios:** análise perdida vira falha, polling limitado e cancelável, links do dashboard/histórico mantidos após uma falha, repositório inacessível reanalisável | #121 / ADR-013 | RF22, RF23, 3.2 |
+| **Infraestrutura e dependências:** volume dos PDFs, imagem de produção não-root, versões fixas, Dependabot, auditoria, `react-router` 7 / `vite` 7 (`npm audit` zerado) | #122, #124 / ADR-007 | RNF13, RNF15, 6.1 |
+| **Desempenho e cadastro:** listas sem consulta por item, varredura com poda, URL normalizada e duplicata sem distinção de caixa | #123 | RF05, 3.2 |
+| **Métricas:** pastas ambíguas por contexto, acoplamento indefinido com um módulo só, Índice de Manutenibilidade ponderado por linhas | #125 / ADR-015 | RN10, RN12 |
+| **Recuperação de senha sem diferença de tempo** e limite por conta | #126 / ADR-005 | RNF10, RF24 |
+| **Uma análise por repositório** e teto de análises síncronas | #127 / ADR-008 | RF23, 3.2 |
 | **Laudo PDF reformulado:** identidade visual, índice de conformidade, medidores por métrica, comparação com a análise anterior, "quanto falta para Conforme", limites com o sentido correto e, no histórico, gráficos de evolução | — | RF14, 4.7 |
 
 Os contratos da API (`specs/001-softmeter-plataforma-mvp/contracts/`) foram revisados contra o comportamento
@@ -277,13 +284,13 @@ Desenvolver o **SoftMeter**, uma plataforma web que implementa o framework de Me
 
 *(Atualizado na v2.0: o KPI "redução de 50% no tempo de documentação de QA" da v1.0 foi removido — o parecer do comitê identificou corretamente que ele não tinha método de medição definido nem baseline. Os KPIs abaixo são objetivos, mensuráveis e já verificados nesta revisão.)*
 
-*(Atualizado na v2.2: números medidos localmente em 17/11/2026, na `main` (PR #116), com `pytest --cov`,
-`jest --coverage` e a suíte Playwright contra a stack Docker; os jobs de CI do último merge estão verdes.)*
+*(Atualizado na v2.2: números medidos em 18/11/2026 na `main` com todos os PRs da revisão geral integrados, com
+`pytest --cov`, `jest --coverage` e a suíte Playwright contra a stack Docker reconstruída.)*
 
 | KPI | Meta | Resultado verificado nesta revisão |
 |---|---|---|
-| Cobertura de testes automatizados (backend) | ≥ 80% | **95%** de *statements* (392 testes, pytest) — v2.1: 92,2% / 161 testes; v2.0: 92% / 145 testes |
-| Cobertura de testes automatizados (frontend) | ≥ 80% | **89,2%** de *statements* e 91,6% de linhas (78 testes, Jest) — v2.1: 91,2% / 46 testes; v2.0: 86% / 28 testes |
+| Cobertura de testes automatizados (backend) | ≥ 80% | **96%** de *statements* (495 testes, pytest) — 17/11: 95% / 392; v2.1: 92,2% / 161 testes; v2.0: 92% / 145 testes |
+| Cobertura de testes automatizados (frontend) | ≥ 80% | **89,1%** de *statements* e 91,8% de linhas (97 testes, Jest) — 17/11: 89,2% / 78; v2.1: 91,2% / 46 testes; v2.0: 86% / 28 testes |
 | Tempo de análise síncrona (repositório pequeno/médio) | < 10s (p95) | Verificado por teste de performance dedicado; repositórios acima do limiar usam fila assíncrona (Celery/Redis) sem bloquear a interface |
 | Cenários E2E cobertos (Playwright) | 1 por user story | **15/15** cenários passando: 9 cobrindo as 5 user stories + 4 da página inicial pública + 2 da exclusão de repositório (v2.1: 11/11; v2.0: 8/8) |
 | Métricas com fórmula, unidade e fonte bibliográfica documentadas | 6/6 | **6/6** (catálogo completo, Princípio V) |
@@ -416,6 +423,10 @@ RF21 — O sistema deve limitar o custo de cada análise (repositórios acima de
 
 RF22 — O sistema deve registrar toda tentativa de análise, inclusive as que falham, com o motivo e a data de término, e o histórico deve distinguir a falha de uma análise em andamento (ADR-013).
 
+RF23 — O sistema deve permitir **uma única análise em andamento por repositório** (um segundo pedido é recusado, sem corrida), limitar as análises que rodam dentro da requisição — enviando as excedentes para a fila — e encerrar como falha a análise que nunca termina (ADR-008, ADR-013).
+
+RF24 — A resposta ao pedido de recuperação de senha deve ser idêntica em conteúdo e em tempo para qualquer e-mail (o pedido é só enfileirado), com limite de poucos pedidos por conta por hora (ADR-005).
+
 ---
 
 ## 2.4 Requisitos Não Funcionais (RNF)
@@ -452,6 +463,8 @@ RNF13 — Com `ENVIRONMENT=production`, a API deve se recusar a iniciar com segr
 
 RNF14 — O download e a análise de repositórios de terceiros devem ter custo limitado e configurável: 200 MB de tamanho segundo o GitHub, 100 MB de download, 400 MB extraídos, 30 000 arquivos, 1 MB por arquivo-fonte e 300 s de análise; o XML de cobertura é lido com `defusedxml` (ADR-009).
 
+RNF15 — *(v2.2, 18/11)* As dependências devem ter versões fixas e ser auditadas: o backend fixa tudo em `requirements.txt`, o CI instala com `npm ci`, e o Dependabot e o workflow `audit.yml` (`pip-audit`, `npm audit`) acompanham as vulnerabilidades; a imagem de produção não inclui ferramentas de teste e roda sem privilégios de root; os PDFs dos relatórios ficam em volume persistente (ADR-007).
+
 > **Nota sobre `RNF02 — Disponibilidade em produção` da v1.0:** este RFC não afirma mais um
 > requisito de deploy em ambiente de produção público. Até esta revisão, a aplicação roda em
 > ambiente containerizado local (Docker Compose) e foi validada em profundidade nesse ambiente;
@@ -481,6 +494,8 @@ RN09 — Uma solicitação de redefinição para e-mail não cadastrado não ger
 RN10 — *(v2.2)* As métricas de código (Complexidade Ciclomática, LOC, Índice de Manutenibilidade, Acoplamento e Duplicação) consideram apenas o código-fonte de produção em Python/JS/TS: arquivos de teste, dependências e arquivos gerados ou minificados ficam de fora (ADR-011), e essa nota de escopo é exibida no dashboard e no PDF (ADR-012). A Cobertura de Testes é lida dos relatórios publicados pelo repositório, combinando os artifacts do run de CI mais recente em monorepos.
 
 RN11 — *(v2.2)* O cadastro de um repositório é identificado pelo id numérico do GitHub (gravado na primeira análise): renomeações são acompanhadas, duplicatas não são fundidas automaticamente e um nome que passou a apontar para outro repositório barra a análise (ADR-014).
+
+RN12 — *(v2.2, 18/11)* A média do Índice de Manutenibilidade de um repositório é **ponderada pelas linhas de código** de cada arquivo, e uma métrica indefinida — o Acoplamento sem nenhuma aresta interna, inclusive com um único módulo — é "Não disponível", nunca um valor que pareça uma medição (ADR-015). As pastas `build`, `dist`, `out`, `target` e `coverage` só ficam fora da medição quando estão na raiz ou ao lado de um manifesto de projeto; `env/`, só se for um ambiente virtual.
 
 > **Nota sobre `RN06` da v1.0 (peso por criticidade):** a v1.0 previa que uma métrica de
 > criticidade "Crítica" reprovada forçasse Não-Conforme independentemente do índice geral. O
@@ -554,6 +569,15 @@ A análise falha com mensagem clara (HTTP 429 com `Retry-After`, ou 502), fica r
 
 **Repositório grande demais ou análise além do prazo (v2.2):**
 Acima de 200 MB a análise é recusada (HTTP 422); estouros de download, extração ou tempo falham a análise com o motivo, sem marcar o repositório como inacessível (ADR-009).
+
+**Análise já em andamento (v2.2, 18/11):**
+Um segundo pedido para o mesmo repositório (duplo clique, duas abas) é recusado com HTTP 409 e não cria tentativa nova; a garantia é um índice único parcial no banco, então nem requisições simultâneas criam duas. Se o servidor estiver com várias análises síncronas em curso, a nova segue pela fila (HTTP 202) e a tela acompanha por polling, que tem tempo máximo de 10 minutos e cancela ao sair da tela.
+
+**Análise que nunca termina (v2.2, 18/11):**
+Se o worker cair ou for reiniciado no meio, a análise seria deixada `processando` para sempre. As consultas que listam ou leem análises a encerram como `falhou`, com o motivo, depois de 15 minutos; ela não bloqueia o repositório.
+
+**Repositório sem nada a medir (v2.2, 18/11):**
+Só constantes, configuração ou código que não pôde ser interpretado (por exemplo, Python 2) falha com "Nenhum código analisável: …" explicando o motivo, em vez de um erro obscuro.
 
 **Excluir um repositório com análises (v2.2):**
 A interface abre uma janela de confirmação explicando o que será apagado (análises, relatórios e arquivos PDF) e que a ação não pode ser desfeita; Esc ou "Cancelar" mantêm o repositório. Sem nada a perder, a exclusão é imediata.
@@ -699,6 +723,8 @@ aplicação (e não apenas a leitura da especificação) revela lacunas que nenh
 havia previsto.
 
 **Achados da v2.2.** Quatro problemas reais apareceram no uso da aplicação depois da revisão por pares, e nenhum teste os havia previsto: (1) excluir um repositório que tinha relatórios respondia HTTP 500 (chave estrangeira sem cascata) e, ao analisar o repositório do próprio revisor, a análise falhava porque o GitHub havia redirecionado o nome antigo — corrigidos nos PRs #111 e #112 (esta última, com o acompanhamento de renomeações); (2) ao conferir o logout contra o comportamento real, constatou-se que ele exigia um access token válido: depois de 15 minutos parado, "Sair" respondia 401, não revogava nada e deixava a sessão aberta por 7 dias enquanto a tela mostrava o usuário como deslogado — corrigido no PR #114; (3) ao conferir os contratos, as análises que falhavam por GitHub fora do ar ou cota esgotada ficavam sem data de término e o histórico as exibia como "Em andamento" — corrigido no PR #116, com migração dos dados existentes. Em todos os casos o defeito foi encontrado por **verificação ao vivo do comportamento**, não pela leitura do código ou dos testes existentes.
+
+**Achados da revisão geral de 18/11.** Uma revisão sistemática do código, com cada achado **reproduzido antes de corrigir**, encontrou nove problemas que os testes não pegavam: (1) as respostas 429 e 413 saíam sem cabeçalho CORS e o navegador as mostrava como "Network Error" — o login dizia "credenciais inválidas" a quem só estourou o limite de tentativas; (2) `Pessoa@x` e `pessoa@x` criavam duas contas; (3) repositórios sem funções falhavam com "Métrica … não permite valor ausente"; (4) um `lcov.info` malformado de terceiros derrubava a análise inteira, e uma frase do README ("meta: coverage 100%") virava cobertura medida; (5) a lista de repositórios bloqueava o botão de análise de um repositório "inacessível", justamente a ação que o reativa; (6) depois de uma tentativa que falhou, o link do dashboard sumia; (7) uma análise cujo worker caiu ficava "em andamento" para sempre, e o polling da tela era infinito; (8) os PDFs da produção moravam no sistema de arquivos do container e sumiriam a cada recriação; (9) excluir um repositório durante uma análise assíncrona deixava um traceback no worker. Mediu-se também uma diferença de ~23 ms (174 × 151 ms) no pedido de recuperação de senha entre e-mail cadastrado e não cadastrado.
 
 **Achado da v2.1.** Na validação visual do redesign (PR #81), o cadastro de um repositório público
 falhou com erro genérico. O log do backend mostrou `401 Unauthorized` vindo do GitHub: o
@@ -885,6 +911,8 @@ métrica pode ser exibida sem que fórmula, unidade e fonte bibliográfica já e
 |---|---|
 | GithubService | Detecção de linguagem, download do código-fonte (com tetos de tamanho), leitura de artifacts de CI (ADR-004); segue sem token quando o `GITHUB_TOKEN` é rejeitado (v2.1); classifica os erros do GitHub em acesso negado, cota esgotada e indisponibilidade (v2.2, ADR-013) |
 | Repository Sync *(v2.2)* | Alinha o cadastro ao GitHub: nome canônico, `github_id` e detecção de nome reaproveitado (ADR-014) |
+| Stale Analyses / Sync Slots *(v2.2, 18/11)* | Encerra análises que nunca terminam; teto de análises síncronas por processo, com a fila como válvula de escape (ADR-008, ADR-013) |
+| Password Reset Service + task *(v2.2, 18/11)* | Trata o pedido de recuperação no worker (token, limite por conta, e-mail), fora da requisição (ADR-005) |
 | Rate Limiter *(v2.2)* | Limite de requisições por IP, em memória ou Redis (ADR-008) |
 | EmailService + task Celery *(v2.1)* | Envio do e-mail de recuperação de senha via Resend, com fallback de log (ADR-005); executado em segundo plano para não vazar informação por tempo de resposta |
 | Metric Engine (Radon + tree-sitter) | Complexidade Ciclomática, LOC e Índice de Manutenibilidade, sobre o código de produção (ADR-010, ADR-011) |
@@ -985,8 +1013,14 @@ Pipeline configurado para lint, checagem de tipos e testes a cada push nas branc
 - Validação de entrada: URL de repositório validada por padrão restrito a `github.com/owner/repo`, evitando SSRF via URL arbitrária
 - Segredos gerenciados via variáveis de ambiente (`.env`, nunca versionado — confirmado no `.gitignore`)
 
+**Concorrência e abuso (v2.2, 18/11):**
+- Uma análise em andamento por repositório (índice único parcial) e teto de análises síncronas por processo (ADR-008)
+- Recuperação de senha: o endpoint só enfileira, então a resposta é igual em conteúdo e em tempo para qualquer e-mail; no máximo 3 pedidos por conta por hora (ADR-005)
+- E-mail comparado sem distinção de caixa; as respostas 429/413 levam CORS, para o navegador exibir a mensagem do servidor
+
 **Configuração segura:**
 - **Produção recusa configuração insegura (v2.2, ADR-007):** com `ENVIRONMENT=production` a API não inicia com segredos JWT padrão ou curtos, iguais entre si, cookie sem `Secure` ou senha padrão do banco; o `docker-compose.prod.yml` não publica portas de banco/Redis e torna obrigatórias todas as credenciais
+- **Cadeia de suprimentos (v2.2, 18/11, ADR-007):** versões do backend fixas em `requirements.txt`, `npm ci` no CI, Dependabot semanal e auditoria (`pip-audit`, `npm audit`) fora dos checks obrigatórios; `npm audit` do frontend zerado; imagem de produção sem extras de teste e sem root; PDFs em volume nomeado
 - Branch `main` do repositório protegida: exige Pull Request e CI verde antes de merge, com `enforce_admins` ativo (nem o dono do repositório pode contornar a regra)
 
 ---
@@ -1031,12 +1065,14 @@ Pipeline configurado para lint, checagem de tipos e testes a cada push nas branc
 | M15 — Domínio próprio e e-mail verificado | Registro de domínio, SPF/DKIM no Resend, atualização de `EMAIL_FROM` | ⏳ Pendente (pré-requisito de M10) |
 | M16 — Revisão por pares de 05/11 *(v2.2)* | 11 issues (#90–#100): sessão, produção, rate limit, custos, métricas, escopo, erros do GitHub (ADR-006 a ADR-013; PRs #101 a #108) | ✅ Concluído — todas as issues fechadas |
 | M17 — Ajustes do uso real *(v2.2)* | Exclusão com cascata e confirmação, acompanhamento de renomeação, logout pelo cookie, histórico de falhas, UX do histórico (PRs #109 a #114, #116; ADR-014) | ✅ Concluído |
+| M18 — Revisão geral de 18/11 *(v2.2)* | Revisão sistemática do código com 9 bugs corrigidos, concorrência de análises, recuperação de senha sem diferença de tempo, ADR-015, dependências e `react-router`/`vite` atualizados (PRs #120 a #127) | ✅ Concluído |
 
-> **Status atual (17/11/2026):** MVP completo e validado com dados reais, com recuperação de senha,
+> **Status atual (18/11/2026):** MVP completo e validado com dados reais, com recuperação de senha,
 > página inicial pública, nova identidade visual e as correções da revisão por pares (sessão
 > revogável, limites de custo e de requisições, métricas corrigidas e escopo visível, erros do GitHub
-> tratados). Medido nesta revisão: 392 testes de backend (95% de cobertura de *statements*), 78 de
-> frontend (89,2% de *statements*), 15 cenários E2E, pipeline de CI ativo com branch `main`
+> tratados) e, na revisão geral de 18/11, concorrência de análises, recuperação de senha sem enumeração e
+> dependências auditadas. Medido com tudo integrado: 495 testes de backend (96% de cobertura de *statements*), 97 de
+> frontend (89,1% de *statements*), 15 cenários E2E, pipeline de CI ativo com branch `main`
 > protegida. A aplicação já tem o `docker-compose.prod.yml` e a validação de configuração de
 > produção, mas o deploy em ambiente público ainda não foi realizado (M10 e M15).
 
@@ -1271,6 +1307,19 @@ Todas foram corrigidas e mescladas em 08/11/2026, e as issues foram fechadas em 
 Observação sobre a orientação de 15/09 ("revisão das métricas"): essa rodada corrigiu a **corretude e o escopo**
 das métricas, mas os limites de especificação e as fontes do catálogo continuam os de 25/06/2026; o ponto
 segue aberto com o orientador.
+
+## Revisão geral interna (18/11/2026)
+
+Depois da 2ª rodada de revisão por pares, o código foi revisado de ponta a ponta (backend, frontend, infraestrutura e
+dependências); cada achado foi reproduzido antes de ser corrigido, em oito PRs (#120 a #127) com ADR e testes de regressão.
+
+| Grupo | Achados | Status |
+|---|---|---|
+| Bugs (9) | CORS nos erros 429/413; e-mail com caixa diferente; repositório sem funções; cobertura de terceiros malformada; botão e selo de repositório inacessível; link do dashboard após falha; análises presas e polling infinito; volume dos PDFs; worker ao excluir durante a análise | ✅ Corrigidos |
+| Segurança e dependências | `npm audit` (axios, follow-redirects, react-router, vite, minimatch); build do backend sem versões fixas; contêineres como root; Redis do limitador sem timeout; recuperação de senha com diferença de ~23 ms | ✅ Corrigidos |
+| Melhorias | consultas por item no histórico e na lista; varredura de arquivos sem poda; URL de repositório sem normalização; `token_version` não atômico; tokens de redefinição acumulados; duas análises simultâneas do mesmo repositório | ✅ Corrigidos |
+| Métricas (ADR-015) | pastas ambíguas podadas por nome; acoplamento 0,0 com um módulo só; média do MI sem peso | ✅ Corrigidos — **os valores mudam** (MI de 51,8 para 29,8 no próprio SoftMeter; histórico com degrau) |
+| Fora do escopo desta rodada | tornar toda análise assíncrona (para o deploy); verificação de e-mail e exclusão de conta; rotação do refresh token | ⏳ Registrado |
 
 ---
 

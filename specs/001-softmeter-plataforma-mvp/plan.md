@@ -24,7 +24,7 @@ armazenamento; JWT (access+refresh) com bcrypt para autenticação; ReportLab pa
 **Primary Dependencies**: Backend: FastAPI, SQLAlchemy + Alembic, Celery, Redis (broker/result
 backend e, opcionalmente, rate limit), Radon, tree-sitter (JS/TS), defusedxml, PyJWT, bcrypt (hashing direto — ver nota de implementação sobre incompatibilidade
 passlib/bcrypt 5.x), ReportLab, httpx (cliente para a API REST do GitHub e do Resend, pós-MVP).
-Frontend: React 18, Vite, React Router, Recharts, Axios, Tailwind CSS 3.
+Frontend: React 18, Vite 7, React Router 7, Recharts, Axios, Tailwind CSS 3.
 
 **Storage**: PostgreSQL 16 (dados de domínio: usuários, repositórios, análises, medições,
 relatórios e, pós-MVP, tokens de redefinição de senha). Redis como broker/result backend do Celery (não armazena dados de domínio
@@ -49,20 +49,23 @@ repositórios GitHub **públicos**; apenas código Python e/ou JavaScript/TypeSc
 nenhuma personalização de limites de especificação por usuário nesta versão (FR-013); análise
 disparada apenas sob demanda, sem agendamento em segundo plano (FR-012); custo da análise limitado
 (repositório até 200 MB, 300 s, tetos de download e extração — ADR-009) e requisições limitadas por IP
-(ADR-008); em produção, a API só inicia com configuração segura (ADR-007).
+(ADR-008); uma análise em andamento por repositório e teto de análises síncronas por processo (ADR-008); em
+produção, a API só inicia com configuração segura (ADR-007); versões do backend fixas em `requirements.txt` e
+dependências auditadas semanalmente (Dependabot + `audit.yml`).
 
 **Scale/Scope**: Uso acadêmico individual (TCC) — poucos usuários concorrentes esperados, sem
 exigência de escala horizontal; 6 métricas, 5 telas principais (cadastro/lista de repositórios,
 dashboard, histórico, relatório, autenticação) — mais, pós-MVP, a página inicial pública e as telas
 de recuperação de senha (US6–US7).
 
-> **Atualização (2026-11-17):** este plano descreve o MVP (US1–US5), já implementado. Mudanças
-> posteriores estão registradas em `spec.md` (US6–US7, FR-016 a FR-022), `research.md` (itens 6, 11 a 16),
-> `tasks.md` (Fases 9 e 10), nos ADRs 004 a 014 e no RFC-001 v2.1: recuperação de senha (ADR-005), cobertura
+> **Atualização (2026-11-18):** este plano descreve o MVP (US1–US5), já implementado. Mudanças
+> posteriores estão registradas em `spec.md` (US6–US7, FR-016 a FR-025), `research.md` (itens 6, 11 a 18),
+> `tasks.md` (Fase 9), nos ADRs 004 a 014 e no RFC-001 v2.1: recuperação de senha (ADR-005), cobertura
 > via artifact de CI (ADR-004, ADR-012), redesign e página inicial, e — após a revisão por pares — revogação
 > de sessão (ADR-006), configuração segura de produção (ADR-007), rate limit (ADR-008), limites de custo
 > (ADR-009), correção das métricas e escopo (ADR-010 a ADR-012), erros do GitHub (ADR-013) e nome canônico
-> do repositório (ADR-014). O comportamento da API está em `contracts/`.
+> do repositório (ADR-014), e, na revisão geral de 18/11, concorrência de análises, recuperação de senha sem
+> enumeração, métricas (ADR-015) e dependências. O comportamento da API está em `contracts/`.
 
 ## Constitution Check
 
@@ -111,10 +114,10 @@ src/backend/                  # FastAPI (substitui o backend Node/Express do ADR
 │   ├── api/                   # Routers: auth, repositories, analyses, reports
 │   ├── models/                # Modelos SQLAlchemy (Usuário, Repositório, Análise, Medição, Relatório, Token de Redefinição); Métrica é catálogo em código
 │   ├── schemas/                # Schemas Pydantic (request/response)
-│   ├── services/                # Regras de negócio (github_service, analysis_runner, repository_sync, conformity_service, trend_service, report_service, email_service)
+│   ├── services/                # Regras de negócio (github_service, analysis_runner, repository_sync, stale_analyses, sync_slots, conformity_service, trend_service, report_service/report_theme/report_charts, password_reset_service, email_service)
 │   ├── analysis/                 # Motor de métricas: Radon + tree-sitter; acoplamento, duplicação, leitor de cobertura, limites
 │   ├── repositories/              # Reservado para a camada de persistência (hoje só o pacote vazio; o acesso a dados está nos routers/serviços)
-│   ├── workers/                    # Tasks Celery (análise assíncrona; envio do e-mail de recuperação)
+│   ├── workers/                    # Tasks Celery (análise assíncrona; pedido de recuperação de senha e envio do e-mail)
 │   └── db/                          # Sessão SQLAlchemy (as migrations Alembic ficam em src/backend/alembic/)
 └── tests/
     ├── unit/                        # Regras de negócio e motor de métricas isolados

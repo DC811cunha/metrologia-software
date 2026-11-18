@@ -1,6 +1,6 @@
 # Data Model: SoftMeter — Plataforma de Metrologia de Qualidade de Software
 
-**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-17 (versão de sessão, identidade do repositório, escopo e ajustes do catálogo — ADRs 006 a 014)
+**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-18 (versão de sessão, identidade do repositório, escopo e ajustes do catálogo, concorrência de análises — ADRs 006 a 015)
 
 ## Entidades
 
@@ -28,7 +28,7 @@ Repositório GitHub público cadastrado por um usuário (FR-001, FR-002, FR-015)
 |---|---|---|
 | id | UUID | chave primária |
 | usuario_id | UUID | FK → Usuário; obrigatório |
-| url | string | URL pública do GitHub; única em combinação com `usuario_id` (FR-015). Gravada como informada no cadastro e atualizada para o nome canônico na primeira análise depois de uma renomeação (ADR-014) |
+| url | string | URL pública do GitHub; única em combinação com `usuario_id` (FR-015). Normalizada no cadastro (`https://github.com/{owner}/{repo}`, sem `.git` nem barra final) e atualizada para o nome canônico na primeira análise depois de uma renomeação (ADR-014); a duplicata é detectada **sem distinguir caixa** |
 | owner_nome | string | `{owner}/{repo}`; acompanha a `url` |
 | github_id | inteiro (nullable) | id numérico do repositório no GitHub (nunca muda); gravado na primeira análise e usado para detectar que o nome passou a apontar para outro repositório (ADR-014). Não é exposto pela API |
 | linguagens_detectadas | lista de string | obtida via endpoint `languages` do GitHub; deve interseccionar `{python, javascript, typescript}` (FR-002), senão o cadastro é rejeitado |
@@ -153,6 +153,9 @@ Token de uso único para recuperação de acesso à conta (FR-016).
 
 **Validação**: a redefinição é recusada (HTTP 400, "Token inválido ou expirado") quando o hash não
 existe, o token já foi usado, expirou ou o usuário não existe mais.
+
+**Limite e limpeza** *(18/11/2026, ADR-005)*: no máximo 3 tokens por usuário por hora (`criado_em` na última hora; os
+pedidos excedentes são ignorados em silêncio); tokens usados ou vencidos há mais de uma hora são removidos ao emitir um novo.
 
 ---
 

@@ -5,7 +5,8 @@
 **Created**: 2026-06-24
 
 **Status**: Implemented (MVP, US1–US5) — emendada em 2026-11-05 com US6–US7 e FR-016/FR-017 e em 2026-11-17 com
-FR-018 a FR-022 (pós-MVP, decorrentes da revisão por pares e do uso real)
+FR-018 a FR-022 (pós-MVP, decorrentes da revisão por pares e do uso real) e em 2026-11-18 com FR-023 a FR-025
+(revisão geral: concorrência de análises, recuperação de senha sem enumeração e agregação das métricas)
 
 **Input**: User description: "Desenvolver o SoftMeter, uma plataforma web de TCC que aplica metrologia industrial à qualidade de software. O sistema permite que desenvolvedores cadastrem repositórios GitHub, executem análises automáticas e visualizem métricas de qualidade como Complexidade Ciclomática, LOC, Índice de Manutenibilidade, Cobertura de Testes, Acoplamento e Score de Duplicação em um dashboard estilo gauge metrológico com valor medido, limites de especificação e status de conformidade. O sistema mantém histórico de análises para identificar tendências, gera relatórios PDF técnicos adequados para inclusão em TCC, e possui autenticação de usuários. Linguagens suportadas: Python e JavaScript/TypeScript. Repositórios GitHub públicos apenas nesta versão."
 
@@ -218,8 +219,17 @@ a partir de uma página que explica o produto, as 6 métricas e o fluxo de uso.
 - **Sem testes/cobertura:** a Cobertura de Testes fica "Não disponível" e sai do índice geral. O mesmo vale
   para o Acoplamento quando nenhum import interno é resolvido (ADR-010).
 - **Relatório sem análise concluída:** recusado (HTTP 422) com mensagem clara.
-- **URL repetida:** recusada com HTTP 409 dentro da mesma conta; contas diferentes podem cadastrar o mesmo
+- **URL repetida:** recusada com HTTP 409 dentro da mesma conta, **sem distinguir maiúsculas de minúsculas** e
+  ignorando `.git`, barra final e `http`/`https` (a URL é normalizada); contas diferentes podem cadastrar o mesmo
   repositório (FR-015, FR-011).
+- **Análise já em andamento** *(2026-11-18)*: um segundo pedido para o mesmo repositório é recusado com HTTP 409
+  (duplo clique, duas abas) e não cria tentativa nova (FR-023). **Análise perdida** (o servidor reiniciou no
+  meio): passado o prazo, vira `falhou` com o motivo e não bloqueia o repositório (FR-022, FR-023).
+- **Servidor ocupado** *(2026-11-18)*: com várias análises síncronas em curso, a nova segue pela fila (HTTP 202)
+  em vez de esperar uma vaga (FR-023).
+- **E-mail com outra caixa** *(2026-11-18)*: `Pessoa@Example.com` e `pessoa@example.com` são a mesma conta (FR-010).
+- **Repositório sem funções** *(2026-11-18)*: só constantes, configuração ou código que não pôde ser interpretado
+  falha com a explicação ("Nenhum código analisável…"), em vez de um erro obscuro (ADR-011).
 
 ## Requirements *(mandatory)*
 
@@ -287,6 +297,18 @@ a partir de uma página que explica o produto, as 6 métricas e o fluxo de uso.
 - **FR-022** *(pós-MVP, ADR-013)*: O sistema DEVE registrar **toda** tentativa de análise — inclusive as que
   falham (acesso negado, cota esgotada, GitHub indisponível, repositório grande demais, fila indisponível) —
   com o motivo e a data de término, e o histórico DEVE distinguir a falha de uma análise em andamento.
+- **FR-023** *(pós-MVP, ADR-008, ADR-013)*: O sistema DEVE permitir **uma única análise em andamento por
+  repositório** (o segundo pedido é recusado, sem corrida, mesmo com requisições simultâneas), DEVE limitar quantas
+  análises rodam dentro da requisição ao mesmo tempo — enviando as excedentes para a fila, sem erro para o usuário — e
+  DEVE encerrar como falha a análise que nunca termina (servidor reiniciado), para que a tela não a mostre "em
+  andamento" para sempre.
+- **FR-024** *(pós-MVP, ADR-005)*: A resposta ao pedido de recuperação de senha DEVE ser idêntica em conteúdo **e
+  em tempo** para qualquer e-mail: o pedido é apenas enfileirado e tratado fora da requisição. O sistema DEVE
+  limitar a poucos pedidos por conta por hora (os excedentes são ignorados em silêncio), além do limite por IP.
+- **FR-025** *(pós-MVP, ADR-010, ADR-015)*: As métricas DEVEM ser agregadas de modo que arquivos triviais não
+  distorçam o resultado (o Índice de Manutenibilidade do repositório é a média ponderada pelas linhas de código) e
+  uma métrica indefinida (acoplamento sem nenhuma aresta interna, inclusive com um módulo só) DEVE aparecer como
+  "Não disponível", nunca como um valor que pareça uma medição.
 
 ### Key Entities
 
@@ -334,7 +356,8 @@ a partir de uma página que explica o produto, as 6 métricas e o fluxo de uso.
 ## Assumptions
 
 - A autenticação usa um modelo padrão de conta com email e senha (sessão ou token), sem exigir
-  SSO corporativo, por se tratar de uma plataforma acadêmica de uso individual.
+  SSO corporativo, por se tratar de uma plataforma acadêmica de uso individual. O e-mail é comparado sem
+  distinção de caixa (armazenado em minúsculas).
 - O cadastro de repositório exige apenas a URL pública do GitHub; nenhuma autenticação adicional
   com o GitHub (token/OAuth) é necessária nesta versão, já que somente repositórios públicos são
   suportados. *(Atualização: um `GITHUB_TOKEN` de serviço é **opcional** — habilita ler o

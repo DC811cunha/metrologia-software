@@ -61,12 +61,14 @@ metrologia-software/
 │   └── e2e/                        # Playwright — fluxos ponta a ponta pela UI real
 ├── docs/
 │   ├── rfc/                        # RFC-001 (v2.2): proposta, requisitos, arquitetura, segurança
-│   ├── adr/                        # Decisões de arquitetura (ADR-001 a ADR-014)
+│   ├── adr/                        # Decisões de arquitetura (ADR-001 a ADR-015)
 │   ├── architecture/               # Diagramas C4 e fluxos de dados
 │   ├── archive/                    # Backend Node/Express original (descontinuado, ADR-003)
 │   └── outros/                     # Relatório do PAC (docx/pdf)
 ├── .github/
+│   ├── dependabot.yml              # Atualizações semanais de dependências (pip, npm, Actions, Docker)
 │   └── workflows/
+│       ├── audit.yml               # pip-audit + npm audit (semanal e ao mudar dependências)
 │       └── ci.yml                  # CI: ruff + mypy + pytest (≥80%) + ESLint + tsc + Jest (≥80%)
 ├── docker-compose.yml              # Desenvolvimento: PostgreSQL + Redis + backend + worker Celery + frontend
 ├── docker-compose.prod.yml         # Produção: sem portas de banco/Redis, credenciais obrigatórias (ADR-007)
@@ -175,6 +177,13 @@ Resumo do que a API faz para ser exposta publicamente (detalhes nos ADRs):
   por `MAX_*` / `ANALYSIS_TIME_LIMIT_S` (ver `.env.example`).
 - **GitHub fora do ar ou cota esgotada (ADR-013):** a análise falha com o motivo (HTTP 429/502) e fica
   registrada no histórico, sem marcar o repositório como inacessível.
+- **Concorrência de análises (ADR-008):** uma análise em andamento por repositório (o segundo pedido recebe 409,
+  garantido por um índice único no banco) e teto de análises síncronas por processo; sem vaga, a análise vai para a fila.
+  Uma análise cujo worker caiu vira "falhou" sozinha depois de 15 min.
+- **Recuperação de senha (ADR-005):** o endpoint só enfileira o pedido, então a resposta é igual — em conteúdo e em
+  tempo — para qualquer e-mail; no máximo 3 pedidos por conta por hora.
+- **E-mails** são comparados sem distinção de caixa; as respostas 429/413 levam CORS, para o navegador exibir a
+  mensagem do servidor.
 - **Código de terceiros nunca é executado:** o SoftMeter só lê o código-fonte e os relatórios de cobertura
   já publicados.
 
@@ -191,7 +200,7 @@ Resumo do que a API faz para ser exposta publicamente (detalhes nos ADRs):
 | E-mail transacional | Resend (API HTTP) | Recuperação de senha; sem chave, o link vai para o log (ADR-005) |
 | Testes | pytest + Jest + Testing Library + Playwright | TDD full-stack, cobertura ≥80% em CI; E2E rodado localmente |
 | Container | Docker + Docker Compose | Ambiente local idêntico à produção |
-| CI/CD | GitHub Actions | Lint + mypy + pytest + ESLint + Jest a cada push |
+| CI/CD | GitHub Actions | Lint + mypy + pytest + ESLint + Jest a cada push; Dependabot e auditoria de dependências semanais |
 
 ---
 
