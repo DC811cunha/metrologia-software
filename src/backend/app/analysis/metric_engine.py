@@ -306,16 +306,18 @@ def analyze_js_ts_file(code: str, extension: str, metrics: RepoMetrics) -> None:
 
 def analyze_repository(root: Path, languages: list[str]) -> RepoMetrics:
     metrics = RepoMetrics()
-    analyzed_files = 0
+    found_files = 0   # arquivos-fonte candidatos (depois de excluir testes, dependências e gerados)
+    parsed_files = 0  # os que puderam ser interpretados
 
     if "python" in languages:
         for path in iter_source_files(root, PYTHON_EXTENSIONS):
             check_deadline()
-            analyzed_files += 1
+            found_files += 1
             try:
                 analyze_python_file(path.read_text(encoding="utf-8", errors="ignore"), metrics)
             except (SyntaxError, RecursionError, ValueError):
-                continue
+                continue  # ex.: Python 2 ou arquivo corrompido: ignora só este arquivo
+            parsed_files += 1
 
     js_ts_extensions: set[str] = set()
     if "javascript" in languages:
@@ -324,15 +326,27 @@ def analyze_repository(root: Path, languages: list[str]) -> RepoMetrics:
         js_ts_extensions |= TYPESCRIPT_EXTENSIONS
     for path in iter_source_files(root, js_ts_extensions):
         check_deadline()
-        analyzed_files += 1
+        found_files += 1
         try:
             analyze_js_ts_file(path.read_text(encoding="utf-8", errors="ignore"), path.suffix, metrics)
         except RecursionError:
             # Expressões aninhadas em excesso: ignora só este arquivo, não a análise inteira.
             continue
+        parsed_files += 1
 
-    if analyzed_files == 0:
+    if found_files == 0:
         raise NoAnalyzableSourceError(
             "nenhum arquivo-fonte restou depois de excluir testes, dependências e arquivos gerados"
+        )
+    if parsed_files == 0:
+        raise NoAnalyzableSourceError(
+            "nenhum arquivo-fonte pôde ser interpretado (sintaxe inválida, código Python 2 ou arquivos corrompidos)"
+        )
+    if not metrics.function_complexities:
+        # Complexidade e LOC são médias por função: sem nenhuma função/método a média não existe, e uma
+        # métrica sem valor não pode compor o laudo (Princípio V) — melhor dizer isso do que falhar mais adiante.
+        raise NoAnalyzableSourceError(
+            "nenhuma função ou método encontrado no código de produção (o repositório só tem constantes, "
+            "configuração ou declarações), então não há o que medir em complexidade e LOC"
         )
     return metrics

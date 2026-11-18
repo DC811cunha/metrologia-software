@@ -12,16 +12,25 @@ def _validate_password_bytes(value: str) -> str:
     return value
 
 
+def _normalize_email(value: str) -> str:
+    """E-mails são comparados sem distinção de caixa: "Pessoa@Example.com" e "pessoa@example.com" são a
+    mesma conta (a parte local tecnicamente distingue caixa, mas nenhum provedor relevante o faz)."""
+    return value.strip().lower()
+
+
 class RegisterRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=8)
 
     _check_password_bytes = field_validator("password")(_validate_password_bytes)
+    _normalize_email = field_validator("email")(_normalize_email)
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+    _normalize_email = field_validator("email")(_normalize_email)
 
 
 class LoginResponse(BaseModel):
@@ -43,6 +52,8 @@ class UserResponse(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: EmailStr
+
+    _normalize_email = field_validator("email")(_normalize_email)
 
 
 class ForgotPasswordResponse(BaseModel):

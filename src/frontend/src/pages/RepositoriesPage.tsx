@@ -12,20 +12,13 @@ import PageHeader from '../components/ui/PageHeader';
 import Skeleton from '../components/ui/Skeleton';
 import StatusBadge from '../components/ui/StatusBadge';
 import { triggerAnalysis } from '../services/analysisService';
+import { serverDetail } from '../services/errors';
 import {
   Repository,
   createRepository,
   deleteRepository,
   listRepositories,
 } from '../services/repositoryService';
-
-/** Mensagem em português devolvida pelo backend (cota do GitHub, indisponibilidade, repositório grande demais…). */
-function serverDetail(err: unknown): string | null {
-  if (isAxiosError(err) && typeof err.response?.data?.detail === 'string') {
-    return err.response.data.detail;
-  }
-  return null;
-}
 
 function plural(count: number, singular: string, pluralForm: string): string {
   return `${count} ${count === 1 ? singular : pluralForm}`;

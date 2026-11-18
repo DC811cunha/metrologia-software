@@ -167,3 +167,41 @@ class TestRepositoryUrlValidation:
             headers=auth_headers,
         )
         assert response.status_code == 201
+
+
+class TestCorsOnMiddlewareErrors:
+    """Regressão: o CORS ficava por dentro dos middlewares de tamanho e de limite de requisições, então
+    as respostas 413/429 saíam sem `Access-Control-Allow-Origin` e o navegador as mostrava como "Network
+    Error", escondendo a mensagem do servidor."""
+
+    ORIGIN = {"Origin": "http://localhost:3000"}
+
+    def test_rate_limited_response_carries_cors_headers(self, client):
+        for _ in range(10):
+            client.post("/api/v1/auth/login", json={"email": "a@example.com", "password": "x"}, headers=self.ORIGIN)
+
+        response = client.post("/api/v1/auth/login", json={"email": "a@example.com", "password": "x"}, headers=self.ORIGIN)
+
+        assert response.status_code == 429
+        assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+        assert response.headers["access-control-allow-credentials"] == "true"
+        assert "Retry-After" in response.headers
+
+    def test_payload_too_large_response_carries_cors_headers(self, client):
+        response = client.post(
+            "/api/v1/auth/login",
+            content=b"x",
+            headers={**self.ORIGIN, "Content-Length": str(65 * 1024), "Content-Type": "application/json"},
+        )
+
+        assert response.status_code == 413
+        assert response.headers["access-control-allow-origin"] == "http://localhost:3000"
+
+    def test_preflight_is_answered_by_cors_before_the_rate_limit(self, client):
+        response = client.options(
+            "/api/v1/auth/login",
+            headers={**self.ORIGIN, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "content-type"},
+        )
+
+        assert response.status_code == 200
+        assert response.headers["access-control-allow-origin"] == "http://localhost:3000"

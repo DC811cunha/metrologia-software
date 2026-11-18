@@ -11,7 +11,7 @@ Conta autenticada, proprietária dos repositórios cadastrados e relatórios ger
 | Campo | Tipo | Regras |
 |---|---|---|
 | id | UUID | chave primária |
-| email | string | único, formato de email válido |
+| email | string | único, formato de email válido; **armazenado em minúsculas** (a comparação ignora a caixa) |
 | password_hash | string | bcrypt; nunca exposto via API; a senha aceita tem de 8 a 72 bytes em UTF-8 (ADR-006) |
 | token_version | inteiro | padrão 0; sobe no logout e no reset de senha, o que invalida na hora todos os JWT (access e refresh) emitidos antes (ADR-006) |
 | criado_em | timestamp | definido na criação |

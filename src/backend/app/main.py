@@ -12,16 +12,12 @@ from app.core.rate_limit import get_rate_limiter, rule_for
 
 app = FastAPI(title="SoftMeter API", version="0.1.0")
 
-# ── middleware (outermost first via add_middleware call order) ─────────────────
-
-# 1. CORS — must be present for browser preflight requests
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# ── middleware ──────────────────────────────────────────────────────────────────
+# `add_middleware` coloca cada novo middleware POR FORA dos anteriores: o último adicionado é o
+# primeiro a ver a requisição e o último a ver a resposta. Por isso o CORS é adicionado por último
+# (no fim deste bloco): se ficasse por dentro, as respostas 413 e 429 geradas pelos middlewares de
+# tamanho e de limite de requisições sairiam sem `Access-Control-Allow-Origin` e o navegador as
+# mostraria como "Network Error", escondendo a mensagem do servidor.
 
 _MAX_BODY_BYTES = 64 * 1024  # 64 KB
 _PAYLOAD_TOO_LARGE_BODY = json.dumps({"detail": "Payload muito grande (máximo 64 KB)"}).encode("utf-8")
@@ -96,7 +92,7 @@ class _ContentSizeLimitMiddleware:
         await send({"type": "http.response.body", "body": _PAYLOAD_TOO_LARGE_BODY})
 
 
-# 2. Request body size limit
+# 1. Request body size limit (o mais interno)
 app.add_middleware(_ContentSizeLimitMiddleware)
 
 
@@ -118,8 +114,17 @@ class _RateLimitMiddleware(BaseHTTPMiddleware):
         return await call_next(request)
 
 
-# 3. Rate limiter (outermost — first to see requests)
+# 2. Rate limiter
 app.add_middleware(_RateLimitMiddleware)
+
+# 3. CORS (o mais externo): cobre também as respostas de erro dos middlewares acima e o preflight
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ── exception handlers ────────────────────────────────────────────────────────
 
