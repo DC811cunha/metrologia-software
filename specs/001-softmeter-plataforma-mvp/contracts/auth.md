@@ -92,10 +92,15 @@ ou já revogadas) — não há `401`. Não é vulnerável a CSRF: o cookie é `S
 { "email": "dev@example.com" }
 ```
 
-**Comportamento**: se o e-mail estiver cadastrado, cria um token de uso único (guardado só como
-hash SHA-256, expira em 60 min) e enfileira o envio do e-mail em uma task Celery; se não estiver,
-não faz nada. A resposta é **idêntica e no mesmo tempo** nos dois casos (sem enumeração de contas
-nem side-channel de timing).
+**Comportamento**: o endpoint **só enfileira o pedido** (task Celery `request_password_reset`) e responde a mesma
+mensagem para qualquer e-mail — não consulta o banco, então a resposta é **idêntica e no mesmo tempo**, exista ou
+não a conta (sem enumeração nem side-channel de timing; medido: antes ~174 ms com conta × ~151 ms sem, depois
+~147 ms × ~150 ms). Quem decide é o worker: se o e-mail estiver cadastrado, cria um token de uso único (guardado só
+como hash SHA-256, expira em 60 min) e envia o link; se não estiver, não faz nada. **Limite por conta:** no
+máximo 3 pedidos por hora (`PASSWORD_RESET_MAX_PER_HOUR`); os excedentes são ignorados em silêncio (a resposta é
+a mesma), o que impede encher a caixa de alguém a partir de vários IPs. Tokens usados ou vencidos há mais de uma
+hora são removidos ao emitir um novo. Se a fila estiver fora do ar o erro só é registrado em log: a resposta ao
+usuário não pode mudar.
 
 **Responses**:
 - `200 OK` → `{ "message": "Se este e-mail estiver cadastrado, você receberá um link de recuperação em instantes." }`

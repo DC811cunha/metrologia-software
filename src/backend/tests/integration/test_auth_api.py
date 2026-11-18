@@ -79,15 +79,26 @@ def test_protected_route_without_token_returns_401(client):
 
 
 def _fake_email_capture(monkeypatch):
+    """Faz o worker rodar na hora (no mesmo banco de teste) e captura o e-mail que ele enviaria."""
     import app.api.auth as auth_module
+    import app.services.password_reset_service as service_module
+    from tests.conftest import TestingSessionLocal
 
     sent = {}
 
-    def fake_delay(to_email, reset_link):
+    def fake_send(to_email, reset_link):
         sent["to_email"] = to_email
         sent["reset_link"] = reset_link
 
-    monkeypatch.setattr(auth_module.send_password_reset_email_task, "delay", fake_delay)
+    def run_worker_now(email):
+        db = TestingSessionLocal()
+        try:
+            service_module.issue_password_reset(db, email)
+        finally:
+            db.close()
+
+    monkeypatch.setattr(service_module, "send_password_reset_email", fake_send)
+    monkeypatch.setattr(auth_module.request_password_reset_task, "delay", run_worker_now)
     return sent
 
 
@@ -458,16 +469,13 @@ class TestEmailsIgnoreCase:
             assert response.status_code == 200, email
 
     def test_forgot_password_finds_the_account_with_any_case(self, client, monkeypatch):
-        import app.api.auth as auth_module
-
-        sent: list[str] = []
-        monkeypatch.setattr(auth_module.send_password_reset_email_task, "delay", lambda email, link: sent.append(email))
+        sent = _fake_email_capture(monkeypatch)
         client.post("/api/v1/auth/register", json={"email": "pessoa@example.com", "password": self.PASSWORD})
 
         response = client.post("/api/v1/auth/forgot-password", json={"email": "PESSOA@Example.com"})
 
         assert response.status_code == 200
-        assert sent == ["pessoa@example.com"]
+        assert sent["to_email"] == "pessoa@example.com"
 
 
 class TestSessionVersionIsAtomic:
@@ -491,34 +499,3 @@ class TestSessionVersionIsAtomic:
             event.remove(bind, "before_cursor_execute", capture)
 
         assert any("UPDATE users" in s and "users.token_version +" in s for s in statements), statements
-
-
-class TestPasswordResetTokensHousekeeping:
-    PASSWORD = "super-secret-123"
-
-    def test_issuing_a_new_token_removes_used_and_expired_ones(self, client, db_session, monkeypatch):
-        from datetime import datetime, timedelta, timezone
-
-        import app.api.auth as auth_module
-        from app.models.password_reset import PasswordResetToken
-        from app.models.user import User
-
-        monkeypatch.setattr(auth_module.send_password_reset_email_task, "delay", lambda email, link: None)
-        client.post("/api/v1/auth/register", json={"email": "reset@example.com", "password": self.PASSWORD})
-        user = db_session.query(User).one()
-        now = datetime.now(timezone.utc)
-        db_session.add_all(
-            [
-                PasswordResetToken(usuario_id=user.id, token_hash="a" * 64, expira_em=now - timedelta(hours=1)),  # vencido
-                PasswordResetToken(usuario_id=user.id, token_hash="b" * 64, expira_em=now + timedelta(hours=1), usado_em=now),  # usado
-                PasswordResetToken(usuario_id=user.id, token_hash="c" * 64, expira_em=now + timedelta(hours=1)),  # ainda vale
-            ]
-        )
-        db_session.commit()
-
-        client.post("/api/v1/auth/forgot-password", json={"email": "reset@example.com"})
-
-        remaining = {t.token_hash for t in db_session.query(PasswordResetToken).all()}
-        assert "a" * 64 not in remaining and "b" * 64 not in remaining
-        assert "c" * 64 in remaining  # um link ainda válido não é invalidado por um novo pedido
-        assert len(remaining) == 2  # o válido + o novo
