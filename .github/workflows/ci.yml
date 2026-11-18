@@ -30,10 +30,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
@@ -59,7 +59,7 @@ jobs:
           JWT_REFRESH_SECRET: test_refresh_secret_key
 
       - name: Upload cobertura
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: src/backend/coverage.xml
@@ -70,10 +70,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '20'
 
@@ -93,8 +93,14 @@ jobs:
         working-directory: src/frontend
         run: npm test -- --coverage
 
+      # O build não fazia parte do CI: uma atualização que quebra o Vite/Tailwind/PostCSS (ex.: Tailwind 4, que
+      # exige outro plugin) passava verde e só aparecia ao subir a aplicação.
+      - name: Build de produção
+        working-directory: src/frontend
+        run: npm run build
+
       - name: Upload cobertura
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage
           path: src/frontend/coverage/
