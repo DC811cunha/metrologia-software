@@ -1,5 +1,7 @@
 # ADR-011: Escopo dos Arquivos Analisados e Escolha da Cobertura
 
+> **Nota (18/11/2026):** os nomes ambíguos (`build`, `dist`, `out`, `target`, `coverage`, `env`) deixaram de ser podados em qualquer profundidade; passam a ser avaliados por contexto — ver [ADR-015](ADR-015-escopo-contextual-acoplamento-indefinido-e-mi-ponderado.md).
+
 **Data:** 08/11/2026
 **Status:** Aceito
 **Autor:** Diego Cunha
@@ -47,7 +49,11 @@ arquivo escolhido sem critério:
   0,66, duplicação 21,2% → 10,3%, LOC 6,9 → 14,5, laudo Não-Conforme → Conforme; `psf/requests` —
   duplicação 15,1% → 6,1%, laudo Condicional → Conforme. O LOC sobe porque os testes tinham muitas funções
   minúsculas. Análises já gravadas não são recalculadas.
-- **Repositório só com testes** deixa de ser analisável (falha com mensagem clara).
+- **Repositório só com testes** deixa de ser analisável (falha com mensagem clara). *(Atualização de 18/11/2026: o
+  mesmo vale quando restam arquivos de produção mas **nenhuma função ou método** — só constantes, configuração ou
+  declarações — ou quando nenhum arquivo pôde ser interpretado, como código Python 2. Complexidade e LOC são médias
+  por função e não existem sem funções; antes a análise falhava mais adiante com "Métrica … não permite valor
+  ausente".)*
 - **`pypa/sampleproject`** passa a mostrar Acoplamento "Não disponível": seus dois módulos de produção não
   importam um ao outro, e sem nenhuma aresta resolvida não dá para distinguir isso de "não consegui resolver"
   (ADR-010). É o preço de nunca mais mostrar um falso "Conforme".

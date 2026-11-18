@@ -1,6 +1,5 @@
-import hashlib
-import secrets
-from datetime import datetime, timedelta, timezone
+import logging
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
@@ -30,7 +29,10 @@ from app.schemas.auth import (
     RegisterRequest,
     ResetPasswordRequest,
 )
-from app.workers.email_tasks import send_password_reset_email_task
+from app.services.password_reset_service import hash_token
+from app.workers.auth_tasks import request_password_reset_task
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
@@ -38,9 +40,6 @@ _GENERIC_FORGOT_PASSWORD_MESSAGE = (
     "Se este e-mail estiver cadastrado, você receberá um link de recuperação em instantes."
 )
 
-
-def _hash_token(raw_token: str) -> str:
-    return hashlib.sha256(raw_token.encode("utf-8")).hexdigest()
 
 REFRESH_COOKIE_NAME = "softmeter_refresh_token"
 
@@ -113,40 +112,25 @@ def refresh(
 
 
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
-def forgot_password(
-    payload: ForgotPasswordRequest, db: Session = Depends(get_db)
-) -> ForgotPasswordResponse:
-    """Sempre responde com a mesma mensagem genérica — não revela se o e-mail
-    está cadastrado (evita enumeração de contas). O envio do e-mail é despachado
-    para uma task Celery em vez de feito de forma síncrona aqui: se o envio
-    bloqueasse a resposta, o caminho de e-mail cadastrado (grava no banco + chama
-    o Resend, até 10s) ficaria mensuravelmente mais lento que o caminho de e-mail
-    inexistente (retorna na hora) — um side-channel de timing que revelaria quais
-    e-mails existem mesmo com a mensagem de resposta idêntica."""
-    user = db.query(User).filter(User.email == payload.email).first()
-    if user is None:
-        return ForgotPasswordResponse(message=_GENERIC_FORGOT_PASSWORD_MESSAGE)
+def forgot_password(payload: ForgotPasswordRequest) -> ForgotPasswordResponse:
+    """Sempre responde a mesma mensagem genérica e NÃO consulta o banco: só enfileira o pedido, e o worker
+    decide se a conta existe, grava o token e envia o e-mail (ver `services/password_reset_service.py`).
 
-    raw_token = secrets.token_urlsafe(32)
-    db.add(
-        PasswordResetToken(
-            usuario_id=user.id,
-            token_hash=_hash_token(raw_token),
-            expira_em=datetime.now(timezone.utc)
-            + timedelta(minutes=settings.password_reset_token_expires_minutes),
-        )
-    )
-    db.commit()
-
-    reset_link = f"{settings.frontend_url}/reset-password?token={raw_token}"
-    send_password_reset_email_task.delay(user.email, reset_link)
-
+    Se o endpoint fizesse esse trabalho, o caminho de e-mail cadastrado (gravar no banco + publicar na fila)
+    seria mensuravelmente mais lento que o de e-mail inexistente — um side-channel de timing que revelaria quais
+    e-mails têm conta mesmo com a mensagem de resposta idêntica (medido: ~174 ms × ~151 ms). Agora os dois
+    caminhos fazem exatamente a mesma coisa. Se a fila estiver fora do ar o erro é só registrado: devolver 5xx
+    revelaria o estado do sistema, não o da conta, mas a resposta tem de ser igual para todos."""
+    try:
+        request_password_reset_task.delay(payload.email)
+    except Exception:  # noqa: BLE001 - fila fora do ar: a resposta ao usuário não pode mudar
+        logger.exception("Não foi possível enfileirar o pedido de recuperação de senha")
     return ForgotPasswordResponse(message=_GENERIC_FORGOT_PASSWORD_MESSAGE)
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
 def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)) -> None:
-    token_hash = _hash_token(payload.token)
+    token_hash = hash_token(payload.token)
     reset_token = (
         db.query(PasswordResetToken).filter(PasswordResetToken.token_hash == token_hash).first()
     )
@@ -174,8 +158,9 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         )
 
     user.password_hash = hash_password(payload.new_password)
-    # Quem tinha acesso à conta antes do reset (ex.: sessão roubada) perde as sessões ativas.
-    user.token_version += 1
+    # Quem tinha acesso à conta antes do reset (ex.: sessão roubada) perde as sessões ativas. A expressão SQL
+    # (`token_version + 1`, e não ler-e-somar em Python) evita perder um incremento se dois pedidos coincidirem.
+    user.token_version = User.token_version + 1
     reset_token.usado_em = now
     db.commit()
 
@@ -223,6 +208,6 @@ def logout(
     """
     user = _session_owner(db, refresh_token, access_token)
     if user is not None:
-        user.token_version += 1
+        user.token_version = User.token_version + 1  # atômico no banco
         db.commit()
     response.delete_cookie(REFRESH_COOKIE_NAME, path="/api/v1/auth")

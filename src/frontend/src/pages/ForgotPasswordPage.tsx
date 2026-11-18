@@ -7,6 +7,7 @@ import Button from '../components/ui/Button';
 import { ArrowLeftIcon, MailIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import api from '../services/api';
+import { tooManyRequestsMessage } from '../services/errors';
 
 /**
  * Tela de "esqueci minha senha" (US5, FR-010).
@@ -24,10 +25,12 @@ function ForgotPasswordPage() {
     try {
       const response = await api.post('/api/v1/auth/forgot-password', { email });
       setMessage(response.data.message);
-    } catch {
+    } catch (err) {
       // Falha de comunicação com a API — o backend nunca revela se o e-mail existe,
       // então qualquer erro aqui é de rede/servidor e o usuário pode tentar de novo.
-      setError('Não foi possível processar o pedido agora. Tente novamente em instantes.');
+      setError(
+        tooManyRequestsMessage(err) ?? 'Não foi possível processar o pedido agora. Tente novamente em instantes.',
+      );
     } finally {
       setSubmitting(false);
     }

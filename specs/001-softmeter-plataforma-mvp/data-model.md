@@ -11,7 +11,7 @@ Conta autenticada, proprietária dos repositórios cadastrados e relatórios ger
 | Campo | Tipo | Regras |
 |---|---|---|
 | id | UUID | chave primária |
-| email | string | único, formato de email válido |
+| email | string | único, formato de email válido; **armazenado em minúsculas** (a comparação ignora a caixa) |
 | password_hash | string | bcrypt; nunca exposto via API; a senha aceita tem de 8 a 72 bytes em UTF-8 (ADR-006) |
 | token_version | inteiro | padrão 0; sobe no logout e no reset de senha, o que invalida na hora todos os JWT (access e refresh) emitidos antes (ADR-006) |
 | criado_em | timestamp | definido na criação |
@@ -60,7 +60,9 @@ Execução pontual de medição sobre um Repositório (FR-003, FR-004, FR-007).
 | concluida_em | timestamp (nullable) | data de **término**: preenchido ao atingir `concluida` **ou `falhou`**; só `pendente`/`processando` a têm nula |
 | status_conformidade_geral | enum (nullable): `Conforme`, `Condicional`, `Não-Conforme` | calculado apenas quando `status = concluida`, a partir do índice agregado das Medições com status diferente de "Não disponível" (se nenhuma tiver escore, vale `Não-Conforme`) |
 
-**Máquina de estados**: `pendente → processando → (concluida | falhou)`. Nenhuma transição reversa.
+**Máquina de estados**: `pendente → processando → (concluida | falhou)`. Nenhuma transição reversa. **No máximo uma
+Análise em andamento (`pendente`/`processando`) por Repositório**: índice único parcial
+`uq_analyses_one_in_progress_per_repository`.
 Disparada exclusivamente por ação do usuário (FR-012) — sem agendamento automático. **Toda tentativa é
 gravada**, inclusive as que falham: o histórico mostra o que aconteceu e por quê (ADR-013).
 
@@ -78,19 +80,20 @@ Métrica que não esteja completamente preenchida abaixo.
 |---|---|---|---|---|---|---|---|
 | `complexidade_ciclomatica` | Complexidade Ciclomática | nº de caminhos / função (média do repositório) | `CC = E - N + 2P` (arestas - nós + 2×componentes conexos do grafo de fluxo de controle), por função/método, McCabe (1976); código de produção apenas | McCabe, T.J. (1976). *A Complexity Measure*. IEEE Trans. Software Engineering; NIST Special Publication 500-235 | ≤ 10 | 11–20 | > 20 |
 | `loc` | Linhas de Código (LOC) | linhas / função (média do repositório) | Contagem de linhas físicas de código (SLOC), excluindo comentários e linhas em branco, por função/método — mesma convenção em Python e JS/TS (ADR-010) | Martin, R.C. (2008). *Clean Code* | ≤ 30 | 31–60 | > 60 |
-| `indice_manutenibilidade` | Índice de Manutenibilidade | escala 0–100 (por arquivo, média do repositório) | `MI = 171 − 5.2·ln(HV) − 0.23·CC − 16.2·ln(LOC)` (HV = volume de Halstead), normalizado 0–100 | Coleman, D. et al. (1994). *Using Metrics to Evaluate Software System Maintainability*. IEEE Computer; ranks adotados pela ferramenta Radon | ≥ 20 (Rank A) | 10–19,99 (Rank B) | < 10 (Rank C) |
+| `indice_manutenibilidade` | Índice de Manutenibilidade | escala 0–100 (por arquivo; média do repositório **ponderada pelas linhas de código**) | `MI = 171 − 5.2·ln(HV) − 0.23·CC − 16.2·ln(LOC)` (HV = volume de Halstead), normalizado 0–100, por arquivo; a média pesa cada arquivo pelo seu SLOC (ADR-015) | Coleman, D. et al. (1994). *Using Metrics to Evaluate Software System Maintainability*. IEEE Computer; ranks adotados pela ferramenta Radon | ≥ 20 (Rank A) | 10–19,99 (Rank B) | < 10 (Rank C) |
 | `cobertura_testes` | Cobertura de Testes | % de linhas cobertas | Percentual relatado em artefato de cobertura já publicado, lido nesta ordem: artifacts do GitHub Actions do run de CI mais recente — combinados por soma de linhas em monorepos (ADR-004, ADR-012) —, `coverage.xml`, `lcov.info`, badge Codecov/Coveralls no README; ver `research.md` item 6 | Especificação de cobertura de testes (ex.: relatórios `coverage.py`/`lcov`); limites de referência alinhados ao Princípio I da Constituição SoftMeter | ≥ 80% | 50%–79% | < 50% (ou **Não disponível** se nenhum artefato for encontrado) |
-| `acoplamento` | Acoplamento (Instabilidade de Módulo) | razão 0–1 (média do repositório) | `I = Ce / (Ce + Ca)` — Ce = acoplamento de saída (imports internos), Ca = acoplamento de entrada (módulos que importam este); imports resolvidos por sufixo de caminho (Python) e por `tsconfig`/`jsconfig` (JS/TS). **Não disponível** se nenhum import interno for resolvido (ADR-010) | Martin, R.C. (2002). *Agile Software Development: Principles, Patterns, and Practices* | ≤ 0,70 | 0,70–0,85 | > 0,85 |
+| `acoplamento` | Acoplamento (Instabilidade de Módulo) | razão 0–1 (média do repositório) | `I = Ce / (Ce + Ca)` — Ce = acoplamento de saída (imports internos), Ca = acoplamento de entrada (módulos que importam este); imports resolvidos por sufixo de caminho (Python) e por `tsconfig`/`jsconfig` (JS/TS). **Não disponível** se nenhum import interno for resolvido — inclusive em repositório de um único módulo (ADR-010, ADR-015) | Martin, R.C. (2002). *Agile Software Development: Principles, Patterns, and Practices* | ≤ 0,70 | 0,70–0,85 | > 0,85 |
 | `score_duplicacao` | Score de Duplicação | % de linhas duplicadas | Percentual de linhas em blocos de código duplicados (Tipo-1/Tipo-2) detectados por *shingling* de tokens normalizados, janela mínima de 6 linhas com ao menos 4 linhas distintas; imports não contam e janelas sobrepostas do mesmo arquivo não casam entre si (ADR-010) | Abordagem equivalente à métrica *Duplicated Lines Density* da SonarSource (documentação pública do SonarQube) | ≤ 5% | 5%–15% | > 15% |
 
 **Regra de status "Não disponível"**: aplica-se a `cobertura_testes`, quando nenhuma fonte de cobertura é
 encontrada (artifact de CI, artefato versionado ou badge), e a `acoplamento`, quando nenhum import interno é
-resolvido (ADR-010). Medições com esse status têm `valor_medido` nulo e são excluídas do cálculo do
+resolvido (ADR-010, ADR-015). Medições com esse status têm `valor_medido` nulo e são excluídas do cálculo do
 `status_conformidade_geral` da Análise (não contam como Não-Conforme).
 
 **Escopo da medição (ADR-011, ADR-012)**: as métricas de código (CC, LOC, MI, acoplamento e duplicação)
 consideram apenas o código-fonte de produção em Python/JS/TS. Ficam de fora: arquivos e diretórios de teste,
-dependências (`node_modules`, `venv`…), arquivos gerados/minificados (`*.min.*`, `*.d.ts`, `.next/`, `target/`…)
+dependências (`node_modules`, `venv`…), arquivos gerados/minificados (`*.min.*`, `*.d.ts`, `.next/`…), saídas de build
+(`build/`, `dist/`, `out/`, `target/`, `coverage/`, quando na raiz ou ao lado de um manifesto de projeto — ADR-015)
 e arquivos-fonte acima de 1 MB. A Cobertura de Testes vem dos relatórios publicados pelo repositório. A nota
 de escopo aparece no dashboard e no PDF (`SCOPE_NOTE`). Um repositório só com testes não é analisável.
 

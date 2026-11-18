@@ -4,6 +4,7 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.core.rate_limit import reset_rate_limits
 from app.db.session import Base, get_db
 from app.main import app
 
@@ -26,6 +27,25 @@ def _enforce_foreign_keys(dbapi_connection, connection_record):
 
 
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
+
+
+@pytest.fixture(autouse=True)
+def _no_real_password_reset_queue(monkeypatch):
+    """`/forgot-password` enfileira o pedido no Celery; sem isto, os testes publicariam no Redis de verdade (o do
+    desenvolvimento, se estiver de pé) ou ficariam esperando um broker. Os testes que precisam do fluxo
+    sobrescrevem este `delay` (ver `_fake_email_capture` em test_auth_api.py)."""
+    import app.api.auth as auth_module
+
+    monkeypatch.setattr(auth_module.request_password_reset_task, "delay", lambda email: None)
+
+
+@pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    """O limitador de requisições é um estado global (10 logins/min por IP): sem zerá-lo a cada teste, o
+    resultado dependia de quantos logins os testes anteriores já tinham feito no mesmo minuto."""
+    reset_rate_limits()
+    yield
+    reset_rate_limits()
 
 
 @pytest.fixture()
