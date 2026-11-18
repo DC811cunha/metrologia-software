@@ -36,7 +36,7 @@ iniconfig==2.3.1
 kombu==5.7.0
 librt==0.16.0
 Mako==1.4.3
-mando==0.7.1
+mando==0.8.2
 MarkupSafe==3.0.4
 mypy==2.4.1
 mypy_extensions==1.2.0
@@ -62,10 +62,10 @@ PyYAML==6.0.3
 radon==6.0.1
 redis==8.1.0
 reportlab==5.1.0
-ruff==0.15.19
+ruff==0.17.5
 six==1.17.0
 # Editable install with no version control (softmeter-backend==0.1.0)
-SQLAlchemy==2.0.58
+SQLAlchemy==2.1.8
 starlette==1.10.0
 tree-sitter==0.26.1
 tree-sitter-javascript==0.25.0
