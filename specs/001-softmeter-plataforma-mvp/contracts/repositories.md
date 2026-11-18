@@ -35,6 +35,7 @@ Base path: `/api/v1/repositories` (autenticado; resultados sempre escopados ao u
 |-------|------|-------------|
 | `ultima_analise_status` | `string \| null` | status da tentativa mais recente (`processando`, `concluida` ou `falhou`); `null` se nunca analisado |
 | `ultima_analise_id` | `uuid \| null` | id dessa tentativa |
+| `ultima_concluida_id` | `uuid \| null` | id da análise **concluída** mais recente — leva ao dashboard mesmo quando a última tentativa falhou; `null` se nenhuma concluiu |
 | `total_analises` | `int` | quantidade de análises (qualquer status) |
 | `total_relatorios` | `int` | quantidade de relatórios gerados |
 
@@ -49,11 +50,14 @@ Cadastra um novo repositório GitHub público.
 { "url": "https://github.com/{owner}/{repo}" }
 ```
 
-**Comportamento**: consulta as linguagens do repositório no GitHub (ver `research.md` item 2) e grava a
-`url` **como foi informada** e o `owner_nome` (`owner/repo`) extraído dela; o nome canônico e o
-identificador numérico (`github_id`) só são sincronizados na primeira análise (ver *Identidade do
-repositório* abaixo). Rejeita se a interseção das linguagens com `{python, javascript, typescript}` for
-vazia (FR-002) e se já existir um cadastro com a mesma URL para o usuário autenticado (FR-015).
+**Comportamento**: normaliza a URL para a forma única `https://github.com/{owner}/{repo}` (sempre `https`,
+sem `.git` nem barra final; a caixa digitada é mantida) e **recusa a duplicata sem distinguir caixa**
+(`Foo/Bar`, `foo/bar`, `…/Bar.git` e `http://…` são o mesmo repositório) **antes** de consultar o GitHub, para não
+gastar a cota. Depois consulta as linguagens (ver `research.md` item 2) e grava a `url` normalizada e o
+`owner_nome` (`owner/repo`); o nome canônico do GitHub e o identificador numérico (`github_id`) só são sincronizados
+na primeira análise (ver *Identidade do repositório* abaixo). Rejeita se a interseção das linguagens com
+`{python, javascript, typescript}` for vazia (FR-002) e se já existir um cadastro do mesmo repositório para o
+usuário autenticado (FR-015).
 
 **Responses**:
 - `201 Created` → objeto **Repositório** (sem os campos extras da lista)

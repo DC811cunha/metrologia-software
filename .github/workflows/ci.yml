@@ -39,7 +39,7 @@ jobs:
 
       - name: Instalar dependências
         working-directory: src/backend
-        run: pip install -e ".[dev]"
+        run: pip install -c requirements.txt -e ".[dev]"
 
       - name: Lint (ruff)
         working-directory: src/backend
@@ -79,7 +79,7 @@ jobs:
 
       - name: Instalar dependências
         working-directory: src/frontend
-        run: npm install
+        run: npm ci
 
       - name: Lint (ESLint)
         working-directory: src/frontend

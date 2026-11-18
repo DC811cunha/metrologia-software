@@ -152,3 +152,53 @@ class TestRedisRateLimiter:
 
         assert isinstance(limiter, RedisRateLimiter if backend == "redis" else MemoryRateLimiter)
         rate_limit.reset_rate_limits()
+
+
+class TestRedisThatAcceptsButNeverAnswers:
+    """Sem timeout, um Redis pendurado seguraria cada requisição de login/cadastro/análise em vez de o
+    limitador cair para a memória."""
+
+    def test_the_client_has_short_timeouts(self):
+        limiter = RedisRateLimiter("redis://localhost:6379/0", MemoryRateLimiter())
+
+        kwargs = limiter._client.connection_pool.connection_kwargs
+        assert kwargs["socket_connect_timeout"] == rate_limit._REDIS_TIMEOUT_S
+        assert kwargs["socket_timeout"] == rate_limit._REDIS_TIMEOUT_S
+
+    def test_falls_back_to_memory_quickly_when_the_server_hangs(self, caplog):
+        import socket
+        import threading
+        import time
+
+        server = socket.socket()
+        server.bind(("127.0.0.1", 0))
+        server.listen(5)
+        port = server.getsockname()[1]
+        accepted: list[socket.socket] = []
+        stop = threading.Event()
+
+        def accept_and_stay_silent():
+            server.settimeout(0.2)
+            while not stop.is_set():
+                try:
+                    accepted.append(server.accept()[0])  # aceita e nunca responde
+                except OSError:
+                    continue
+
+        thread = threading.Thread(target=accept_and_stay_silent, daemon=True)
+        thread.start()
+        try:
+            limiter = RedisRateLimiter(f"redis://127.0.0.1:{port}/0", MemoryRateLimiter())
+            started = time.monotonic()
+
+            result = run(limiter.hit("login:1.2.3.4", 10, 60))
+
+            assert result is None  # a tentativa foi contada pela memória e permitida
+            assert time.monotonic() - started < 5
+            assert "Redis indisponível" in caplog.text
+        finally:
+            stop.set()
+            thread.join(timeout=2)
+            for connection in accepted:
+                connection.close()
+            server.close()

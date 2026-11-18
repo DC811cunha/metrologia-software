@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from typing import TYPE_CHECKING
 
-from sqlalchemy import DateTime, ForeignKey, Numeric, String
+from sqlalchemy import DateTime, ForeignKey, Index, Numeric, String, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -20,8 +20,21 @@ class AnalysisStatus(str, Enum):
     FALHOU = "falhou"
 
 
+_IN_PROGRESS = "status IN ('pendente', 'processando')"
+
+
 class Analysis(Base):
     __tablename__ = "analyses"
+    # No máximo UMA análise em andamento por repositório (duplo clique, duas abas): o banco garante, sem corrida.
+    __table_args__ = (
+        Index(
+            "uq_analyses_one_in_progress_per_repository",
+            "repositorio_id",
+            unique=True,
+            postgresql_where=text(_IN_PROGRESS),
+            sqlite_where=text(_IN_PROGRESS),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     repositorio_id: Mapped[uuid.UUID] = mapped_column(

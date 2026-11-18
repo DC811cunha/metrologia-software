@@ -8,6 +8,7 @@ import Button from '../components/ui/Button';
 import { LockIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import api from '../services/api';
+import { tooManyRequestsMessage } from '../services/errors';
 
 const LINK_CLASSES = 'font-semibold text-brand-400 hover:text-brand-300 hover:underline';
 
@@ -30,7 +31,9 @@ function ResetPasswordPage() {
       await api.post('/api/v1/auth/reset-password', { token, new_password: password });
       navigate('/login', { replace: true });
     } catch (err) {
-      if (isAxiosError(err) && err.response?.status === 422) {
+      if (tooManyRequestsMessage(err)) {
+        setError(tooManyRequestsMessage(err));
+      } else if (isAxiosError(err) && err.response?.status === 422) {
         setError('A senha deve ter entre 8 e 72 caracteres.');
       } else {
         setError('Este link de recuperação é inválido ou expirou.');

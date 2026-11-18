@@ -50,11 +50,36 @@ deploy público:
 - **Não confiar em `X-Forwarded-For` por conta própria:** qualquer cliente pode forjar o cabeçalho,
   o que permitiria burlar o limite; a confiança é delegada ao servidor ASGI, restrita ao proxy.
 
+## Atualização (18/11/2026): CORS nas respostas 429 e 413
+
+O CORS estava por dentro dos middlewares de tamanho e de limite: as respostas `413` e `429` saíam sem
+`Access-Control-Allow-Origin` e o navegador as mostrava como "Network Error", escondendo a mensagem (no login, o
+usuário via "credenciais inválidas"). O `add_middleware` coloca o novo middleware por fora dos anteriores, então o
+CORS passou a ser o último adicionado (o mais externo), e as telas de autenticação mostram a mensagem do servidor
+no `429`.
+
+## Atualização (18/11/2026): uma análise por repositório e teto de análises síncronas
+
+O limite por IP não impedia duas análises simultâneas do **mesmo** repositório (duplo clique, duas abas), nem várias
+análises lentas ao mesmo tempo ocupando as threads da API (cada análise síncrona roda dentro da requisição por até 300 s).
+Duas medidas:
+
+- **Uma análise em andamento por repositório**: a segunda requisição recebe `409`, sem registrar tentativa. A garantia é um
+  **índice único parcial** (`status IN ('pendente','processando')`), então nem duas requisições simultâneas criam duas; a
+  checagem antes do insert só poupa a ida ao banco. A migração encerra, antes de criar o índice, as duplicadas antigas
+  (mantém a mais recente). Uma análise perdida não bloqueia para sempre: passando de `STALE_ANALYSIS_AFTER_S` ela vira
+  `falhou` na própria requisição (ADR-013).
+- **Teto de análises síncronas simultâneas por processo** (`MAX_CONCURRENT_SYNC_ANALYSES`, padrão 4): sem vaga, a análise
+  segue pelo caminho assíncrono (fila Celery, `202` + polling) em vez de ocupar mais uma thread; com várias réplicas o
+  teto total é `réplicas × limite`. Tornar **toda** análise assíncrona fica para quando houver hospedagem de verdade.
+
+Verificado na stack real: 3 requisições simultâneas para o mesmo repositório → 1 × `201` e 2 × `409`.
+
 ## Consequências
 
 - O limite por IP penaliza usuários atrás de um mesmo NAT (ex.: uma sala de aula analisando
   repositórios); os valores são configuráveis para ajuste.
 - A regra de análises é por IP, não por usuário nem por repositório (o middleware roda antes da
-  autenticação). Uma análise ativa por repositório fica como melhoria possível.
+  autenticação). Uma análise ativa por repositório fica como melhoria possível *(feita em 18/11/2026: ver a atualização abaixo)*.
 - No deploy público, definir `RATE_LIMIT_BACKEND=redis` (já no `docker-compose.prod.yml`) e
   `FORWARDED_ALLOW_IPS` com o IP/rede do proxy reverso.

@@ -87,6 +87,18 @@ superada, o novo ADR a referencia e o antigo recebe uma nota.
 **Logs:** (saída do backend/worker, sem tokens ou senhas)
 ```
 
+## Dependências
+
+- **Backend:** `src/backend/requirements.txt` fixa a versão de tudo (constraints); instale com
+  `pip install -c requirements.txt -e ".[dev]"`. Para regenerar depois de mexer no `pyproject.toml`, rode
+  `pip freeze` no container (`docker compose exec backend pip freeze`), tire as linhas `-e`, `softmeter-backend`,
+  `pip`, `setuptools` e `wheel` e mantenha o cabeçalho do arquivo.
+- **Frontend e E2E:** o CI usa `npm ci`, então o `package-lock.json` precisa estar em dia com o `package.json`.
+- O **Dependabot** abre PRs semanais (pip, npm, GitHub Actions e Docker) e o workflow **Auditoria de
+  dependências** (`audit.yml`) roda `pip-audit` e `npm audit` toda segunda e quando um arquivo de dependências
+  muda. Ele não é um check obrigatório: uma vulnerabilidade publicada de um dia para o outro não deve travar PRs
+  sem relação com ela — mas um job vermelho ali pede atenção.
+
 ## Segredos
 
 Nunca versione `.env`, tokens ou chaves (use o [`.env.example`](.env.example) como modelo). Se um

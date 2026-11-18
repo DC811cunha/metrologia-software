@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # tamanho (KB, conforme reportado pela API do GitHub) são analisados de forma
     # síncrona; acima disso, a análise é despachada para a fila Celery/Redis.
     sync_analysis_size_limit_kb: int = 5000
+    # Análises síncronas simultâneas por processo do servidor; acima disso a análise vai para a fila Celery
+    # (202) em vez de ocupar mais uma thread da API — ver services/sync_slots.py.
+    max_concurrent_sync_analyses: int = 4
 
     reports_dir: str = "generated_reports"
 
@@ -57,6 +60,10 @@ class Settings(BaseSettings):
     max_artifact_mb: int = 20
     max_coverage_artifacts: int = 5
     analysis_time_limit_s: int = 300
+    # Análise `pendente`/`processando` há mais que isto é considerada perdida (worker caiu/reiniciou) e vira
+    # `falhou` na próxima consulta — ver services/stale_analyses.py. Deve ficar bem acima do limite de tempo
+    # da análise e do Celery (300 + 60 s) mais a espera na fila.
+    stale_analysis_after_s: int = 900
 
     # Rate limit (issue #98): "redis" compartilha o contador entre processos/réplicas; "memory" vale
     # por processo. Os limites abaixo só são aplicados com ENVIRONMENT=production (login e
@@ -73,6 +80,8 @@ class Settings(BaseSettings):
     email_from: str = "SoftMeter <onboarding@resend.dev>"
     frontend_url: str = "http://localhost:3000"
     password_reset_token_expires_minutes: int = 60
+    # Pedidos de recuperação aceitos por conta a cada hora (os excedentes são ignorados em silêncio).
+    password_reset_max_per_hour: int = 3
 
     @model_validator(mode="after")
     def _reject_insecure_production_config(self) -> "Settings":

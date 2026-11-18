@@ -19,7 +19,7 @@ interface ConfirmDialogProps {
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])';
 
-interface DialogContentProps extends Omit<ConfirmDialogProps, 'open'> {}
+type DialogContentProps = Omit<ConfirmDialogProps, 'open'>;
 
 function DialogContent({
   title,

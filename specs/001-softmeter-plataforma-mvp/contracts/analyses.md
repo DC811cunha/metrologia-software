@@ -55,6 +55,12 @@ catálogo (`data-model.md`). Se o tamanho do repositório estiver dentro do orç
 **Toda tentativa é registrada**: mesmo quando falha, a análise é gravada com `status = falhou`, o
 `motivo_falha` e a data de término (`concluida_em`), e continua visível no histórico.
 
+**Análises perdidas:** o Celery confirma a tarefa antes de executá-la; se o worker cair ou for reiniciado, nada
+atualizaria a análise. Por isso toda consulta que lista ou lê análises (`GET /repositories`, `GET …/analyses` e
+`GET …/analyses/{id}`) marca como `falhou` — com o motivo "A análise foi interrompida antes de terminar…" — as
+que seguem `pendente`/`processando` há mais de `STALE_ANALYSIS_AFTER_S` (padrão 900 s, bem acima do limite de
+tempo da análise).
+
 **Efeitos colaterais**: pode atualizar `url`/`owner_nome` do repositório se ele foi renomeado e gravar o
 `github_id` (ver *Identidade do repositório* em `repositories.md`); se o GitHub negar o acesso (403, 404
 ou 451), marca o repositório como `inacessivel`, e volta a `ativo` na primeira análise que o GitHub
@@ -65,8 +71,14 @@ voltar a servir — não há bloqueio antecipado por estar `inacessivel`.
   `concluida` **ou `falhou`** — uma falha do pipeline no caminho síncrono (ex.: arquivo ilegível) também
   responde `201`, com `motivo_falha` preenchido e `medicoes` vazia. O cliente deve olhar o `status`.
 - `202 Accepted` → `{ "id": "uuid", "status": "processando" }`; consultar por polling em
-  `GET …/analyses/{analysis_id}`
+  `GET …/analyses/{analysis_id}`. Vale para repositórios acima do orçamento síncrono **e** para qualquer repositório
+  quando o servidor já tem `MAX_CONCURRENT_SYNC_ANALYSES` (padrão 4) análises síncronas em curso: em vez de ocupar mais
+  uma thread da API, a análise segue pela fila
 - `404 Not Found` → `"Repositório não encontrado"`
+- `409 Conflict` **sem registrar tentativa nova** → `"Já existe uma análise em andamento para este repositório. Aguarde ela terminar."`:
+  só pode haver **uma** análise `pendente`/`processando` por repositório (duplo clique, duas abas), garantido por um índice
+  único parcial no banco, sem corrida. Uma análise perdida (mais de `STALE_ANALYSIS_AFTER_S` sem terminar) não bloqueia: é
+  encerrada como `falhou` na própria requisição
 - `409 Conflict` (`detail` + análise registrada como `falhou`):
   - acesso negado pelo GitHub → repositório inexistente, privado ou bloqueado (FR-014);
   - o nome cadastrado passou a apontar para **outro** repositório →

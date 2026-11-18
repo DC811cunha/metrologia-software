@@ -179,7 +179,11 @@ class GithubService:
         self._raise_for_github_error(response, owner, repo)
         data = response.json()
         self.repo_identity = self._identity_from(data)
-        return int(data["size"])
+        size = data.get("size") if isinstance(data, dict) else None
+        if not isinstance(size, int) or isinstance(size, bool):
+            # Resposta inesperada (sem "size"): temporária do ponto de vista do usuário, não um erro 500.
+            raise GithubUnavailableError("O GitHub respondeu sem o tamanho do repositório")
+        return size
 
     @staticmethod
     def _identity_from(data: object) -> RepoIdentity | None:

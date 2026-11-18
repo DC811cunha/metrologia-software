@@ -39,6 +39,32 @@ do de produção.
 - **Lista fixa de valores conhecidos** (além do tamanho mínimo): os placeholders do `.env.example` têm
   mais de 32 caracteres e passariam numa checagem só de comprimento.
 
+## Atualização (18/11/2026): imagem de produção, volume dos PDFs e dependências
+
+Da revisão geral de 18/11/2026:
+
+- **Imagem de produção separada.** O `Dockerfile` do backend ganhou os estágios `prod` e `dev` (o padrão). O `prod`
+  instala só as dependências de execução, não tem `--reload` e roda como usuário sem privilégios (uid 10001; o
+  Celery já avisava que rodava como root). O `docker-compose.prod.yml` usa `target: prod`.
+- **Volume para os PDFs.** Sem volume, os relatórios moravam no sistema de arquivos do container e sumiam a cada
+  recriação (deploy ou atualização de imagem); todo relatório antigo passava a dar 404. Agora `REPORTS_DIR` aponta
+  para `/app/generated_reports`, montado no volume nomeado `reports_data_prod` (verificado: o arquivo sobrevive à
+  recriação do container e é gravável pelo usuário sem privilégios). **Faça backup desse volume junto com o do
+  Postgres.**
+- **Builds reprodutíveis.** `src/backend/requirements.txt` fixa todas as versões (usado por Docker e CI com `-c`);
+  o CI do frontend passou a usar `npm ci`. Dependabot semanal e o workflow `audit.yml` (`pip-audit`/`npm audit`)
+  cuidam das atualizações e dos alertas.
+- **Redis do limitador com timeout** (1 s): um Redis que aceita a conexão e não responde fazia cada requisição
+  esperar o tempo padrão do TCP em vez de cair para o limite em memória (ADR-008).
+- **Vulnerabilidades do frontend: zero.** O `npm audit fix` resolveu `axios` e `follow-redirects`; sobravam avisos que
+  exigiam versão maior — `react-router` 6 (redirecionamento aberto em `<Link>`/`useNavigate` com URL controlada pelo
+  usuário e hidratação SSR; o app só usa rotas fixas) e, só em desenvolvimento, `vite`/`esbuild` 5 e `minimatch` via
+  `@typescript-eslint` 6. Foram atualizados em seguida para `react-router-dom` 7, `vite` 7 (com `@vitejs/plugin-react` 5)
+  e `@typescript-eslint` 8. O que a troca exigiu foi pouco: um polyfill de `TextEncoder` no `jest.setup.ts` (o
+  `react-router` 7 o usa e o jsdom não o fornece), trocar uma interface vazia por um tipo (regra nova do ESLint) e o
+  `engines` do `package.json` (`node >= 20.19`, exigência do vite 7). Verificado com a suíte E2E completa (15/15) contra
+  a stack Docker com as versões novas.
+
 ## Consequências
 
 - O deploy público precisa gerar segredos próprios (`python -c "import secrets; print(secrets.token_urlsafe(48))"`)

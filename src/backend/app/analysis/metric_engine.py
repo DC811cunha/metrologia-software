@@ -8,6 +8,7 @@ garantir consistência entre linguagens (Constituição, Princípio V).
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -25,25 +26,39 @@ PYTHON_EXTENSIONS = {".py"}
 JAVASCRIPT_EXTENSIONS = {".js", ".jsx", ".mjs", ".cjs"}
 TYPESCRIPT_EXTENSIONS = {".ts", ".tsx"}
 
+# Diretórios que nunca são código autoral: dependências, ambientes virtuais, caches e saídas de framework.
 IGNORED_DIR_NAMES = {
     ".git",
     "node_modules",
     "__pycache__",
     ".venv",
     "venv",
-    "env",
     "site-packages",
     "bower_components",
-    "dist",
-    "build",
-    "out",
-    "target",
     ".next",
     ".nuxt",
     "vendor",
     ".tox",
-    "coverage",
     "migrations",
+}
+
+# Nomes AMBÍGUOS: costumam ser saída de build (`build/`, `dist/`, `out/`, `target/`, `coverage/`), mas também
+# podem ser um pacote de código (`src/build/` de uma ferramenta de build, `app/out/`). Só são podados quando há
+# evidência de que são saída: estão na raiz do repositório ou ao lado de um manifesto de projeto. `env/` só é
+# podado se for de fato um ambiente virtual (tem `pyvenv.cfg`). Os arquivos gerados que sobrarem ainda são
+# filtrados por nome/forma (`*.min.js`, `*.d.ts`, bundles minificados).
+OUTPUT_DIR_NAMES = {"dist", "build", "out", "target", "coverage"}
+PROJECT_MANIFESTS = {
+    "package.json",
+    "pyproject.toml",
+    "setup.py",
+    "setup.cfg",
+    "requirements.txt",
+    "tsconfig.json",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "Cargo.toml",
 }
 
 # O SoftMeter mede o código de produção: testes ficam de fora de CC, LOC, MI, acoplamento e
@@ -134,6 +149,8 @@ class RepoMetrics:
     function_complexities: list[float] = field(default_factory=list)
     function_loc: list[float] = field(default_factory=list)
     file_maintainability_index: list[float] = field(default_factory=list)
+    # SLOC de cada arquivo (mesma ordem de `file_maintainability_index`): peso da média do MI.
+    file_sloc: list[float] = field(default_factory=list)
 
     def _average(self, values: list[float]) -> float | None:
         return sum(values) / len(values) if values else None
@@ -148,7 +165,13 @@ class RepoMetrics:
 
     @property
     def avg_maintainability_index(self) -> float | None:
-        return self._average(self.file_maintainability_index)
+        """Média do MI dos arquivos **ponderada pelas linhas de código** (ADR-015): um arquivo de uma linha
+        (um `__init__.py`, uma constante) não pode pesar o mesmo que um módulo de 500 linhas e inflar a média."""
+        total_weight = sum(self.file_sloc)
+        if len(self.file_sloc) != len(self.file_maintainability_index) or total_weight <= 0:
+            return self._average(self.file_maintainability_index)
+        weighted = sum(mi * weight for mi, weight in zip(self.file_maintainability_index, self.file_sloc, strict=True))
+        return weighted / total_weight
 
 
 def compute_maintainability_index(halstead_volume: float, complexity: float, sloc: float) -> float:
@@ -166,20 +189,35 @@ def compute_maintainability_index(halstead_volume: float, complexity: float, slo
 
 def iter_source_files(root: Path, extensions: set[str]) -> list[Path]:
     max_bytes = settings.max_source_file_kb * 1024
+    # Diretórios de dependências, gerados e de teste são podados ANTES de descer neles (antes, `rglob` percorria
+    # `node_modules` inteiro só para descartar cada arquivo depois), e a ordem é alfabética: a mesma em qualquer
+    # máquina, sem depender da ordem do sistema de arquivos.
+    pruned = IGNORED_DIR_NAMES | TEST_DIR_NAMES
     files: list[Path] = []
-    for path in root.rglob("*"):
+    for dirpath, dirnames, filenames in os.walk(root):
         check_deadline()
-        if not path.is_file() or path.suffix not in extensions:
-            continue
-        relative = path.relative_to(root)
-        if IGNORED_DIR_NAMES & set(relative.parts[:-1]) or is_test_file(relative):
-            continue
-        if path.name.endswith(_GENERATED_SUFFIXES) or (path.suffix in JAVASCRIPT_EXTENSIONS | TYPESCRIPT_EXTENSIONS and _looks_minified(path)):
-            continue
-        # Arquivo enorme é quase sempre gerado/minificado/dados: custo alto e valor ~nulo.
-        if path.stat().st_size > max_bytes:
-            continue
-        files.append(path)
+        current = Path(dirpath)
+        has_manifest = current == root or any(name in PROJECT_MANIFESTS for name in filenames)
+        dirnames[:] = sorted(
+            name
+            for name in dirnames
+            if name not in pruned
+            and not (name in OUTPUT_DIR_NAMES and has_manifest)
+            and not (name == "env" and (current / name / "pyvenv.cfg").is_file())
+        )
+        for filename in sorted(filenames):
+            path = Path(dirpath) / filename
+            if path.suffix not in extensions or not path.is_file():
+                continue
+            relative = path.relative_to(root)
+            if is_test_file(relative):
+                continue
+            if path.name.endswith(_GENERATED_SUFFIXES) or (path.suffix in JAVASCRIPT_EXTENSIONS | TYPESCRIPT_EXTENSIONS and _looks_minified(path)):
+                continue
+            # Arquivo enorme é quase sempre gerado/minificado/dados: custo alto e valor ~nulo.
+            if path.stat().st_size > max_bytes:
+                continue
+            files.append(path)
     return files
 
 
@@ -200,6 +238,7 @@ def analyze_python_file(code: str, metrics: RepoMetrics) -> None:
     metrics.file_maintainability_index.append(
         compute_maintainability_index(halstead_volume, total_complexity, sloc)
     )
+    metrics.file_sloc.append(float(sloc))
 
 
 _JS_LANGUAGE = Language(ts_javascript.language())
@@ -302,20 +341,23 @@ def analyze_js_ts_file(code: str, extension: str, metrics: RepoMetrics) -> None:
     metrics.file_maintainability_index.append(
         compute_maintainability_index(halstead_volume, total_complexity, sloc)
     )
+    metrics.file_sloc.append(float(sloc))
 
 
 def analyze_repository(root: Path, languages: list[str]) -> RepoMetrics:
     metrics = RepoMetrics()
-    analyzed_files = 0
+    found_files = 0   # arquivos-fonte candidatos (depois de excluir testes, dependências e gerados)
+    parsed_files = 0  # os que puderam ser interpretados
 
     if "python" in languages:
         for path in iter_source_files(root, PYTHON_EXTENSIONS):
             check_deadline()
-            analyzed_files += 1
+            found_files += 1
             try:
                 analyze_python_file(path.read_text(encoding="utf-8", errors="ignore"), metrics)
             except (SyntaxError, RecursionError, ValueError):
-                continue
+                continue  # ex.: Python 2 ou arquivo corrompido: ignora só este arquivo
+            parsed_files += 1
 
     js_ts_extensions: set[str] = set()
     if "javascript" in languages:
@@ -324,15 +366,27 @@ def analyze_repository(root: Path, languages: list[str]) -> RepoMetrics:
         js_ts_extensions |= TYPESCRIPT_EXTENSIONS
     for path in iter_source_files(root, js_ts_extensions):
         check_deadline()
-        analyzed_files += 1
+        found_files += 1
         try:
             analyze_js_ts_file(path.read_text(encoding="utf-8", errors="ignore"), path.suffix, metrics)
         except RecursionError:
             # Expressões aninhadas em excesso: ignora só este arquivo, não a análise inteira.
             continue
+        parsed_files += 1
 
-    if analyzed_files == 0:
+    if found_files == 0:
         raise NoAnalyzableSourceError(
             "nenhum arquivo-fonte restou depois de excluir testes, dependências e arquivos gerados"
+        )
+    if parsed_files == 0:
+        raise NoAnalyzableSourceError(
+            "nenhum arquivo-fonte pôde ser interpretado (sintaxe inválida, código Python 2 ou arquivos corrompidos)"
+        )
+    if not metrics.function_complexities:
+        # Complexidade e LOC são médias por função: sem nenhuma função/método a média não existe, e uma
+        # métrica sem valor não pode compor o laudo (Princípio V) — melhor dizer isso do que falhar mais adiante.
+        raise NoAnalyzableSourceError(
+            "nenhuma função ou método encontrado no código de produção (o repositório só tem constantes, "
+            "configuração ou declarações), então não há o que medir em complexidade e LOC"
         )
     return metrics

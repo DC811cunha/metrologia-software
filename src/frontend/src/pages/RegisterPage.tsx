@@ -8,6 +8,7 @@ import Button from '../components/ui/Button';
 import { LockIcon, MailIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import api, { ACCESS_TOKEN_KEY } from '../services/api';
+import { tooManyRequestsMessage } from '../services/errors';
 
 /**
  * Tela de cadastro (US5, FR-010).
@@ -28,7 +29,9 @@ function RegisterPage() {
       localStorage.setItem(ACCESS_TOKEN_KEY, response.data.access_token);
       navigate('/repositories', { replace: true });
     } catch (err) {
-      if (isAxiosError(err) && err.response?.status === 409) {
+      if (tooManyRequestsMessage(err)) {
+        setError(tooManyRequestsMessage(err));
+      } else if (isAxiosError(err) && err.response?.status === 409) {
         setError('Este e-mail já está cadastrado.');
       } else if (isAxiosError(err) && err.response?.status === 422) {
         setError('E-mail inválido ou senha fora do tamanho permitido (8 a 72 caracteres).');

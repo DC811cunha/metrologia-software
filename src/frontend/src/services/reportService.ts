@@ -31,5 +31,6 @@ export async function generateAndDownloadReport(
   link.href = blobUrl;
   link.download = `softmeter-relatorio-${report.id}.pdf`;
   link.click();
-  URL.revokeObjectURL(blobUrl);
+  // Liberar na hora pode cancelar o download em alguns navegadores; adia para depois de iniciado.
+  setTimeout(() => URL.revokeObjectURL(blobUrl), 10_000);
 }
