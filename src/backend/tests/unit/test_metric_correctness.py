@@ -62,10 +62,17 @@ class TestCouplingNotAvailable:
 
         assert coupling.calculate_average_instability(tmp_path, ["python"]) is None
 
-    def test_a_single_isolated_module_still_has_zero_coupling(self, tmp_path):
+    def test_a_single_isolated_module_has_no_defined_coupling(self, tmp_path):
+        # Antes valia 0.0 ("Conforme"); com um único módulo não há com quem acoplar: indefinido (ADR-015).
         write(tmp_path, "only.py", "x = 1\n")
 
-        assert coupling.calculate_average_instability(tmp_path, ["python"]) == 0.0
+        assert coupling.calculate_average_instability(tmp_path, ["python"]) is None
+
+    def test_two_modules_that_import_each_other_still_have_a_value(self, tmp_path):
+        write(tmp_path, "a.py", "import b\n")
+        write(tmp_path, "b.py", "x = 1\n")
+
+        assert coupling.calculate_average_instability(tmp_path, ["python"]) is not None
 
     def test_catalog_classifies_the_missing_value_as_not_available(self):
         definition = METRICS_CATALOG["acoplamento"]
