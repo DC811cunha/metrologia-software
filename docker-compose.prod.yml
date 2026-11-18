@@ -24,6 +24,8 @@ x-backend-env: &backend-env
   RESEND_API_KEY: ${RESEND_API_KEY:-}
   EMAIL_FROM: ${EMAIL_FROM:-SoftMeter <onboarding@resend.dev>}
   PASSWORD_RESET_TOKEN_EXPIRES_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRES_MINUTES:-60}
+  # PDFs dos relatórios: diretório absoluto, montado em um volume nomeado (ver o serviço backend).
+  REPORTS_DIR: /app/generated_reports
 
 services:
   db:
@@ -59,6 +61,7 @@ services:
     build:
       context: ./src/backend
       dockerfile: Dockerfile
+      target: prod
     container_name: softmeter_backend_prod
     restart: unless-stopped
     depends_on:
@@ -73,12 +76,17 @@ services:
       FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:?defina FORWARDED_ALLOW_IPS (IP/rede do proxy reverso)}
     ports:
       - "127.0.0.1:3001:3001"
+    volumes:
+      # Sem este volume os PDFs moravam no sistema de arquivos do container e sumiam a cada recriação
+      # (deploy, atualização de imagem): todo relatório já emitido passava a dar 404.
+      - reports_data_prod:/app/generated_reports
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3001", "--proxy-headers"]
 
   celery-worker:
     build:
       context: ./src/backend
       dockerfile: Dockerfile
+      target: prod
     container_name: softmeter_celery_worker_prod
     restart: unless-stopped
     depends_on:
@@ -92,3 +100,4 @@ services:
 
 volumes:
   postgres_data_prod:
+  reports_data_prod:

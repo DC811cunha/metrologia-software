@@ -39,6 +39,28 @@ do de produção.
 - **Lista fixa de valores conhecidos** (além do tamanho mínimo): os placeholders do `.env.example` têm
   mais de 32 caracteres e passariam numa checagem só de comprimento.
 
+## Atualização (18/11/2026): imagem de produção, volume dos PDFs e dependências
+
+Da revisão geral de 18/11/2026:
+
+- **Imagem de produção separada.** O `Dockerfile` do backend ganhou os estágios `prod` e `dev` (o padrão). O `prod`
+  instala só as dependências de execução, não tem `--reload` e roda como usuário sem privilégios (uid 10001; o
+  Celery já avisava que rodava como root). O `docker-compose.prod.yml` usa `target: prod`.
+- **Volume para os PDFs.** Sem volume, os relatórios moravam no sistema de arquivos do container e sumiam a cada
+  recriação (deploy ou atualização de imagem); todo relatório antigo passava a dar 404. Agora `REPORTS_DIR` aponta
+  para `/app/generated_reports`, montado no volume nomeado `reports_data_prod` (verificado: o arquivo sobrevive à
+  recriação do container e é gravável pelo usuário sem privilégios). **Faça backup desse volume junto com o do
+  Postgres.**
+- **Builds reprodutíveis.** `src/backend/requirements.txt` fixa todas as versões (usado por Docker e CI com `-c`);
+  o CI do frontend passou a usar `npm ci`. Dependabot semanal e o workflow `audit.yml` (`pip-audit`/`npm audit`)
+  cuidam das atualizações e dos alertas.
+- **Redis do limitador com timeout** (1 s): um Redis que aceita a conexão e não responde fazia cada requisição
+  esperar o tempo padrão do TCP em vez de cair para o limite em memória (ADR-008).
+- **Vulnerabilidades conhecidas e aceitas por ora**, todas sem efeito em produção: `react-router` (aviso de redirecionamento
+  aberto em `<Link>`/`useNavigate` com URL controlada pelo usuário — o app só usa rotas fixas — e de hidratação SSR,
+  que não usamos); a correção exige a versão 7, que ainda não funciona com o nosso Jest sem ajustes. `vite`/`esbuild`/`minimatch`
+  (servidor de desenvolvimento e ESLint, nunca vão para produção); a correção exige atualização de versão maior.
+
 ## Consequências
 
 - O deploy público precisa gerar segredos próprios (`python -c "import secrets; print(secrets.token_urlsafe(48))"`)

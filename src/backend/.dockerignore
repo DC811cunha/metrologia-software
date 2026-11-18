@@ -11,3 +11,5 @@ coverage.xml
 .git/
 *.log
 .env*
+generated_reports/
+*.egg-info/
