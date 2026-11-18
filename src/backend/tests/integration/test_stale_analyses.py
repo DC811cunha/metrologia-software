@@ -9,11 +9,9 @@ from app.models.analysis import Analysis, AnalysisStatus
 from app.services.stale_analyses import STALE_ANALYSIS_MESSAGE, expire_stale_analyses
 
 
-def _register(client, auth_headers, monkeypatch) -> dict:
+def _register(client, auth_headers, monkeypatch, url="https://github.com/octocat/Hello-World") -> dict:
     monkeypatch.setattr(repositories_module.GithubService, "fetch_languages", lambda self, o, r: ["python"])
-    return client.post(
-        "/api/v1/repositories", json={"url": "https://github.com/octocat/Hello-World"}, headers=auth_headers
-    ).json()
+    return client.post("/api/v1/repositories", json={"url": url}, headers=auth_headers).json()
 
 
 def _analysis(db_session, repository_id: str, status: AnalysisStatus, *, age_s: int = 0) -> Analysis:
@@ -34,11 +32,13 @@ OLD = settings.stale_analysis_after_s + 60
 
 class TestExpireStaleAnalyses:
     def test_marks_old_pending_and_processing_analyses_as_failed(self, client, auth_headers, monkeypatch, db_session):
+        # Dois repositórios: só pode haver UMA análise em andamento por repositório (índice único parcial).
         repository = _register(client, auth_headers, monkeypatch)
+        other = _register(client, auth_headers, monkeypatch, "https://github.com/octocat/Spoon-Knife")
         stuck_processing = _analysis(db_session, repository["id"], AnalysisStatus.PROCESSANDO, age_s=OLD)
-        stuck_pending = _analysis(db_session, repository["id"], AnalysisStatus.PENDENTE, age_s=OLD)
+        stuck_pending = _analysis(db_session, other["id"], AnalysisStatus.PENDENTE, age_s=OLD)
 
-        assert expire_stale_analyses(db_session, [uuid.UUID(repository["id"])]) == 2
+        assert expire_stale_analyses(db_session, [uuid.UUID(repository["id"]), uuid.UUID(other["id"])]) == 2
 
         for analysis in (stuck_processing, stuck_pending):
             db_session.refresh(analysis)
