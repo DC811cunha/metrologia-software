@@ -10,6 +10,14 @@ updates:
     groups:
       backend-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      # Fora dos limites que o projeto aceita hoje (avaliado em 18/11/2026):
+      - dependency-name: sqlalchemy        # pyproject.toml limita a <2.1 (a 2.1 quebrou o driver psycopg no CI)
+        versions: [">=2.1"]
+      - dependency-name: mando             # radon 6 exige mando<0.8
+        versions: [">=0.8"]
+      - dependency-name: python-dateutil   # dependência indireta (celery/kombu): o resolvedor do pip decide
+      - dependency-name: ruff              # versão fixada em pyproject.toml; a 0.17 acrescenta ~200 achados de lint
 
   - package-ecosystem: npm
     directory: /src/frontend
@@ -24,6 +32,12 @@ updates:
       # reavaliar quando eles forem corrigidos.
       - dependency-name: babel-jest
         versions: [">=30.5.0"]
+      # Jest 30 traz glob/minimatch com avisos de segurança (dev): `npm audit` sairia de 0 para 10-18 itens
+      # moderados mesmo na 30.4. Ficamos no Jest 29 até isso ser corrigido.
+      - dependency-name: jest
+        versions: [">=30.0.0"]
+      - dependency-name: "@types/jest"
+        versions: [">=30.0.0"]
 
   - package-ecosystem: npm
     directory: /tests/e2e
