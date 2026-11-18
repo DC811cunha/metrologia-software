@@ -59,7 +59,7 @@ jobs:
           JWT_REFRESH_SECRET: test_refresh_secret_key
 
       - name: Upload cobertura
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: src/backend/coverage.xml
@@ -94,7 +94,7 @@ jobs:
         run: npm test -- --coverage
 
       - name: Upload cobertura
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: frontend-coverage
           path: src/frontend/coverage/
