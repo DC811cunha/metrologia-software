@@ -19,6 +19,11 @@ updates:
     groups:
       frontend-minor-patch:
         update-types: [minor, patch]
+    ignore:
+      # babel-jest 30.5+ puxa glob/minimatch com avisos de segurança (dev) e deixaria o `npm audit` com 6 itens;
+      # reavaliar quando eles forem corrigidos.
+      - dependency-name: babel-jest
+        versions: [">=30.5.0"]
 
   - package-ecosystem: npm
     directory: /tests/e2e
