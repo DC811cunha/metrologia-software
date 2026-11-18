@@ -26,25 +26,39 @@ PYTHON_EXTENSIONS = {".py"}
 JAVASCRIPT_EXTENSIONS = {".js", ".jsx", ".mjs", ".cjs"}
 TYPESCRIPT_EXTENSIONS = {".ts", ".tsx"}
 
+# Diretórios que nunca são código autoral: dependências, ambientes virtuais, caches e saídas de framework.
 IGNORED_DIR_NAMES = {
     ".git",
     "node_modules",
     "__pycache__",
     ".venv",
     "venv",
-    "env",
     "site-packages",
     "bower_components",
-    "dist",
-    "build",
-    "out",
-    "target",
     ".next",
     ".nuxt",
     "vendor",
     ".tox",
-    "coverage",
     "migrations",
+}
+
+# Nomes AMBÍGUOS: costumam ser saída de build (`build/`, `dist/`, `out/`, `target/`, `coverage/`), mas também
+# podem ser um pacote de código (`src/build/` de uma ferramenta de build, `app/out/`). Só são podados quando há
+# evidência de que são saída: estão na raiz do repositório ou ao lado de um manifesto de projeto. `env/` só é
+# podado se for de fato um ambiente virtual (tem `pyvenv.cfg`). Os arquivos gerados que sobrarem ainda são
+# filtrados por nome/forma (`*.min.js`, `*.d.ts`, bundles minificados).
+OUTPUT_DIR_NAMES = {"dist", "build", "out", "target", "coverage"}
+PROJECT_MANIFESTS = {
+    "package.json",
+    "pyproject.toml",
+    "setup.py",
+    "setup.cfg",
+    "requirements.txt",
+    "tsconfig.json",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "Cargo.toml",
 }
 
 # O SoftMeter mede o código de produção: testes ficam de fora de CC, LOC, MI, acoplamento e
@@ -135,6 +149,8 @@ class RepoMetrics:
     function_complexities: list[float] = field(default_factory=list)
     function_loc: list[float] = field(default_factory=list)
     file_maintainability_index: list[float] = field(default_factory=list)
+    # SLOC de cada arquivo (mesma ordem de `file_maintainability_index`): peso da média do MI.
+    file_sloc: list[float] = field(default_factory=list)
 
     def _average(self, values: list[float]) -> float | None:
         return sum(values) / len(values) if values else None
@@ -149,7 +165,13 @@ class RepoMetrics:
 
     @property
     def avg_maintainability_index(self) -> float | None:
-        return self._average(self.file_maintainability_index)
+        """Média do MI dos arquivos **ponderada pelas linhas de código** (ADR-015): um arquivo de uma linha
+        (um `__init__.py`, uma constante) não pode pesar o mesmo que um módulo de 500 linhas e inflar a média."""
+        total_weight = sum(self.file_sloc)
+        if len(self.file_sloc) != len(self.file_maintainability_index) or total_weight <= 0:
+            return self._average(self.file_maintainability_index)
+        weighted = sum(mi * weight for mi, weight in zip(self.file_maintainability_index, self.file_sloc, strict=True))
+        return weighted / total_weight
 
 
 def compute_maintainability_index(halstead_volume: float, complexity: float, sloc: float) -> float:
@@ -174,7 +196,15 @@ def iter_source_files(root: Path, extensions: set[str]) -> list[Path]:
     files: list[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
         check_deadline()
-        dirnames[:] = sorted(name for name in dirnames if name not in pruned)
+        current = Path(dirpath)
+        has_manifest = current == root or any(name in PROJECT_MANIFESTS for name in filenames)
+        dirnames[:] = sorted(
+            name
+            for name in dirnames
+            if name not in pruned
+            and not (name in OUTPUT_DIR_NAMES and has_manifest)
+            and not (name == "env" and (current / name / "pyvenv.cfg").is_file())
+        )
         for filename in sorted(filenames):
             path = Path(dirpath) / filename
             if path.suffix not in extensions or not path.is_file():
@@ -208,6 +238,7 @@ def analyze_python_file(code: str, metrics: RepoMetrics) -> None:
     metrics.file_maintainability_index.append(
         compute_maintainability_index(halstead_volume, total_complexity, sloc)
     )
+    metrics.file_sloc.append(float(sloc))
 
 
 _JS_LANGUAGE = Language(ts_javascript.language())
@@ -310,6 +341,7 @@ def analyze_js_ts_file(code: str, extension: str, metrics: RepoMetrics) -> None:
     metrics.file_maintainability_index.append(
         compute_maintainability_index(halstead_volume, total_complexity, sloc)
     )
+    metrics.file_sloc.append(float(sloc))
 
 
 def analyze_repository(root: Path, languages: list[str]) -> RepoMetrics:

@@ -1,5 +1,7 @@
 # ADR-011: Escopo dos Arquivos Analisados e Escolha da Cobertura
 
+> **Nota (18/11/2026):** os nomes ambíguos (`build`, `dist`, `out`, `target`, `coverage`, `env`) deixaram de ser podados em qualquer profundidade; passam a ser avaliados por contexto — ver [ADR-015](ADR-015-escopo-contextual-acoplamento-indefinido-e-mi-ponderado.md).
+
 **Data:** 08/11/2026
 **Status:** Aceito
 **Autor:** Diego Cunha
