@@ -1,5 +1,7 @@
 # ADR-010: Corretude das Métricas — Acoplamento, Duplicação e LOC
 
+> **Nota (18/11/2026):** a exceção do módulo único (`0.0`) foi revertida pelo [ADR-015](ADR-015-escopo-contextual-acoplamento-indefinido-e-mi-ponderado.md): sem aresta interna a instabilidade é indefinida e o acoplamento fica "Não disponível" também com um módulo só.
+
 **Data:** 08/11/2026
 **Status:** Aceito
 **Autor:** Diego Cunha

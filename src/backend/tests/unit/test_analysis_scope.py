@@ -20,10 +20,48 @@ def names(root: Path, extensions: set[str]) -> list[str]:
     return sorted(path.relative_to(root).as_posix() for path in iter_source_files(root, extensions))
 
 
+class TestAmbiguousDirectoriesAreJudgedByContext:
+    """`build/`, `dist/`, `out/`, `target/`, `coverage/` e `env/` podem ser saída/ambiente OU código autoral
+    (um `src/build/` de uma ferramenta de build). Só saem da medição com evidência de que são saída."""
+
+    @pytest.mark.parametrize("directory", ["build", "dist", "out", "target", "coverage"])
+    def test_output_directory_at_the_repository_root_is_ignored(self, tmp_path, directory):
+        write(tmp_path, "app.py")
+        write(tmp_path, f"{directory}/generated.py")
+
+        assert names(tmp_path, {".py"}) == ["app.py"]
+
+    @pytest.mark.parametrize("manifest", ["package.json", "pyproject.toml", "pom.xml", "Cargo.toml"])
+    def test_output_directory_next_to_a_project_manifest_is_ignored(self, tmp_path, manifest):
+        write(tmp_path, "frontend/src/app.py")
+        write(tmp_path, f"frontend/{manifest}", "{}")
+        write(tmp_path, "frontend/build/bundle_helper.py")
+        write(tmp_path, "frontend/dist/out.py")
+
+        assert names(tmp_path, {".py"}) == ["frontend/src/app.py"]
+
+    def test_a_package_named_build_inside_the_source_tree_is_measured(self, tmp_path):
+        # Regressão: o nome "build" era podado em qualquer profundidade e sumia com o pacote de uma ferramenta.
+        write(tmp_path, "pyproject.toml", "[project]\n")
+        write(tmp_path, "src/tool/build/compiler.py", "def compile():\n    return 1\n")
+        write(tmp_path, "src/tool/cli.py", "def main():\n    return 1\n")
+
+        assert names(tmp_path, {".py"}) == ["src/tool/build/compiler.py", "src/tool/cli.py"]
+
+    def test_env_is_ignored_only_when_it_is_a_virtual_environment(self, tmp_path):
+        write(tmp_path, "app.py")
+        write(tmp_path, "venv_like/pyvenv.cfg", "home = /usr/bin\n")
+        write(tmp_path, "env/pyvenv.cfg", "home = /usr/bin\n")
+        write(tmp_path, "env/bin/activate_this.py")
+        write(tmp_path, "settings/env/config.py")  # `env` de configuração, sem pyvenv.cfg
+
+        assert names(tmp_path, {".py"}) == ["app.py", "settings/env/config.py"]
+
+
 class TestGeneratedAndVendoredFiles:
     @pytest.mark.parametrize(
         "directory",
-        [".next", ".nuxt", "out", "target", "env", "site-packages", "bower_components", "migrations", "node_modules"],
+        [".next", ".nuxt", "out", "target", "site-packages", "bower_components", "migrations", "node_modules", "vendor"],
     )
     def test_ignores_generated_and_third_party_directories(self, tmp_path, directory):
         write(tmp_path, "app.py")

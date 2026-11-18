@@ -82,8 +82,8 @@ METRICS_CATALOG: dict[str, MetricDefinition] = {
     "indice_manutenibilidade": MetricDefinition(
         chave="indice_manutenibilidade",
         nome="Índice de Manutenibilidade",
-        unidade="escala 0-100 (por arquivo, média do repositório)",
-        formula="MI = 171 - 5.2*ln(HV) - 0.23*CC - 16.2*ln(LOC), normalizado 0-100",
+        unidade="escala 0-100 (por arquivo; média do repositório ponderada pelas linhas de código)",
+        formula="MI = 171 - 5.2*ln(HV) - 0.23*CC - 16.2*ln(LOC), normalizado 0-100, por arquivo; a média do repositório pesa cada arquivo pelas suas linhas de código (SLOC)",
         fonte_bibliografica="Coleman, D. et al. (1994). Using Metrics to Evaluate Software System Maintainability. IEEE Computer; ranks da ferramenta Radon",
         limite_nominal=20,
         limite_superior_condicional=10,

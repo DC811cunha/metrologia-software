@@ -80,6 +80,8 @@ class Settings(BaseSettings):
     email_from: str = "SoftMeter <onboarding@resend.dev>"
     frontend_url: str = "http://localhost:3000"
     password_reset_token_expires_minutes: int = 60
+    # Pedidos de recuperação aceitos por conta a cada hora (os excedentes são ignorados em silêncio).
+    password_reset_max_per_hour: int = 3
 
     @model_validator(mode="after")
     def _reject_insecure_production_config(self) -> "Settings":
