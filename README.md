@@ -119,7 +119,7 @@ A aplicação estará disponível em:
 ```bash
 # Backend (Python 3.12, requer venv local)
 cd src/backend
-pip install -e ".[dev]"
+pip install -c requirements.txt -e ".[dev]"   # versões fixas, as mesmas do Docker e do CI
 pytest --cov=app --cov-report=term-missing
 
 # Frontend
@@ -156,6 +156,10 @@ com HTTPS, que também encaminha `/api` ao backend.
 docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
 ```
+
+O backend de produção usa o estágio `prod` do `Dockerfile` (sem extras de teste, sem `--reload`, rodando como
+usuário comum) e os PDFs dos relatórios ficam em um **volume nomeado** (`reports_data_prod`): sem ele, cada
+recriação do container apagaria todos os relatórios já emitidos.
 
 Com `ENVIRONMENT=production` a API **se recusa a iniciar** com segredos JWT padrão ou curtos (< 32
 caracteres), `JWT_SECRET` igual a `JWT_REFRESH_SECRET`, `COOKIE_SECURE` desligado ou a senha padrão do banco.

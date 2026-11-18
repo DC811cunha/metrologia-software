@@ -1,0 +1,55 @@
+name: Auditoria de dependências
+
+# Fora do CI obrigatório de propósito: uma vulnerabilidade nova publicada de um dia para o outro não deve
+# travar PRs sem relação com ela. Roda toda segunda, sob demanda e quando um arquivo de dependências muda;
+# o resultado aparece na aba Actions e o job fica vermelho quando há algo a tratar.
+on:
+  schedule:
+    - cron: '0 11 * * 1'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'src/backend/requirements.txt'
+      - 'src/backend/pyproject.toml'
+      - 'src/frontend/package-lock.json'
+      - 'tests/e2e/package-lock.json'
+
+jobs:
+  backend:
+    name: Backend — pip-audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Auditar as versões fixas
+        run: |
+          pip install pip-audit
+          pip-audit -r src/backend/requirements.txt --no-deps --disable-pip
+
+  frontend:
+    name: Frontend — npm audit (dependências de execução)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Auditar src/frontend
+        working-directory: src/frontend
+        # `--omit=dev`: o que vai para o navegador. Vulnerabilidades só de ferramentas de desenvolvimento
+        # (vite/eslint) ficam registradas no ADR-007 até a atualização de versão maior.
+        run: npm audit --omit=dev --audit-level=high
+
+  e2e:
+    name: E2E — npm audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Auditar tests/e2e
+        working-directory: tests/e2e
+        run: npm audit --audit-level=high

@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 _ANALYSES_PATH = re.compile(r"^/api/v1/repositories/[^/]+/analyses$")
 _SWEEP_INTERVAL_S = 60.0
+_REDIS_TIMEOUT_S = 1.0
 
 
 class Rule:
@@ -111,7 +112,11 @@ class RedisRateLimiter:
     """Janela fixa: `INCR` + `EXPIRE` na primeira tentativa de cada janela."""
 
     def __init__(self, url: str, fallback: MemoryRateLimiter) -> None:
-        self._client = redis_asyncio.from_url(url)
+        # Sem timeout, um Redis que aceita a conexão mas não responde seguraria CADA requisição de login/
+        # cadastro/análise pelo tempo padrão do TCP em vez de cair para o limite em memória.
+        self._client = redis_asyncio.from_url(
+            url, socket_connect_timeout=_REDIS_TIMEOUT_S, socket_timeout=_REDIS_TIMEOUT_S
+        )
         self._fallback = fallback
         self._warned = False
 

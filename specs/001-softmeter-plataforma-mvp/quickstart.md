@@ -75,7 +75,7 @@ A aplicação estará disponível em:
 # Backend (cria venv local primeiro, se ainda não existir)
 cd src/backend
 python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -e ".[dev]"
+pip install -c requirements.txt -e ".[dev]"
 pytest --cov=app --cov-report=term-missing
 
 # Frontend
