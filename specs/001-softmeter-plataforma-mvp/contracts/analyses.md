@@ -55,6 +55,12 @@ catálogo (`data-model.md`). Se o tamanho do repositório estiver dentro do orç
 **Toda tentativa é registrada**: mesmo quando falha, a análise é gravada com `status = falhou`, o
 `motivo_falha` e a data de término (`concluida_em`), e continua visível no histórico.
 
+**Análises perdidas:** o Celery confirma a tarefa antes de executá-la; se o worker cair ou for reiniciado, nada
+atualizaria a análise. Por isso toda consulta que lista ou lê análises (`GET /repositories`, `GET …/analyses` e
+`GET …/analyses/{id}`) marca como `falhou` — com o motivo "A análise foi interrompida antes de terminar…" — as
+que seguem `pendente`/`processando` há mais de `STALE_ANALYSIS_AFTER_S` (padrão 900 s, bem acima do limite de
+tempo da análise).
+
 **Efeitos colaterais**: pode atualizar `url`/`owner_nome` do repositório se ele foi renomeado e gravar o
 `github_id` (ver *Identidade do repositório* em `repositories.md`); se o GitHub negar o acesso (403, 404
 ou 451), marca o repositório como `inacessivel`, e volta a `ativo` na primeira análise que o GitHub

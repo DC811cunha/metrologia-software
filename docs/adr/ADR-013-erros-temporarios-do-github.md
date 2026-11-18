@@ -61,3 +61,16 @@ preenchiam `concluida_em`, ao contrário das falhas do pipeline. A tela de hist�
 (uma migração preencheu as já existentes com `solicitada_em`), o item do histórico passa a incluir `status`,
 `motivo_falha` e `solicitada_em`, a tela mostra "Falhou" com o motivo, e um erro inesperado ao disparar a análise também a
 marca como `falhou` em vez de deixá-la `pendente`.
+
+## Atualização (18/11/2026): análises perdidas e tela
+
+Uma análise cujo worker caiu (a tarefa é confirmada antes de executar) ficava `processando` para sempre, e o
+polling da tela era um laço infinito. Agora (a) as consultas que listam ou leem análises marcam como `falhou`
+as que passam de `STALE_ANALYSIS_AFTER_S` (900 s) sem terminar — sem processo agendado, para não acrescentar
+uma peça ao deploy; (b) o worker descarta em silêncio o resultado de uma análise cujo repositório foi
+excluído durante a execução (antes: `StaleDataError` com traceback); (c) o polling tem tempo máximo (10 min),
+cancela ao sair da tela e tolera falhas de rede curtas; (d) o dashboard reconsulta uma análise em andamento.
+A lista de repositórios também passou a (e) manter os links do dashboard e do histórico após uma tentativa
+que falhou (`ultima_concluida_id`), (f) permitir executar a análise de um repositório `inacessivel` — que
+esta mesma decisão manda reativar quando ele responder — e (g) rotular o estado de acesso como
+"Inacessível" em vez de "Não-Conforme".

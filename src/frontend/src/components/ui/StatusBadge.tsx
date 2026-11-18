@@ -7,6 +7,8 @@ const STATUS_BADGE_CLASSES: Record<string, string> = {
   processando: 'bg-brand-500/20 text-brand-200',
   falhou: 'bg-nao-conforme-bg text-nao-conforme-text',
   Falhou: 'bg-nao-conforme-bg text-nao-conforme-text',
+  Concluída: 'bg-conforme-bg text-conforme-text',
+  Inacessível: 'bg-condicional-bg text-condicional-text',
   'Em andamento': 'bg-brand-500/20 text-brand-200',
 };
 

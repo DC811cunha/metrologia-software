@@ -37,6 +37,8 @@ class RepositoryResponse(BaseModel):
 class RepositoryListItemResponse(RepositoryResponse):
     ultima_analise_status: str | None = None
     ultima_analise_id: uuid.UUID | None = None
+    # A análise CONCLUÍDA mais recente: leva ao dashboard mesmo quando a última tentativa falhou.
+    ultima_concluida_id: uuid.UUID | None = None
     # Totais usados pelo aviso de confirmação ao excluir: o que será apagado junto com o repositório.
     total_analises: int = 0
     total_relatorios: int = 0

@@ -2,10 +2,11 @@ import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 import DashboardPage from '../src/pages/DashboardPage';
-import { getAnalysis } from '../src/services/analysisService';
+import { POLL_INTERVAL_MS, getAnalysis } from '../src/services/analysisService';
 import { generateAndDownloadReport } from '../src/services/reportService';
 
 jest.mock('../src/services/analysisService', () => ({
+  ...jest.requireActual('../src/services/analysisService'),
   getAnalysis: jest.fn(),
 }));
 
@@ -69,6 +70,26 @@ describe('DashboardPage', () => {
     expect(screen.getByTestId('scope-note')).toHaveTextContent(
       'Arquivos de teste, dependências e arquivos gerados ou minificados não entram nas métricas de código.',
     );
+  });
+
+  it('keeps checking an analysis that is still running and shows it when it finishes', async () => {
+    // Regressão: a tela mostrava "ainda em processamento" e ficava parada, exigindo recarregar a página.
+    jest.useFakeTimers();
+    try {
+      (getAnalysis as jest.Mock)
+        .mockResolvedValueOnce({ ...COMPLETED_ANALYSIS, status: 'processando', medicoes: [], status_conformidade_geral: null })
+        .mockResolvedValue(COMPLETED_ANALYSIS);
+
+      renderDashboard();
+      expect(await screen.findByText('Análise ainda em processamento…')).toBeInTheDocument();
+
+      await jest.advanceTimersByTimeAsync(POLL_INTERVAL_MS + 100);
+
+      await waitFor(() => expect(screen.getByText('Complexidade Ciclomática')).toBeInTheDocument());
+      expect(screen.queryByText('Análise ainda em processamento…')).not.toBeInTheDocument();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('shows the numeric overall index and explains how it is calculated', async () => {
