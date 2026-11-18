@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from sqlalchemy.orm import Session
 
@@ -23,6 +24,7 @@ from app.schemas.analysis import (
     MetricTrendResponse,
 )
 from app.services.stale_analyses import expire_stale_analyses
+from app.services.sync_slots import sync_slots
 from app.services.analysis_runner import dispatch_async_analysis, rate_limit_message, run_full_analysis
 from app.services.github_service import (
     GithubRateLimitError,
@@ -52,6 +54,21 @@ def _fail_analysis(db: Session, analysis: Analysis, message: str) -> None:
     db.commit()
 
 
+IN_PROGRESS_MESSAGE = "Já existe uma análise em andamento para este repositório. Aguarde ela terminar."
+
+
+def _analysis_in_progress(db: Session, repository_id: uuid.UUID) -> bool:
+    return (
+        db.execute(
+            select(Analysis.id).where(
+                Analysis.repositorio_id == repository_id,
+                Analysis.status.in_((AnalysisStatus.PENDENTE, AnalysisStatus.PROCESSANDO)),
+            )
+        ).first()
+        is not None
+    )
+
+
 @router.post("")
 def trigger_analysis(
     repository_id: uuid.UUID,
@@ -60,9 +77,19 @@ def trigger_analysis(
 ):
     repository = _get_owned_repository(db, repository_id, user)
 
+    # Uma análise perdida (worker caiu) não pode bloquear o repositório para sempre: as vencidas viram `falhou`.
+    expire_stale_analyses(db, [repository.id])
+    if _analysis_in_progress(db, repository.id):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=IN_PROGRESS_MESSAGE)
+
     analysis = Analysis(repositorio_id=repository.id, status=AnalysisStatus.PENDENTE)
     db.add(analysis)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as exc:
+        # Duas requisições passaram juntas pela checagem acima: o índice único parcial deixa só uma criar.
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=IN_PROGRESS_MESSAGE) from exc
     db.refresh(analysis)
 
     github_service = GithubService()
@@ -134,8 +161,13 @@ def _run_trigger(db: Session, analysis: Analysis, repository: Repository, github
     analysis.status = AnalysisStatus.PROCESSANDO
     db.commit()
 
-    if size_kb <= settings.sync_analysis_size_limit_kb:
-        run_full_analysis(db, analysis, repository, github_service)
+    # Pequeno o bastante para a requisição — e há vaga: roda aqui. Sem vaga (várias análises síncronas já em
+    # curso neste processo) segue pelo caminho assíncrono, em vez de ocupar mais uma thread da API.
+    if size_kb <= settings.sync_analysis_size_limit_kb and sync_slots.try_acquire():
+        try:
+            run_full_analysis(db, analysis, repository, github_service)
+        finally:
+            sync_slots.release()
         db.refresh(analysis)
         body = jsonable_encoder(AnalysisResponse.model_validate(analysis))
         return JSONResponse(status_code=status.HTTP_201_CREATED, content=body)

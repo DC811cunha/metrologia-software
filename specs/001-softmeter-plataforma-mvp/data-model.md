@@ -60,7 +60,9 @@ Execução pontual de medição sobre um Repositório (FR-003, FR-004, FR-007).
 | concluida_em | timestamp (nullable) | data de **término**: preenchido ao atingir `concluida` **ou `falhou`**; só `pendente`/`processando` a têm nula |
 | status_conformidade_geral | enum (nullable): `Conforme`, `Condicional`, `Não-Conforme` | calculado apenas quando `status = concluida`, a partir do índice agregado das Medições com status diferente de "Não disponível" (se nenhuma tiver escore, vale `Não-Conforme`) |
 
-**Máquina de estados**: `pendente → processando → (concluida | falhou)`. Nenhuma transição reversa.
+**Máquina de estados**: `pendente → processando → (concluida | falhou)`. Nenhuma transição reversa. **No máximo uma
+Análise em andamento (`pendente`/`processando`) por Repositório**: índice único parcial
+`uq_analyses_one_in_progress_per_repository`.
 Disparada exclusivamente por ação do usuário (FR-012) — sem agendamento automático. **Toda tentativa é
 gravada**, inclusive as que falham: o histórico mostra o que aconteceu e por quê (ADR-013).
 

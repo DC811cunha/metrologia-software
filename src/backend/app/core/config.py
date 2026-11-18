@@ -44,6 +44,9 @@ class Settings(BaseSettings):
     # tamanho (KB, conforme reportado pela API do GitHub) são analisados de forma
     # síncrona; acima disso, a análise é despachada para a fila Celery/Redis.
     sync_analysis_size_limit_kb: int = 5000
+    # Análises síncronas simultâneas por processo do servidor; acima disso a análise vai para a fila Celery
+    # (202) em vez de ocupar mais uma thread da API — ver services/sync_slots.py.
+    max_concurrent_sync_analyses: int = 4
 
     reports_dir: str = "generated_reports"
 
