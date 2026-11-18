@@ -1,6 +1,6 @@
 # Research: SoftMeter — Plataforma de Metrologia de Qualidade de Software
 
-**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-17 (itens 13 a 16 e notas de revisão nos itens 1, 3 a 7 e 9)
+**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-18 (itens 13 a 18 e notas de revisão nos itens 1, 3 a 7, 9 e 11)
 
 Este documento resolve as decisões técnicas necessárias para a Phase 1, derivadas da stack
 definida em ADR-003 e dos requisitos funcionais do `spec.md`.
@@ -50,6 +50,10 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 - **Alternatives considered**: Invocar uma ferramenta Node (ex.: `escomplex`) via subprocesso a
   partir do backend Python — adicionaria uma segunda runtime/dependência de sistema operacional
   ao Docker image, contrariando a simplicidade pretendida pelo ADR-003.
+- **Atualização (ADR-015)**: a média do Índice de Manutenibilidade do repositório é **ponderada pelo SLOC** de cada
+  arquivo (convenção do Visual Studio): um arquivo de uma linha não pesa o mesmo que um módulo de 500. Medido em
+  repositórios reais, a média simples → ponderada foi de 60,5 → 32,8 (`pallets/click`) e 51,8 → 29,8 (o próprio
+  SoftMeter); os limites do MI por arquivo não mudaram.
 - **Atualização (ADR-010)**: LOC passou a ser a contagem de linhas **físicas** com código, igual em Python
   (`sloc` do Radon, que alimenta também o Índice de Manutenibilidade) e em JS/TS (comentários identificados
   pela AST do tree-sitter). Arquivos de teste, dependências e arquivos gerados/minificados ficam fora (ADR-011).
@@ -69,7 +73,8 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
   *(Atualização, ADR-010 e ADR-012: os imports Python são casados com o **sufixo do caminho** dos módulos
   (qualquer layout) e ignorados se ambíguos; em JS/TS valem `paths`/`baseUrl` do `tsconfig`/`jsconfig` mais
   próximo, seguindo `extends`. Sem nenhum import interno resolvido, o resultado é "Não disponível" em vez
-  de um falso `0,0`.)*
+  de um falso `0,0`. Desde o ADR-015 isso vale também para um repositório de um único módulo: `I = Ce/(Ce+Ca)` é
+  0/0, indefinido.)*
 - **Alternatives considered**: CBO (Coupling Between Objects, Chidamber & Kemerer, 1994) — mais
   apropriado a paradigma orientado a objetos por classe; rejeitado porque parte do código-alvo
   (especialmente JS funcional) não é estruturado em classes, tornando a métrica inconsistente
@@ -127,6 +132,9 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
   *(Atualização, ADR-009: acima de `max_repo_size_kb` — 200 MB — a análise é recusada com HTTP 422; a análise
   síncrona tem prazo cooperativo de 300 s e o worker Celery tem `soft_time_limit`/`time_limit` por cima.
   Se a fila estiver fora do ar, a resposta é HTTP 503 e a análise fica `falhou`, nunca presa.)*
+  *(Atualização, ADR-008: só uma análise em andamento por repositório (índice único parcial; o segundo pedido recebe
+  409) e, com `MAX_CONCURRENT_SYNC_ANALYSES` análises síncronas em curso no processo, a nova vai para a fila (202).
+  Análises que passam de `STALE_ANALYSIS_AFTER_S` sem terminar viram `falhou` ao serem listadas ou lidas.)*
 - **Rationale**: Atende ao Princípio IV (resultado em até 10s para o caso padrão) sem impor um
   hard timeout abrupto que descartaria análises de repositórios maiores — a degradação graciosa é
   explicitamente exigida pela constituição.
@@ -179,6 +187,10 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
   por tempo de resposta. Registro completo, alternativas e limitações (sandbox sem domínio
   próprio) em `docs/adr/ADR-005-recuperacao-de-senha-via-email.md`.
 
+  *(Atualização, ADR-005: o endpoint não consulta o banco — só enfileira `request_password_reset` — e o worker grava o
+  token e envia o e-mail, com no máximo 3 pedidos por conta por hora. Medido: ~174 ms × ~151 ms antes, ~147 ms ×
+  ~150 ms depois.)*
+
 ## 12. Camada de estilo do frontend (Tailwind desde o MVP; tema escuro em 03/11/2026)
 
 - **Decision**: Tailwind CSS 3 sobre React/Vite (adotado no MVP), com — a partir do redesign de
@@ -220,6 +232,24 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
   de fora das métricas de código — e mostrar isso ao usuário no dashboard e no PDF (`SCOPE_NOTE`, mantido em
   dois lugares: `analysis/metrics_catalog.py` e `frontend/src/metricsCatalog.ts`). Ver ADR-011 e ADR-012.
 
+## 17. Concorrência de análises e análises perdidas (pós-MVP, 18/11/2026)
+
+- **Decision**: uma análise `pendente`/`processando` por repositório, garantida por um **índice único parcial** no banco
+  (sem corrida) mais uma checagem prévia que devolve 409; teto de análises síncronas por processo, com a fila como
+  válvula de escape; e encerramento, por tempo, das análises que nunca terminam — feito nas próprias consultas de
+  listagem/leitura, sem processo agendado (ADR-008, ADR-013).
+- **Alternatives considered**: tornar toda análise assíncrona (deixado para o deploy, pois muda a experiência de uso);
+  `acks_late` no Celery (reexecutaria tarefas e duplicaria análises); um "reaper" agendado (mais uma peça no deploy).
+
+## 18. Dependências e build reprodutível (pós-MVP, 18/11/2026)
+
+- **Decision**: `src/backend/requirements.txt` fixa todas as versões do backend (Docker e CI usam `-c`); `npm ci` no CI;
+  Dependabot semanal e workflow `audit.yml` (`pip-audit` + `npm audit`, fora dos checks obrigatórios); imagem de produção
+  sem extras de teste, sem `--reload` e sem root; PDFs em volume nomeado. O frontend está em `react-router` 7, `vite` 7 e
+  `@typescript-eslint` 8, com `npm audit` zerado (ADR-007).
+- **Rationale**: builds que mudam sozinhos tornam falhas irreproduzíveis; vulnerabilidades devem aparecer sem esperar uma
+  revisão manual.
+
 ## Resumo das decisões
 
 | # | Tópico | Decisão |
@@ -239,6 +269,8 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 | 13 | Limites de custo e de requisições *(pós-MVP)* | Tetos configuráveis, rate limit por IP (memória/Redis), produção recusa configuração insegura (ADR-007/008/009) |
 | 14 | Erros temporários do GitHub *(pós-MVP)* | Erros tipados; cota/indisponibilidade falham a análise sem bloquear o repositório (ADR-013) |
 | 15 | Identidade do repositório *(pós-MVP)* | `github_id` + nome canônico; nome reaproveitado barra a análise (ADR-014) |
-| 16 | Escopo da medição *(pós-MVP)* | Só código de produção, com nota visível no dashboard e no PDF (ADR-011/012) |
+| 16 | Escopo da medição *(pós-MVP)* | Só código de produção, com nota visível no dashboard e no PDF; pastas ambíguas julgadas por contexto (ADR-011/012/015) |
+| 17 | Concorrência de análises *(pós-MVP)* | Uma por repositório (índice único parcial), teto síncrono com fila, análises perdidas viram falha (ADR-008/013) |
+| 18 | Dependências e build *(pós-MVP)* | Versões fixas, Dependabot, auditoria, imagem de produção não-root, volume dos PDFs (ADR-007) |
 
 Nenhum item de Technical Context permanece como NEEDS CLARIFICATION após esta pesquisa.

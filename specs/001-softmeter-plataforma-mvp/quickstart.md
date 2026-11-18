@@ -1,6 +1,6 @@
 # Quickstart: SoftMeter — Plataforma de Metrologia de Qualidade de Software
 
-**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-17 (exclusão com confirmação, histórico de falhas, produção)
+**Feature**: 001-softmeter-plataforma-mvp | **Date**: 2026-06-24 | **Atualizado**: 2026-11-18 (exclusão com confirmação, histórico de falhas, concorrência de análises, produção)
 
 ## Pré-requisitos
 
@@ -56,8 +56,18 @@ A aplicação estará disponível em:
 2. Sem `RESEND_API_KEY`, o link de redefinição aparece no log do worker Celery:
    `docker compose logs celery-worker | grep reset-password`. Abrir o link
    (`/reset-password?token=…`), definir uma nova senha (mín. 8 caracteres) e fazer login com ela.
-3. Reabrir o mesmo link: deve ser recusado ("Token inválido ou expirado") — o token é de uso único
+3. Pedir o link mais de 3 vezes na mesma hora para o mesmo e-mail: a resposta continua igual, mas só os 3 primeiros
+   links são emitidos (os demais são ignorados em silêncio; o log do worker avisa).
+4. Reabrir o mesmo link: deve ser recusado ("Token inválido ou expirado") — o token é de uso único
    e expira em 60 minutos.
+
+## Validação manual — análises simultâneas (ADR-008)
+
+1. Em um repositório, clique duas vezes rapidamente em "Executar análise" (ou abra duas abas): o segundo pedido
+   recebe a mensagem "Já existe uma análise em andamento para este repositório…" (HTTP 409) e **não** cria tentativa nova.
+2. Quando a primeira termina, uma nova análise é aceita normalmente.
+3. Se o worker for reiniciado no meio de uma análise assíncrona, ela aparece como "Em andamento" por até 15 minutos e
+   depois vira "Falhou" ("A análise foi interrompida antes de terminar…") — sem bloquear o repositório.
 
 ## Validação manual — sessão e logout (ADR-006)
 
