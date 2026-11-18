@@ -35,6 +35,7 @@ Base path: `/api/v1/repositories` (autenticado; resultados sempre escopados ao u
 |-------|------|-------------|
 | `ultima_analise_status` | `string \| null` | status da tentativa mais recente (`processando`, `concluida` ou `falhou`); `null` se nunca analisado |
 | `ultima_analise_id` | `uuid \| null` | id dessa tentativa |
+| `ultima_concluida_id` | `uuid \| null` | id da análise **concluída** mais recente — leva ao dashboard mesmo quando a última tentativa falhou; `null` se nenhuma concluiu |
 | `total_analises` | `int` | quantidade de análises (qualquer status) |
 | `total_relatorios` | `int` | quantidade de relatórios gerados |
 

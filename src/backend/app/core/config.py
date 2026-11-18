@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     max_artifact_mb: int = 20
     max_coverage_artifacts: int = 5
     analysis_time_limit_s: int = 300
+    # Análise `pendente`/`processando` há mais que isto é considerada perdida (worker caiu/reiniciou) e vira
+    # `falhou` na próxima consulta — ver services/stale_analyses.py. Deve ficar bem acima do limite de tempo
+    # da análise e do Celery (300 + 60 s) mais a espera na fila.
+    stale_analysis_after_s: int = 900
 
     # Rate limit (issue #98): "redis" compartilha o contador entre processos/réplicas; "memory" vale
     # por processo. Os limites abaixo só são aplicados com ENVIRONMENT=production (login e

@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.dependencies import get_current_user
 from app.db.session import get_db
-from app.models.analysis import Analysis
+from app.models.analysis import Analysis, AnalysisStatus
 from app.models.report import Report
 from app.models.repository import Repository
 from app.models.user import User
@@ -20,6 +20,7 @@ from app.schemas.repository import (
     RepositoryResponse,
 )
 from app.services.analysis_runner import rate_limit_message
+from app.services.stale_analyses import expire_stale_analyses
 from app.services.github_service import (
     GithubRateLimitError,
     GithubService,
@@ -95,6 +96,7 @@ def list_repositories(
     )
 
     repository_ids = [repository.id for repository in repositories]
+    expire_stale_analyses(db, repository_ids)
     # Duas consultas agrupadas para a lista toda (em vez de uma por repositório).
     analyses_per_repository: dict[uuid.UUID, int] = {
         repository_id: total
@@ -113,6 +115,15 @@ def list_repositories(
         ).tuples()
     }
 
+    # Mais recente CONCLUÍDA de cada repositório (a primeira que aparece na ordem decrescente).
+    last_completed: dict[uuid.UUID, uuid.UUID] = {}
+    for repository_id, analysis_id in db.execute(
+        select(Analysis.repositorio_id, Analysis.id)
+        .where(Analysis.repositorio_id.in_(repository_ids), Analysis.status == AnalysisStatus.CONCLUIDA)
+        .order_by(Analysis.solicitada_em.desc())
+    ).tuples():
+        last_completed.setdefault(repository_id, analysis_id)
+
     results = []
     for repository in repositories:
         last_analysis = db.execute(
@@ -126,6 +137,7 @@ def list_repositories(
                 **RepositoryResponse.model_validate(repository).model_dump(),
                 ultima_analise_status=last_analysis.status if last_analysis else None,
                 ultima_analise_id=last_analysis.id if last_analysis else None,
+                ultima_concluida_id=last_completed.get(repository.id),
                 total_analises=analyses_per_repository.get(repository.id, 0),
                 total_relatorios=reports_per_repository.get(repository.id, 0),
             )

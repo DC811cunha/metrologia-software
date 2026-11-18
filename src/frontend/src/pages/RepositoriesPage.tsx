@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { isAxiosError } from 'axios';
 
@@ -11,7 +11,7 @@ import Input from '../components/ui/Input';
 import PageHeader from '../components/ui/PageHeader';
 import Skeleton from '../components/ui/Skeleton';
 import StatusBadge from '../components/ui/StatusBadge';
-import { triggerAnalysis } from '../services/analysisService';
+import { AnalysisPollingTimeoutError, isAbortError, triggerAnalysis } from '../services/analysisService';
 import { serverDetail } from '../services/errors';
 import {
   Repository,
@@ -34,6 +34,14 @@ function describeContents(repository: Repository): { text: string; hasReports: b
   ];
   return { text: parts.join(' e '), hasReports: reports > 0 };
 }
+
+/** Rótulo do estado da última tentativa de análise (o backend devolve o status em minúsculas, sem acento). */
+const ATTEMPT_LABEL: Record<string, string> = {
+  concluida: 'Concluída',
+  falhou: 'Falhou',
+  processando: 'Em andamento',
+  pendente: 'Em andamento',
+};
 
 function hasContents(repository: Repository): boolean {
   return (repository.total_analises ?? 0) > 0 || (repository.total_relatorios ?? 0) > 0;
@@ -80,8 +88,12 @@ function RepositoriesPage() {
   const [analyzingId, setAnalyzingId] = useState<string | null>(null);
   const [lastResultMessage, setLastResultMessage] = useState<string | null>(null);
 
-  async function loadRepositories() {
-    setLoading(true);
+  // Cancela o acompanhamento de uma análise assíncrona ao sair da tela (senão o polling segue em segundo plano).
+  const analysisAbort = useRef<AbortController | null>(null);
+
+  /** `silent`: recarrega sem trocar a lista por esqueletos (depois de uma ação, para a tela não "piscar"). */
+  async function loadRepositories(silent = false) {
+    if (!silent) setLoading(true);
     try {
       setRepositories(await listRepositories());
     } catch {
@@ -93,6 +105,7 @@ function RepositoriesPage() {
 
   useEffect(() => {
     loadRepositories();
+    return () => analysisAbort.current?.abort();
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -102,12 +115,14 @@ function RepositoriesPage() {
     try {
       await createRepository(url);
       setUrl('');
-      await loadRepositories();
+      await loadRepositories(true);
     } catch (err) {
       if (isAxiosError(err) && err.response?.status === 409) {
         setError('Este repositório já está cadastrado.');
       } else if (isAxiosError(err) && err.response?.status === 422) {
-        setError('URL inválida, repositório inacessível ou linguagem não suportada (Python/JS/TS).');
+        // O servidor diz o motivo exato (repositório inacessível, linguagem fora do escopo…); a lista de
+        // erros de validação (URL malformada) não é texto e cai na mensagem genérica.
+        setError(serverDetail(err) ?? 'URL inválida. Use o formato https://github.com/dono/repositorio.');
       } else if (isAxiosError(err) && (err.response?.status === 429 || err.response?.status === 502)) {
         setError(serverDetail(err) ?? 'O GitHub não respondeu agora. Tente novamente em instantes.');
       } else {
@@ -121,7 +136,7 @@ function RepositoriesPage() {
   async function handleDelete(id: string) {
     try {
       await deleteRepository(id);
-      await loadRepositories();
+      await loadRepositories(true);
     } catch {
       setError('Não foi possível remover o repositório.');
     }
@@ -148,8 +163,11 @@ function RepositoriesPage() {
     setError(null);
     setLastResultMessage(null);
     setAnalyzingId(id);
+    analysisAbort.current?.abort();
+    const controller = new AbortController();
+    analysisAbort.current = controller;
     try {
-      const analysis = await triggerAnalysis(id);
+      const analysis = await triggerAnalysis(id, controller.signal);
       if (analysis.status === 'falhou') {
         setLastResultMessage(`Análise falhou: ${analysis.motivo_falha ?? 'motivo desconhecido'}`);
       } else {
@@ -157,13 +175,22 @@ function RepositoriesPage() {
           `Análise concluída — conformidade geral: ${analysis.status_conformidade_geral}`,
         );
       }
-      await loadRepositories();
+      await loadRepositories(true);
     } catch (err) {
+      if (isAbortError(err)) return; // saiu da tela: nada a atualizar
+      if (err instanceof AnalysisPollingTimeoutError) {
+        setLastResultMessage(
+          'A análise está demorando mais que o esperado e continua no servidor. Veja o resultado no histórico mais tarde.',
+        );
+        await loadRepositories(true);
+        return;
+      }
       const status = isAxiosError(err) ? err.response?.status : undefined;
       const explainable = status !== undefined && [409, 422, 429, 502, 503].includes(status);
       setError((explainable ? serverDetail(err) : null) ?? 'Não foi possível executar a análise.');
     } finally {
-      setAnalyzingId(null);
+      if (analysisAbort.current === controller) analysisAbort.current = null;
+      setAnalyzingId((current) => (current === id ? null : current));
     }
   }
 
@@ -241,29 +268,39 @@ function RepositoriesPage() {
                           {lang}
                         </span>
                       ))}
-                      {repository.status_acesso === 'inacessivel' && <StatusBadge label="Não-Conforme" />}
+                      {repository.status_acesso === 'inacessivel' && <StatusBadge label="Inacessível" />}
                       {repository.ultima_analise_status && (
-                        <StatusBadge label={repository.ultima_analise_status} />
+                        <StatusBadge
+                          label={ATTEMPT_LABEL[repository.ultima_analise_status] ?? repository.ultima_analise_status}
+                        />
                       )}
                     </div>
                   </div>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-2">
-                  {repository.ultima_analise_status === 'concluida' && repository.ultima_analise_id && (
-                    <Link
-                      to={`/repositories/${repository.id}/analyses/${repository.ultima_analise_id}`}
-                      className="inline-flex min-h-[40px] items-center rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-sm font-semibold text-brand-300 transition-colors hover:border-brand-400/50 hover:bg-brand-500/100/25"
-                    >
-                      Ver dashboard
-                    </Link>
+                  {repository.ultima_concluida_id && (
+                    <>
+                      <Link
+                        to={`/repositories/${repository.id}/analyses/${repository.ultima_concluida_id}`}
+                        className="inline-flex min-h-[40px] items-center rounded-lg border border-brand-500/30 bg-brand-500/10 px-4 py-2 text-sm font-semibold text-brand-300 transition-colors hover:border-brand-400/50 hover:bg-brand-500/100/25"
+                      >
+                        Ver dashboard
+                      </Link>
+                      <Link
+                        to={`/repositories/${repository.id}/history`}
+                        className="inline-flex min-h-[40px] items-center rounded-lg border border-line-strong px-4 py-2 text-sm font-semibold text-fg-soft transition-colors hover:border-brand-400/50 hover:bg-white/5"
+                      >
+                        Histórico
+                      </Link>
+                    </>
                   )}
                   <Button
                     variant="secondary"
                     icon={<PlayIcon className="h-4 w-4" />}
                     loading={analyzingId === repository.id}
                     onClick={() => handleAnalyze(repository.id)}
-                    disabled={analyzingId === repository.id || repository.status_acesso === 'inacessivel'}
+                    disabled={analyzingId === repository.id}
                   >
                     {analyzingId === repository.id ? 'Analisando…' : 'Executar análise'}
                   </Button>

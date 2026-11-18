@@ -21,6 +21,7 @@ from app.schemas.analysis import (
     MetricSeriesPointResponse,
     MetricTrendResponse,
 )
+from app.services.stale_analyses import expire_stale_analyses
 from app.services.analysis_runner import dispatch_async_analysis, rate_limit_message, run_full_analysis
 from app.services.github_service import (
     GithubRateLimitError,
@@ -158,6 +159,7 @@ def list_analyses(
     user: User = Depends(get_current_user),
 ):
     _get_owned_repository(db, repository_id, user)
+    expire_stale_analyses(db, [repository_id])
     analyses = (
         db.execute(
             select(Analysis)
@@ -208,6 +210,7 @@ def get_analysis(
     user: User = Depends(get_current_user),
 ) -> Analysis:
     _get_owned_repository(db, repository_id, user)
+    expire_stale_analyses(db, [repository_id])
     analysis = db.get(Analysis, analysis_id)
     if analysis is None or analysis.repositorio_id != repository_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Análise não encontrada")
