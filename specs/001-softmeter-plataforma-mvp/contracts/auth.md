@@ -16,6 +16,11 @@ Base path: `/api/v1/auth`
   **reset de senha**; um token de versão antiga é recusado (`401`), então a revogação vale para os dois
   tipos de token e é imediata, sem esperar a expiração.
 - **Senha:** de 8 a **72 bytes** em UTF-8 (limite do bcrypt); fora disso, `422`.
+- **E-mail:** comparado **sem distinção de caixa** — a API normaliza para minúsculas (e remove espaços nas
+  pontas) em cadastro, login e recuperação de senha; `Pessoa@Example.com` e `pessoa@example.com` são a mesma
+  conta (o segundo cadastro responde `409`).
+- **Erros de limite** (`429` por excesso de requisições e `413` por corpo acima de 64 KB) também levam os
+  cabeçalhos CORS, para o navegador conseguir ler a mensagem do servidor.
 
 ## POST /api/v1/auth/register
 

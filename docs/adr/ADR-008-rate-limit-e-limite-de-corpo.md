@@ -50,6 +50,14 @@ deploy público:
 - **Não confiar em `X-Forwarded-For` por conta própria:** qualquer cliente pode forjar o cabeçalho,
   o que permitiria burlar o limite; a confiança é delegada ao servidor ASGI, restrita ao proxy.
 
+## Atualização (18/11/2026): CORS nas respostas 429 e 413
+
+O CORS estava por dentro dos middlewares de tamanho e de limite: as respostas `413` e `429` saíam sem
+`Access-Control-Allow-Origin` e o navegador as mostrava como "Network Error", escondendo a mensagem (no login, o
+usuário via "credenciais inválidas"). O `add_middleware` coloca o novo middleware por fora dos anteriores, então o
+CORS passou a ser o último adicionado (o mais externo), e as telas de autenticação mostram a mensagem do servidor
+no `429`.
+
 ## Consequências
 
 - O limite por IP penaliza usuários atrás de um mesmo NAT (ex.: uma sala de aula analisando

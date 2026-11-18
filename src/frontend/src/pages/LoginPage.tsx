@@ -7,6 +7,7 @@ import Button from '../components/ui/Button';
 import { LockIcon, MailIcon } from '../components/ui/Icon';
 import Input from '../components/ui/Input';
 import api, { ACCESS_TOKEN_KEY } from '../services/api';
+import { tooManyRequestsMessage } from '../services/errors';
 
 const LINK_CLASSES = 'font-semibold text-brand-400 hover:text-brand-300 hover:underline';
 
@@ -28,8 +29,8 @@ function LoginPage() {
       const response = await api.post('/api/v1/auth/login', { email, password });
       localStorage.setItem(ACCESS_TOKEN_KEY, response.data.access_token);
       navigate('/repositories', { replace: true });
-    } catch {
-      setError('Credenciais inválidas.');
+    } catch (err) {
+      setError(tooManyRequestsMessage(err) ?? 'Credenciais inválidas.');
     } finally {
       setSubmitting(false);
     }

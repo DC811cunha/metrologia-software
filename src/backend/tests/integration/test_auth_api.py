@@ -427,3 +427,44 @@ class TestLogoutRevokesTheSession:
         response = client.get("/api/v1/repositories", headers={"Authorization": f"Bearer {access}"})
 
         assert response.status_code == 401
+
+
+class TestEmailsIgnoreCase:
+    """Regressão: "Pessoa@Example.com" e "pessoa@example.com" criavam duas contas e o login com outra
+    caixa falhava com 401."""
+
+    PASSWORD = "super-secret-123"
+
+    def test_register_stores_the_email_in_lowercase(self, client, db_session):
+        from app.models.user import User
+
+        response = client.post("/api/v1/auth/register", json={"email": "Pessoa@Example.COM", "password": self.PASSWORD})
+
+        assert response.status_code == 201
+        assert db_session.query(User).one().email == "pessoa@example.com"
+
+    def test_the_same_email_in_another_case_is_a_conflict(self, client):
+        client.post("/api/v1/auth/register", json={"email": "Pessoa@Example.com", "password": self.PASSWORD})
+
+        response = client.post("/api/v1/auth/register", json={"email": "pessoa@example.com", "password": self.PASSWORD})
+
+        assert response.status_code == 409
+
+    def test_login_works_with_any_case(self, client):
+        client.post("/api/v1/auth/register", json={"email": "pessoa@example.com", "password": self.PASSWORD})
+
+        for email in ("PESSOA@example.com", "Pessoa@Example.com", " pessoa@example.com "):
+            response = client.post("/api/v1/auth/login", json={"email": email, "password": self.PASSWORD})
+            assert response.status_code == 200, email
+
+    def test_forgot_password_finds_the_account_with_any_case(self, client, monkeypatch):
+        import app.api.auth as auth_module
+
+        sent: list[str] = []
+        monkeypatch.setattr(auth_module.send_password_reset_email_task, "delay", lambda email, link: sent.append(email))
+        client.post("/api/v1/auth/register", json={"email": "pessoa@example.com", "password": self.PASSWORD})
+
+        response = client.post("/api/v1/auth/forgot-password", json={"email": "PESSOA@Example.com"})
+
+        assert response.status_code == 200
+        assert sent == ["pessoa@example.com"]
