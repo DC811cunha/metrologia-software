@@ -8,6 +8,7 @@ garantir consistência entre linguagens (Constituição, Princípio V).
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -166,20 +167,27 @@ def compute_maintainability_index(halstead_volume: float, complexity: float, slo
 
 def iter_source_files(root: Path, extensions: set[str]) -> list[Path]:
     max_bytes = settings.max_source_file_kb * 1024
+    # Diretórios de dependências, gerados e de teste são podados ANTES de descer neles (antes, `rglob` percorria
+    # `node_modules` inteiro só para descartar cada arquivo depois), e a ordem é alfabética: a mesma em qualquer
+    # máquina, sem depender da ordem do sistema de arquivos.
+    pruned = IGNORED_DIR_NAMES | TEST_DIR_NAMES
     files: list[Path] = []
-    for path in root.rglob("*"):
+    for dirpath, dirnames, filenames in os.walk(root):
         check_deadline()
-        if not path.is_file() or path.suffix not in extensions:
-            continue
-        relative = path.relative_to(root)
-        if IGNORED_DIR_NAMES & set(relative.parts[:-1]) or is_test_file(relative):
-            continue
-        if path.name.endswith(_GENERATED_SUFFIXES) or (path.suffix in JAVASCRIPT_EXTENSIONS | TYPESCRIPT_EXTENSIONS and _looks_minified(path)):
-            continue
-        # Arquivo enorme é quase sempre gerado/minificado/dados: custo alto e valor ~nulo.
-        if path.stat().st_size > max_bytes:
-            continue
-        files.append(path)
+        dirnames[:] = sorted(name for name in dirnames if name not in pruned)
+        for filename in sorted(filenames):
+            path = Path(dirpath) / filename
+            if path.suffix not in extensions or not path.is_file():
+                continue
+            relative = path.relative_to(root)
+            if is_test_file(relative):
+                continue
+            if path.name.endswith(_GENERATED_SUFFIXES) or (path.suffix in JAVASCRIPT_EXTENSIONS | TYPESCRIPT_EXTENSIONS and _looks_minified(path)):
+                continue
+            # Arquivo enorme é quase sempre gerado/minificado/dados: custo alto e valor ~nulo.
+            if path.stat().st_size > max_bytes:
+                continue
+            files.append(path)
     return files
 
 

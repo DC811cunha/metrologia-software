@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from sqlalchemy.orm import Session
 
 from app.analysis.metrics_catalog import METRICS_CATALOG
@@ -164,6 +165,7 @@ def list_analyses(
         db.execute(
             select(Analysis)
             .where(Analysis.repositorio_id == repository_id)
+            .options(selectinload(Analysis.medicoes))  # uma consulta para todas as medições (antes: uma por análise)
             .order_by(Analysis.solicitada_em.asc())
         )
         .scalars()

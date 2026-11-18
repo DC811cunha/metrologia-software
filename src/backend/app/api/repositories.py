@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -47,6 +48,16 @@ def create_repository(
     user: User = Depends(get_current_user),
 ) -> Repository:
     owner, repo = parse_repo_url(payload.url)
+    # Forma única: sempre https, sem ".git" nem barra final. O GitHub ignora a caixa do nome, então a duplicata
+    # também (antes, "Foo/Bar" e "foo/bar", ou com ".git", viravam dois cadastros até a primeira análise).
+    canonical_url = f"https://github.com/{owner}/{repo}"
+    already_registered = db.execute(
+        select(Repository.id).where(
+            Repository.usuario_id == user.id, func.lower(Repository.url) == canonical_url.lower()
+        )
+    ).first()
+    if already_registered is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Repositório já cadastrado")
 
     github_service = GithubService()
     try:
@@ -71,7 +82,7 @@ def create_repository(
 
     repository = Repository(
         usuario_id=user.id,
-        url=payload.url,
+        url=canonical_url,
         owner_nome=f"{owner}/{repo}",
         linguagens_detectadas=languages,
     )
@@ -85,6 +96,31 @@ def create_repository(
         ) from exc
     db.refresh(repository)
     return repository
+
+
+def _latest_analysis_per_repository(
+    db: Session, repository_ids: list[uuid.UUID], *conditions: ColumnElement[bool]
+) -> dict[uuid.UUID, tuple[uuid.UUID, str]]:
+    """`{repositório: (id, status)}` da análise mais recente de cada um (entre as que atendem às
+    `conditions`), com uma função de janela — uma única consulta para a lista toda."""
+    if not repository_ids:
+        return {}
+    ranked = (
+        select(
+            Analysis.repositorio_id.label("repositorio_id"),
+            Analysis.id.label("id"),
+            Analysis.status.label("status"),
+            func.row_number()
+            .over(partition_by=Analysis.repositorio_id, order_by=Analysis.solicitada_em.desc())
+            .label("position"),
+        )
+        .where(Analysis.repositorio_id.in_(repository_ids), *conditions)
+        .subquery()
+    )
+    rows = db.execute(
+        select(ranked.c.repositorio_id, ranked.c.id, ranked.c.status).where(ranked.c.position == 1)
+    ).tuples()
+    return {repository_id: (analysis_id, str(status)) for repository_id, analysis_id, status in rows}
 
 
 @router.get("", response_model=list[RepositoryListItemResponse])
@@ -115,29 +151,20 @@ def list_repositories(
         ).tuples()
     }
 
-    # Mais recente CONCLUÍDA de cada repositório (a primeira que aparece na ordem decrescente).
-    last_completed: dict[uuid.UUID, uuid.UUID] = {}
-    for repository_id, analysis_id in db.execute(
-        select(Analysis.repositorio_id, Analysis.id)
-        .where(Analysis.repositorio_id.in_(repository_ids), Analysis.status == AnalysisStatus.CONCLUIDA)
-        .order_by(Analysis.solicitada_em.desc())
-    ).tuples():
-        last_completed.setdefault(repository_id, analysis_id)
+    # Última tentativa e última CONCLUÍDA de cada repositório, cada uma em UMA consulta (antes: uma por repositório).
+    last_attempt = _latest_analysis_per_repository(db, repository_ids)
+    last_completed = _latest_analysis_per_repository(db, repository_ids, Analysis.status == AnalysisStatus.CONCLUIDA)
 
     results = []
     for repository in repositories:
-        last_analysis = db.execute(
-            select(Analysis)
-            .where(Analysis.repositorio_id == repository.id)
-            .order_by(Analysis.solicitada_em.desc())
-            .limit(1)
-        ).scalar_one_or_none()
+        attempt = last_attempt.get(repository.id)
+        completed = last_completed.get(repository.id)
         results.append(
             RepositoryListItemResponse(
                 **RepositoryResponse.model_validate(repository).model_dump(),
-                ultima_analise_status=last_analysis.status if last_analysis else None,
-                ultima_analise_id=last_analysis.id if last_analysis else None,
-                ultima_concluida_id=last_completed.get(repository.id),
+                ultima_analise_status=attempt[1] if attempt else None,
+                ultima_analise_id=attempt[0] if attempt else None,
+                ultima_concluida_id=completed[0] if completed else None,
                 total_analises=analyses_per_repository.get(repository.id, 0),
                 total_relatorios=reports_per_repository.get(repository.id, 0),
             )
