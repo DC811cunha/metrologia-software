@@ -4,7 +4,7 @@
 #     rodando como usuário comum (não root).
 # As versões vêm do requirements.txt (constraints), para o build ser reprodutível.
 
-FROM python:3.12-slim AS base
+FROM python:3.15-slim AS base
 
 WORKDIR /app
 
