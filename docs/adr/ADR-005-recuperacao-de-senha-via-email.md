@@ -74,6 +74,19 @@ próprio produto e para atingir qualquer caixa de entrada de destino.
 - **Mensagem genérica em `forgot-password` é uma prática padrão de segurança** (OWASP) contra
   enumeração de contas via diferença de resposta entre e-mail existente e inexistente.
 
+## Atualização (18/11/2026): o endpoint só enfileira
+
+O PR #79 tirou o **envio** do e-mail da requisição, mas o endpoint ainda consultava o banco e gravava o token
+só para e-mails cadastrados. Medido no ambiente real: mediana de ~174 ms com conta × ~151 ms sem conta — pequena,
+porém constante. Agora o endpoint apenas enfileira `request_password_reset(email)` e responde a mesma mensagem
+(sem tocar no banco; um teste verifica que nenhuma consulta SQL ocorre na requisição); o worker consulta a conta,
+grava o token e envia o e-mail. Medição depois: ~147 ms × ~150 ms (a diferença sumiu).
+
+Duas consequências: (a) **limite por conta** — 3 pedidos por hora (`PASSWORD_RESET_MAX_PER_HOUR`), com os excedentes
+ignorados em silêncio, para não encher a caixa de alguém a partir de vários IPs (o limite de 10/min por IP, ADR-008,
+continua); (b) com a fila fora do ar o pedido não chega ao worker e o erro só é registrado em log — a resposta não pode
+diferenciar o estado do sistema. Tokens usados ou vencidos há mais de uma hora são removidos ao emitir um novo.
+
 ## Consequências
 
 - **Limitação conhecida e temporária: e-mails só chegam à própria conta Resend em modo sandbox.**
