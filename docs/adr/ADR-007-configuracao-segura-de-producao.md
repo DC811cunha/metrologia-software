@@ -56,10 +56,14 @@ Da revisão geral de 18/11/2026:
   cuidam das atualizações e dos alertas.
 - **Redis do limitador com timeout** (1 s): um Redis que aceita a conexão e não responde fazia cada requisição
   esperar o tempo padrão do TCP em vez de cair para o limite em memória (ADR-008).
-- **Vulnerabilidades conhecidas e aceitas por ora**, todas sem efeito em produção: `react-router` (aviso de redirecionamento
-  aberto em `<Link>`/`useNavigate` com URL controlada pelo usuário — o app só usa rotas fixas — e de hidratação SSR,
-  que não usamos); a correção exige a versão 7, que ainda não funciona com o nosso Jest sem ajustes. `vite`/`esbuild`/`minimatch`
-  (servidor de desenvolvimento e ESLint, nunca vão para produção); a correção exige atualização de versão maior.
+- **Vulnerabilidades do frontend: zero.** O `npm audit fix` resolveu `axios` e `follow-redirects`; sobravam avisos que
+  exigiam versão maior — `react-router` 6 (redirecionamento aberto em `<Link>`/`useNavigate` com URL controlada pelo
+  usuário e hidratação SSR; o app só usa rotas fixas) e, só em desenvolvimento, `vite`/`esbuild` 5 e `minimatch` via
+  `@typescript-eslint` 6. Foram atualizados em seguida para `react-router-dom` 7, `vite` 7 (com `@vitejs/plugin-react` 5)
+  e `@typescript-eslint` 8. O que a troca exigiu foi pouco: um polyfill de `TextEncoder` no `jest.setup.ts` (o
+  `react-router` 7 o usa e o jsdom não o fornece), trocar uma interface vazia por um tipo (regra nova do ESLint) e o
+  `engines` do `package.json` (`node >= 20.19`, exigência do vite 7). Verificado com a suíte E2E completa (15/15) contra
+  a stack Docker com as versões novas.
 
 ## Consequências
 

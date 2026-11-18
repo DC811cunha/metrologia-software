@@ -38,9 +38,9 @@ jobs:
           node-version: '20'
       - name: Auditar src/frontend
         working-directory: src/frontend
-        # `--omit=dev`: o que vai para o navegador. Vulnerabilidades só de ferramentas de desenvolvimento
-        # (vite/eslint) ficam registradas no ADR-007 até a atualização de versão maior.
-        run: npm audit --omit=dev --audit-level=high
+        # Inclui as dependências de desenvolvimento (vite, ESLint…): o projeto está com zero avisos e a ideia é
+        # mantê-lo assim, não acumular exceções.
+        run: npm audit --audit-level=high
 
   e2e:
     name: E2E — npm audit
