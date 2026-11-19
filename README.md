@@ -146,18 +146,22 @@ O `docker-compose.yml` é **somente para desenvolvimento**: publica o Postgres (
 sem senha) em todas as interfaces, usa senhas e segredos JWT padrão e roda o backend com `--reload` e o
 código montado como volume. **Não o use para publicar a aplicação.**
 
-Para produção há o `docker-compose.prod.yml`: sem portas de banco/Redis, sem `--reload`, Redis com senha
-e todas as credenciais obrigatórias (o `compose` recusa subir se alguma faltar). Ele cobre backend, worker,
-Postgres e Redis; o frontend deve ser servido como build estático (`npm run build`) por um proxy reverso
-com HTTPS, que também encaminha `/api` ao backend.
+Para produção há o `docker-compose.prod.yml`: sem portas de banco/Redis/API, sem `--reload`, Redis com senha
+e todas as credenciais obrigatórias (o `compose` recusa subir se alguma faltar). Ele cobre o **Caddy** (`web`: serve
+o build estático do frontend e encaminha `/api` e `/health` ao backend, com HTTPS automático via Let's Encrypt, tudo
+no mesmo domínio por causa do cookie `SameSite=Lax`), o backend, o worker, o Postgres e o Redis. Só o Caddy publica
+portas (80/443).
 
 ```bash
-# 1. Defina as variáveis (ver comentários no .env.example): DB_PASSWORD, REDIS_PASSWORD, JWT_SECRET,
-#    JWT_REFRESH_SECRET, FRONTEND_URL, CORS_ORIGINS, FORWARDED_ALLOW_IPS
-# 2. Suba e aplique as migrations
-docker compose -f docker-compose.prod.yml up -d --build
-docker compose -f docker-compose.prod.yml run --rm backend alembic upgrade head
+# 1. Defina as variáveis (ver comentários no .env.example): SITE_ADDRESS (o domínio), DB_PASSWORD, REDIS_PASSWORD,
+#    JWT_SECRET, JWT_REFRESH_SECRET, FRONTEND_URL, CORS_ORIGINS
+# 2. Construa, aplique as migrations e suba (no servidor, isto e as próximas atualizações: um único comando)
+./scripts/deploy.sh
 ```
+
+Para testar na própria máquina, use `SITE_ADDRESS=localhost` (o Caddy cria um certificado interno) e
+`FRONTEND_URL=https://localhost`. O passo a passo da publicação na AWS está em
+[`docs/deploy/roteiro-deploy-aws.md`](docs/deploy/roteiro-deploy-aws.md).
 
 O backend de produção usa o estágio `prod` do `Dockerfile` (sem extras de teste, sem `--reload`, rodando como
 usuário comum) e os PDFs dos relatórios ficam em um **volume nomeado** (`reports_data_prod`): sem ele, cada
