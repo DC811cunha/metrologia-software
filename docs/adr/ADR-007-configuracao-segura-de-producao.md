@@ -77,7 +77,12 @@ o `COPY . .` do Dockerfile copiava o `node_modules` **do host** (versões e bin�
 imagem acabara de instalar — o container rodava o Vite 7 antigo e falhava com `Cannot find module @rollup/rollup-linux-x64-musl`.
 O `.dockerignore` (`node_modules`, `dist`, `coverage`) resolve.
 
-Ficaram de fora, por exigirem migração própria: React 19, ESLint 9+ (formato flat), Tailwind 4, TypeScript 7, Babel 8,
+O frontend também migrou para o **ESLint 9** (formato flat, `eslint.config.js`; o `.eslintrc.cjs` e a opção `--ext` deixaram de existir), com
+`typescript-eslint` 8 e `eslint-plugin-react-hooks` 5 — as mesmas regras de antes, conferidas com um arquivo de sonda (hook condicional,
+dependência faltando, `debugger`, `any`, variável sem uso). A v7 do `react-hooks` e o ESLint 10 ficam para depois: a primeira acrescenta regras
+que apontam trechos do nosso código.
+
+Ficaram de fora, por exigirem migração própria: React 19, ESLint 10, `eslint-plugin-react-hooks` 7, Tailwind 4, TypeScript 7, Babel 8,
 `eslint-plugin-react-hooks` 7 e Jest 30 (que traz `glob`/`minimatch` com avisos de segurança em dev).
 
 ## Consequências
