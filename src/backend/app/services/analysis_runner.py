@@ -6,15 +6,15 @@ from __future__ import annotations
 
 import tempfile
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy.orm import Session
 
 from app.analysis import coupling, duplication, metric_engine
+from app.analysis.coverage_reader import read_coverage_from_artifact_zips, read_coverage_percentage
 from app.analysis.limits import analysis_deadline
 from app.analysis.metric_engine import NoAnalyzableSourceError
-from app.analysis.coverage_reader import read_coverage_from_artifact_zips, read_coverage_percentage
 from app.core.config import settings
 from app.models.analysis import Analysis, AnalysisStatus, Measurement
 from app.models.repository import AccessStatus, Repository
@@ -72,14 +72,14 @@ def _persist_success(db: Session, analysis: Analysis, values: dict[str, float | 
 
     analysis.status = AnalysisStatus.CONCLUIDA
     analysis.status_conformidade_geral = overall_status.value
-    analysis.concluida_em = datetime.now(timezone.utc)
+    analysis.concluida_em = datetime.now(UTC)
     db.commit()
 
 
 def _persist_failure(db: Session, analysis: Analysis, motivo: str) -> None:
     analysis.status = AnalysisStatus.FALHOU
     analysis.motivo_falha = motivo[:1000]
-    analysis.concluida_em = datetime.now(timezone.utc)
+    analysis.concluida_em = datetime.now(UTC)
     db.commit()
 
 

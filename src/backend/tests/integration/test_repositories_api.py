@@ -1,6 +1,6 @@
-import pytest
-
 import uuid
+
+import pytest
 
 import app.api.repositories as repositories_module
 from app.services.github_service import RepositoryAccessError, UnsupportedLanguageError
@@ -245,7 +245,7 @@ class TestDeleteRepositoryWithReports:
         assert len(list(self.reports_dir.glob("*.pdf"))) == 1
 
     def test_a_missing_pdf_file_does_not_block_the_deletion(self, client, auth_headers, monkeypatch):
-        repository, analyses = self._repository_with_analyses(client, auth_headers, monkeypatch)
+        repository, _analyses = self._repository_with_analyses(client, auth_headers, monkeypatch)
         base = f"/api/v1/repositories/{repository['id']}"
         client.post(f"{base}/reports", json={"tipo": "historico_completo"}, headers=auth_headers)
         for pdf in self.reports_dir.glob("*.pdf"):

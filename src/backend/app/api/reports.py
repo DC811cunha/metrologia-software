@@ -8,11 +8,11 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.dependencies import get_current_user
+from app.db.session import get_db
 from app.models.analysis import Analysis, AnalysisStatus
 from app.models.report import Report, ReportType
 from app.models.repository import Repository
 from app.models.user import User
-from app.db.session import get_db
 from app.schemas.report import ReportCreateRequest, ReportResponse
 from app.services.report_service import build_history_report, build_single_analysis_report
 

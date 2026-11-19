@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
 from sqlalchemy.exc import IntegrityError
@@ -123,7 +123,7 @@ def forgot_password(payload: ForgotPasswordRequest) -> ForgotPasswordResponse:
     revelaria o estado do sistema, não o da conta, mas a resposta tem de ser igual para todos."""
     try:
         request_password_reset_task.delay(payload.email)
-    except Exception:  # noqa: BLE001 - fila fora do ar: a resposta ao usuário não pode mudar
+    except Exception:
         logger.exception("Não foi possível enfileirar o pedido de recuperação de senha")
     return ForgotPasswordResponse(message=_GENERIC_FORGOT_PASSWORD_MESSAGE)
 
@@ -140,12 +140,12 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
             status_code=status.HTTP_400_BAD_REQUEST, detail="Token inválido ou expirado"
         )
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     expira_em = reset_token.expira_em
     if expira_em.tzinfo is None:
         # SQLite não preserva timezone-awareness em DateTime(timezone=True):
         # o valor volta naive, mas foi gravado em UTC — normaliza antes de comparar.
-        expira_em = expira_em.replace(tzinfo=timezone.utc)
+        expira_em = expira_em.replace(tzinfo=UTC)
     if expira_em < now:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Token inválido ou expirado"

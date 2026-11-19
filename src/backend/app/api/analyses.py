@@ -1,13 +1,12 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.analysis.metrics_catalog import METRICS_CATALOG
 from app.core.config import settings
@@ -23,9 +22,11 @@ from app.schemas.analysis import (
     MetricSeriesPointResponse,
     MetricTrendResponse,
 )
-from app.services.stale_analyses import expire_stale_analyses
-from app.services.sync_slots import sync_slots
-from app.services.analysis_runner import dispatch_async_analysis, rate_limit_message, run_full_analysis
+from app.services.analysis_runner import (
+    dispatch_async_analysis,
+    rate_limit_message,
+    run_full_analysis,
+)
 from app.services.github_service import (
     GithubRateLimitError,
     GithubService,
@@ -34,6 +35,8 @@ from app.services.github_service import (
     parse_repo_url,
 )
 from app.services.repository_sync import SyncOutcome, sync_repository_identity
+from app.services.stale_analyses import expire_stale_analyses
+from app.services.sync_slots import sync_slots
 from app.services.trend_service import calculate_trend
 
 router = APIRouter(prefix="/api/v1/repositories/{repository_id}/analyses", tags=["analyses"])
@@ -50,7 +53,7 @@ def _fail_analysis(db: Session, analysis: Analysis, message: str) -> None:
     analysis.status = AnalysisStatus.FALHOU
     analysis.motivo_falha = message[:1000]
     # Toda tentativa encerrada tem data de término — sem ela o histórico a exibiria como "em andamento".
-    analysis.concluida_em = datetime.now(timezone.utc)
+    analysis.concluida_em = datetime.now(UTC)
     db.commit()
 
 
@@ -174,7 +177,7 @@ def _run_trigger(db: Session, analysis: Analysis, repository: Repository, github
 
     try:
         dispatch_async_analysis(analysis.id)
-    except Exception as exc:  # noqa: BLE001 - fila fora do ar (Redis/broker) não pode deixar a análise "processando"
+    except Exception as exc:
         message = "Não foi possível enfileirar a análise agora. Tente novamente em instantes."
         _fail_analysis(db, analysis, message)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=message) from exc

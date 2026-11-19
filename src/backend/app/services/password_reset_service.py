@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -40,7 +40,7 @@ def issue_password_reset(db: Session, email: str) -> bool:
     if user is None:
         return False
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     window_start = now - _THROTTLE_WINDOW
     recent = db.execute(
         select(func.count())

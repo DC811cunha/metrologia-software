@@ -3,8 +3,8 @@ from pathlib import Path
 
 import app.api.analyses as analyses_module
 import app.api.repositories as repositories_module
-from app.analysis.limits import AnalysisTimeoutError
 import app.services.analysis_runner as runner_module
+from app.analysis.limits import AnalysisTimeoutError
 from app.services.github_service import RepositoryAccessError, RepositoryTooLargeError
 
 

@@ -29,7 +29,7 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=4.1",
     "pytest-asyncio>=0.23",
-    "ruff==0.15.19",
+    "ruff==0.17.5",
     "mypy>=1.9",
     "pypdf>=4.0",
 ]
@@ -40,6 +40,15 @@ include = ["app*"]
 [tool.ruff]
 line-length = 100
 target-version = "py312"
+
+[tool.ruff.lint.flake8-bugbear]
+# `Depends(...)` em argumento padrão é o jeito do FastAPI declarar dependências (B008 é falso positivo aqui).
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body", "fastapi.Header", "fastapi.Cookie"]
+
+[tool.ruff.lint.per-file-ignores]
+# Nos testes, trechos de código de exemplo ficam mais legíveis como lista de linhas (FLY002) e as constantes de
+# classe com dicionários nunca são alteradas (RUF012).
+"tests/**" = ["FLY002", "RUF012"]
 
 [tool.mypy]
 python_version = "3.12"

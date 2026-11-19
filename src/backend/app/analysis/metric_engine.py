@@ -12,12 +12,12 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+import tree_sitter_javascript as ts_javascript
+import tree_sitter_typescript as ts_typescript
 from radon.complexity import cc_visit
 from radon.metrics import h_visit
 from radon.raw import analyze as radon_analyze
 from tree_sitter import Language, Node, Parser
-import tree_sitter_javascript as ts_javascript
-import tree_sitter_typescript as ts_typescript
 
 from app.analysis.limits import check_deadline
 from app.core.config import settings
@@ -271,11 +271,11 @@ def _count_decision_points(node: Node, *, is_root: bool = True) -> int:
         return 0
 
     count = 0
-    if node.type in DECISION_NODE_TYPES:
+    is_short_circuit = node.type == "binary_expression" and any(
+        c.type in SHORT_CIRCUIT_OPERATORS for c in node.children
+    )
+    if node.type in DECISION_NODE_TYPES or is_short_circuit:
         count += 1
-    elif node.type == "binary_expression":
-        if any(c.type in SHORT_CIRCUIT_OPERATORS for c in node.children):
-            count += 1
 
     for child in node.children:
         count += _count_decision_points(child, is_root=False)

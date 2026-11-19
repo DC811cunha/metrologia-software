@@ -26,5 +26,6 @@ def test_worker_import_surface_configures_all_mappers() -> None:
         capture_output=True,
         text=True,
         timeout=30,
+        check=False,
     )
     assert result.returncode == 0, result.stderr

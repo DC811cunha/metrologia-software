@@ -31,7 +31,7 @@ _REDIS_TIMEOUT_S = 1.0
 
 
 class Rule:
-    __slots__ = ("name", "limit", "window_s")
+    __slots__ = ("limit", "name", "window_s")
 
     def __init__(self, name: str, limit: int, window_s: int) -> None:
         self.name = name

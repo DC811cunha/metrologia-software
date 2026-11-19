@@ -5,8 +5,8 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.sql.elements import ColumnElement
 from sqlalchemy.orm import Session
+from sqlalchemy.sql.elements import ColumnElement
 
 from app.core.config import settings
 from app.core.dependencies import get_current_user
@@ -21,7 +21,6 @@ from app.schemas.repository import (
     RepositoryResponse,
 )
 from app.services.analysis_runner import rate_limit_message
-from app.services.stale_analyses import expire_stale_analyses
 from app.services.github_service import (
     GithubRateLimitError,
     GithubService,
@@ -30,6 +29,7 @@ from app.services.github_service import (
     UnsupportedLanguageError,
     parse_repo_url,
 )
+from app.services.stale_analyses import expire_stale_analyses
 
 router = APIRouter(prefix="/api/v1/repositories", tags=["repositories"])
 
