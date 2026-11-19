@@ -63,6 +63,7 @@ metrologia-software/
 │   ├── rfc/                        # RFC-001 (v2.2): proposta, requisitos, arquitetura, segurança
 │   ├── adr/                        # Decisões de arquitetura (ADR-001 a ADR-015)
 │   ├── architecture/               # Diagramas C4 e fluxos de dados
+│   ├── deploy/                     # Roteiro de deploy público na AWS
 │   ├── archive/                    # Backend Node/Express original (descontinuado, ADR-003)
 │   └── outros/                     # Relatório do PAC (docx/pdf)
 ├── .github/
@@ -246,6 +247,7 @@ Resumo do que a API faz para ser exposta publicamente (detalhes nos ADRs):
 - 📄 [RFC-001 — Documento de Proposta do Projeto](docs/rfc/RFC-001-SoftMeter-Avaliacao.md)
 - 🏛️ [Decisões de Arquitetura (ADR)](docs/adr/)
 - 🖼️ [Diagramas C4](docs/architecture/C4-diagramas.md)
+- ☁️ [Roteiro de deploy público na AWS](docs/deploy/roteiro-deploy-aws.md)
 - 🧭 [Especificação, plano e contratos da API](specs/001-softmeter-plataforma-mvp/) — os contratos em
   [`contracts/`](specs/001-softmeter-plataforma-mvp/contracts/) descrevem o comportamento real da API
   (a documentação interativa fica em <http://localhost:3001/docs>)
