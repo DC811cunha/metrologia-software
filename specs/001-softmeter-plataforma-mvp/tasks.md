@@ -258,6 +258,7 @@ próprio cadastrou.
 - [X] T107 Triagem do Dependabot (19/11/2026): Vite 8 e `@vitejs/plugin-react` 6 adotados e testados com a E2E completa; `.dockerignore` do frontend; `dependabot.yml` ignora o que está fora dos limites do projeto; CI constrói o frontend (ADR-007)
 - [X] T108 Migração do frontend para o ESLint 9 (formato flat, `eslint.config.js`) com `typescript-eslint` 8 e `eslint-plugin-react-hooks` 5; mesmas regras de antes, verificadas com um arquivo de sonda
 - [X] T109 `eslint-plugin-react-hooks` 7 (preset `flat.recommended`): `DashboardPage` e `RepositoriesPage` deixam de chamar `setState` direto em efeitos (ADR-007)
+- [X] T110 ESLint 10 (`eslint` e `@eslint/js` 10) sem mudança na configuração; as mesmas regras confirmadas com um arquivo de sonda (ADR-007)
 - [ ] T079 Registrar domínio próprio e verificá-lo no Resend (SPF/DKIM); atualizar `EMAIL_FROM` — pré-requisito para entregar o e-mail de recuperação a usuários externos e para o deploy público (ADR-005)
 - [ ] T080 Revisão das métricas solicitada na orientação de 15/09/2026 — escopo a definir com o orientador. *(Nota de 2026-11-17: a revisão por pares do Sandro já corrigiu a corretude e o escopo das métricas — T088 a T090, ADR-010 a ADR-012 — e ajustou o texto de fórmula do catálogo; os limites de especificação continuam os de 25/06/2026.)*
 - [ ] T081 Se a suíte E2E passar a rodar no CI, propagar o `GITHUB_TOKEN` a ela para não esbarrar no limite anônimo de 60 req/h (comentário do PR #75)

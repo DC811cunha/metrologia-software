@@ -83,9 +83,11 @@ dependência faltando, `debugger`, `any`, variável sem uso). Em seguida veio o 
 chamavam `setState` direto no corpo de um efeito: o `DashboardPage` (que guardava `loading` em estado e o ligava a cada troca de URL) e o
 `RepositoriesPage` (primeira carga da lista). O primeiro passou a *derivar* `loading` da análise já carregada e a descartar a resposta de
 uma análise anterior; o segundo faz a primeira carga direto no efeito, sem atualizar a tela se ela já foi fechada. A versão 7 declara
-suporte ao ESLint 10, que fica como próxima etapa.
+suporte ao ESLint 10, e o último passo foi justamente subir para ele (`eslint` e `@eslint/js` 10; o `typescript-eslint` 8.73 já o
+aceita). Nenhuma mudança na configuração foi necessária, e o arquivo de sonda confirmou as mesmas regras (hook condicional, dependência
+faltando, `setState` em efeito, `debugger`, `any`, variável sem uso). O ESLint 10 pede Node 20.19+ — o que o Vite 8 já exigia.
 
-Ficaram de fora, por exigirem migração própria: React 19, ESLint 10, Tailwind 4, TypeScript 7, Babel 8 e Jest 30 (que traz
+Ficaram de fora, por exigirem migração própria: React 19, Tailwind 4, TypeScript 7, Babel 8 e Jest 30 (que traz
 `glob`/`minimatch` com avisos de segurança em dev).
 
 ## Consequências
