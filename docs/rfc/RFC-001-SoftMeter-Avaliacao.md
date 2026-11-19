@@ -94,7 +94,7 @@ do uso real. Tudo entrou por Pull Request com CI verde; a decisão de cada mudan
 | Ajustes de UX no histórico (status da métrica no gráfico, botão de voltar ao dashboard) e logo das telas de autenticação | #109, #110 | 4.6, 4.8 |
 | **Revisão geral de 18/11 — robustez:** o CORS passou a cobrir os erros 429/413 (a mensagem do servidor chegava ao navegador como "Network Error"), e-mail sem distinção de caixa, repositório sem funções e leitura de cobertura de terceiros robusta | #120 / ADR-008, ADR-011 | RF04, 3.2, 4.8 |
 | **Análises presas e tela de repositórios:** análise perdida vira falha, polling limitado e cancelável, links do dashboard/histórico mantidos após uma falha, repositório inacessível reanalisável | #121 / ADR-013 | RF22, RF23, 3.2 |
-| **Infraestrutura e dependências:** volume dos PDFs, imagem de produção não-root, versões fixas, Dependabot, auditoria, `react-router` 7 / `vite` 7 (`npm audit` zerado) | #122, #124 / ADR-007 | RNF13, RNF15, 6.1 |
+| **Infraestrutura e dependências:** volume dos PDFs, imagem de produção não-root, versões fixas, Dependabot, auditoria, `react-router` 7 / `vite` 8 (`npm audit` zerado) | #122, #124 / ADR-007 | RNF13, RNF15, 6.1 |
 | **Desempenho e cadastro:** listas sem consulta por item, varredura com poda, URL normalizada e duplicata sem distinção de caixa | #123 | RF05, 3.2 |
 | **Métricas:** pastas ambíguas por contexto, acoplamento indefinido com um módulo só, Índice de Manutenibilidade ponderado por linhas | #125 / ADR-015 | RN10, RN12 |
 | **Recuperação de senha sem diferença de tempo** e limite por conta | #126 / ADR-005 | RNF10, RF24 |

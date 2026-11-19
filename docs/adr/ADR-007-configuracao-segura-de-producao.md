@@ -65,6 +65,21 @@ Da revisão geral de 18/11/2026:
   `engines` do `package.json` (`node >= 20.19`, exigência do vite 7). Verificado com a suíte E2E completa (15/15) contra
   a stack Docker com as versões novas.
 
+## Atualização (19/11/2026): Vite 8, plugin-react 6 e o `.dockerignore` do frontend
+
+O Dependabot propôs o Vite 8 e, em seguida, o `@vitejs/plugin-react` 6 (que exige o Vite 8). Ambos foram adotados depois de
+testar de verdade — build, servidor de desenvolvimento e a suíte E2E completa (15/15) contra a stack Docker —, com `npm audit`
+zerado. O CI passou a **construir o frontend** (`npm run build`): o PR do Tailwind 4 tinha passado verde nos testes mesmo
+quebrando o build.
+
+Reconstruir o container do frontend depois do Vite 8 revelou um problema antigo: `src/frontend` não tinha `.dockerignore`, então
+o `COPY . .` do Dockerfile copiava o `node_modules` **do host** (versões e binários do Windows) por cima das dependências que a
+imagem acabara de instalar — o container rodava o Vite 7 antigo e falhava com `Cannot find module @rollup/rollup-linux-x64-musl`.
+O `.dockerignore` (`node_modules`, `dist`, `coverage`) resolve.
+
+Ficaram de fora, por exigirem migração própria: React 19, ESLint 9+ (formato flat), Tailwind 4, TypeScript 7, Babel 8,
+`eslint-plugin-react-hooks` 7 e Jest 30 (que traz `glob`/`minimatch` com avisos de segurança em dev).
+
 ## Consequências
 
 - O deploy público precisa gerar segredos próprios (`python -c "import secrets; print(secrets.token_urlsafe(48))"`)
