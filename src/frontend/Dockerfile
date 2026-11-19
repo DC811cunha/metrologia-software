@@ -9,7 +9,8 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci
+# --ignore-scripts: scripts de instalação (postinstall etc.) de dependências não rodam no build.
+RUN npm ci --ignore-scripts
 
 COPY . .
 
@@ -31,11 +32,15 @@ FROM node:20-alpine AS dev
 
 WORKDIR /app
 
-COPY package*.json ./
+# Usuário sem privilégios (`node`, já existe na imagem); o /app precisa ser dele para o Vite gravar seus temporários.
+RUN chown node:node /app
+USER node
 
-RUN npm install
+COPY --chown=node:node package*.json ./
 
-COPY . .
+RUN npm install --ignore-scripts
+
+COPY --chown=node:node . .
 
 EXPOSE 3000
 

@@ -10,7 +10,7 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-if [ ! -f .env ]; then
+if [[ ! -f .env ]]; then
   echo "Erro: .env não encontrado em $(pwd). Crie-o a partir do .env.example (ver docs/deploy/roteiro-deploy-aws.md)." >&2
   exit 1
 fi
