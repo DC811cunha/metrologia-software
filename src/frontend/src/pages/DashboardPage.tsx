@@ -50,17 +50,34 @@ function DashboardPage() {
   const { repositoryId, analysisId } = useParams<{ repositoryId: string; analysisId: string }>();
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Qual análise já terminou de carregar: enquanto for diferente da pedida na URL, a tela mostra o esqueleto.
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
   const [generatingReport, setGeneratingReport] = useState(false);
   const [reportError, setReportError] = useState<string | null>(null);
 
+  const key = `${repositoryId}/${analysisId}`;
+  const loading = loadedKey !== key;
+
   useEffect(() => {
     if (!repositoryId || !analysisId) return;
-    setLoading(true);
+    let current = true; // descarta a resposta de uma análise anterior se a URL mudar no meio da consulta
     getAnalysis(repositoryId, analysisId)
-      .then(setAnalysis)
-      .catch(() => setError('Não foi possível carregar a análise.'))
-      .finally(() => setLoading(false));
+      .then((loaded) => {
+        if (!current) return;
+        setAnalysis(loaded);
+        setError(null);
+      })
+      .catch(() => {
+        if (!current) return;
+        setAnalysis(null);
+        setError('Não foi possível carregar a análise.');
+      })
+      .finally(() => {
+        if (current) setLoadedKey(`${repositoryId}/${analysisId}`);
+      });
+    return () => {
+      current = false;
+    };
   }, [repositoryId, analysisId]);
 
   // Análise ainda em andamento: reconsulta até terminar (com tempo máximo), em vez de mostrar um aviso estático.

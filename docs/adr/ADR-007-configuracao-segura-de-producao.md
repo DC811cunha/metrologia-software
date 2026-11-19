@@ -79,11 +79,14 @@ O `.dockerignore` (`node_modules`, `dist`, `coverage`) resolve.
 
 O frontend também migrou para o **ESLint 9** (formato flat, `eslint.config.js`; o `.eslintrc.cjs` e a opção `--ext` deixaram de existir), com
 `typescript-eslint` 8 e `eslint-plugin-react-hooks` 5 — as mesmas regras de antes, conferidas com um arquivo de sonda (hook condicional,
-dependência faltando, `debugger`, `any`, variável sem uso). A v7 do `react-hooks` e o ESLint 10 ficam para depois: a primeira acrescenta regras
-que apontam trechos do nosso código.
+dependência faltando, `debugger`, `any`, variável sem uso). Em seguida veio o `eslint-plugin-react-hooks` **7** (preset `flat.recommended`), cujas regras novas apontaram dois trechos nossos que
+chamavam `setState` direto no corpo de um efeito: o `DashboardPage` (que guardava `loading` em estado e o ligava a cada troca de URL) e o
+`RepositoriesPage` (primeira carga da lista). O primeiro passou a *derivar* `loading` da análise já carregada e a descartar a resposta de
+uma análise anterior; o segundo faz a primeira carga direto no efeito, sem atualizar a tela se ela já foi fechada. A versão 7 declara
+suporte ao ESLint 10, que fica como próxima etapa.
 
-Ficaram de fora, por exigirem migração própria: React 19, ESLint 10, `eslint-plugin-react-hooks` 7, Tailwind 4, TypeScript 7, Babel 8,
-`eslint-plugin-react-hooks` 7 e Jest 30 (que traz `glob`/`minimatch` com avisos de segurança em dev).
+Ficaram de fora, por exigirem migração própria: React 19, ESLint 10, Tailwind 4, TypeScript 7, Babel 8 e Jest 30 (que traz
+`glob`/`minimatch` com avisos de segurança em dev).
 
 ## Consequências
 

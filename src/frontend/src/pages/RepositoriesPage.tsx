@@ -91,9 +91,8 @@ function RepositoriesPage() {
   // Cancela o acompanhamento de uma análise assíncrona ao sair da tela (senão o polling segue em segundo plano).
   const analysisAbort = useRef<AbortController | null>(null);
 
-  /** `silent`: recarrega sem trocar a lista por esqueletos (depois de uma ação, para a tela não "piscar"). */
-  async function loadRepositories(silent = false) {
-    if (!silent) setLoading(true);
+  /** Recarrega a lista sem trocá-la por esqueletos (`loading` só vale na primeira carga, para a tela não "piscar"). */
+  async function loadRepositories() {
     try {
       setRepositories(await listRepositories());
     } catch {
@@ -103,9 +102,17 @@ function RepositoriesPage() {
     }
   }
 
+  // Primeira carga da lista (as recargas depois de uma ação usam `loadRepositories`).
   useEffect(() => {
-    loadRepositories();
-    return () => analysisAbort.current?.abort();
+    let active = true; // não atualiza a tela se ela já foi fechada
+    listRepositories()
+      .then((list) => active && setRepositories(list))
+      .catch(() => active && setError('Não foi possível carregar os repositórios.'))
+      .finally(() => active && setLoading(false));
+    return () => {
+      active = false;
+      analysisAbort.current?.abort();
+    };
   }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -115,7 +122,7 @@ function RepositoriesPage() {
     try {
       await createRepository(url);
       setUrl('');
-      await loadRepositories(true);
+      await loadRepositories();
     } catch (err) {
       if (isAxiosError(err) && err.response?.status === 409) {
         setError('Este repositório já está cadastrado.');
@@ -136,7 +143,7 @@ function RepositoriesPage() {
   async function handleDelete(id: string) {
     try {
       await deleteRepository(id);
-      await loadRepositories(true);
+      await loadRepositories();
     } catch {
       setError('Não foi possível remover o repositório.');
     }
@@ -175,14 +182,14 @@ function RepositoriesPage() {
           `Análise concluída — conformidade geral: ${analysis.status_conformidade_geral}`,
         );
       }
-      await loadRepositories(true);
+      await loadRepositories();
     } catch (err) {
       if (isAbortError(err)) return; // saiu da tela: nada a atualizar
       if (err instanceof AnalysisPollingTimeoutError) {
         setLastResultMessage(
           'A análise está demorando mais que o esperado e continua no servidor. Veja o resultado no histórico mais tarde.',
         );
-        await loadRepositories(true);
+        await loadRepositories();
         return;
       }
       const status = isAxiosError(err) ? err.response?.status : undefined;

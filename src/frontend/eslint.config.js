@@ -11,7 +11,7 @@ module.exports = defineConfig([
   globalIgnores(['dist', 'node_modules', 'coverage']),
   js.configs.recommended,
   tseslint.configs.recommended,
-  reactHooks.configs['recommended-latest'],
+  reactHooks.configs.flat.recommended,
   {
     files: ['**/*.{ts,tsx}'],
     languageOptions: {
