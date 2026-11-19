@@ -245,7 +245,7 @@ definida em ADR-003 e dos requisitos funcionais do `spec.md`.
 
 - **Decision**: `src/backend/requirements.txt` fixa todas as versões do backend (Docker e CI usam `-c`); `npm ci` no CI;
   Dependabot semanal e workflow `audit.yml` (`pip-audit` + `npm audit`, fora dos checks obrigatórios); imagem de produção
-  sem extras de teste, sem `--reload` e sem root; PDFs em volume nomeado. O frontend está em `react-router` 7, `vite` 7 e
+  sem extras de teste, sem `--reload` e sem root; PDFs em volume nomeado. O frontend está em `react-router` 7, `vite` 8 (com `@vitejs/plugin-react` 6) e
   `@typescript-eslint` 8, com `npm audit` zerado (ADR-007).
 - **Rationale**: builds que mudam sozinhos tornam falhas irreproduzíveis; vulnerabilidades devem aparecer sem esperar uma
   revisão manual.

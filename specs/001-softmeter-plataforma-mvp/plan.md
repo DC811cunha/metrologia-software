@@ -24,7 +24,7 @@ armazenamento; JWT (access+refresh) com bcrypt para autenticação; ReportLab pa
 **Primary Dependencies**: Backend: FastAPI, SQLAlchemy + Alembic, Celery, Redis (broker/result
 backend e, opcionalmente, rate limit), Radon, tree-sitter (JS/TS), defusedxml, PyJWT, bcrypt (hashing direto — ver nota de implementação sobre incompatibilidade
 passlib/bcrypt 5.x), ReportLab, httpx (cliente para a API REST do GitHub e do Resend, pós-MVP).
-Frontend: React 18, Vite 7, React Router 7, Recharts, Axios, Tailwind CSS 3.
+Frontend: React 18, Vite 8, React Router 7, Recharts, Axios, Tailwind CSS 3.
 
 **Storage**: PostgreSQL 16 (dados de domínio: usuários, repositórios, análises, medições,
 relatórios e, pós-MVP, tokens de redefinição de senha). Redis como broker/result backend do Celery (não armazena dados de domínio
