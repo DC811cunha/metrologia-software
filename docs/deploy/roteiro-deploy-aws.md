@@ -70,18 +70,19 @@ dependências têm versão para ARM; só vale se o teste passar.
 
 ## 3. Passo 1 — preparar o repositório (um PR)
 
-Mudanças de código/infra que o deploy precisa e que ainda não existem:
+**Concluído** (PR de infra, #168): mudanças de código/infra que o deploy precisava.
 
-- [ ] `deploy/Caddyfile` (domínio, `encode gzip`, `handle /api/*` e `handle /health` → `reverse_proxy backend:3001`, o resto com
+- [x] `deploy/Caddyfile` (domínio, `encode gzip`, `handle /api/*` e `handle /health` → `reverse_proxy backend:3001`, o resto com
   `try_files {path} /index.html` para o roteamento do React).
-- [ ] Serviço `caddy` no `docker-compose.prod.yml` (portas 80/443, volumes para o certificado e para o `dist/` do
-  frontend) e o backend **sem** publicar a porta no host.
-- [ ] `FORWARDED_ALLOW_IPS`: com o Caddy na mesma rede do compose, use a sub-rede do compose (e confirme na prática, na
+- [x] Serviço `web` (Caddy) no `docker-compose.prod.yml` (portas 80/443, volumes para o certificado; o `dist/` vai dentro da
+  imagem, estágio `prod` do `src/frontend/Dockerfile`) e o backend **sem** publicar a porta no host.
+- [x] `FORWARDED_ALLOW_IPS`: com o Caddy na mesma rede do compose, use a sub-rede do compose (e confirme na prática, na
   verificação, que o rate limit enxerga o IP real do usuário e não o do proxy).
-- [ ] Build do frontend com `VITE_API_URL` **vazio** (mesma origem; o `api.ts` usa `??`, então a string vazia vale) e
+- [x] Build do frontend com `VITE_API_URL` **vazio** (mesma origem; o `api.ts` usa `??`, então a string vazia vale) e
   teste local do build servido pelo Caddy.
-- [ ] `scripts/deploy.sh`: `git pull`, `npm ci && npm run build`, `docker compose … up -d --build`, `alembic upgrade head`.
-- [ ] README/ADR-007: documentar a topologia nova.
+- [x] `scripts/deploy.sh`: `git pull`, `docker compose … build` (o frontend é construído na imagem), `alembic upgrade head`, `up -d` e teste de `/health`.
+- [x] README/ADR-007: documentar a topologia nova.
+- [x] Achado no teste: a imagem de produção não tinha o `packaging` e o worker não subia (corrigido; o CI agora constrói a imagem `prod`).
 
 ## 4. Passo 2 — conta AWS e segurança básica
 
