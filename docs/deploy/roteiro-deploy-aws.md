@@ -11,7 +11,7 @@ Redis) mais um **proxy reverso Caddy** que serve o build estático do frontend e
 automático (Let's Encrypt).
 
 ```
-Usuário ──HTTPS──▶ Route 53 (A) ──▶ Elastic IP ──▶ EC2 (Ubuntu 24.04, t3.medium, 30 GB gp3)
+Usuário ──HTTPS──▶ DNS (A) ──▶ Elastic IP ──▶ EC2 (Ubuntu 24.04, t3.small, 20 GB gp3, us-east-1)
                                                     └─ Caddy :80/:443
                                                          ├─ /            → frontend estático (npm run build)
                                                          └─ /api/*       → backend :3001 (rede interna do compose)
@@ -23,23 +23,49 @@ Usuário ──HTTPS──▶ Route 53 (A) ──▶ Elastic IP ──▶ EC2 (U
   públicas, credenciais obrigatórias). É o caminho de menor risco para entregar no prazo.
 - **Mesmo domínio para o site e a API.** O cookie do refresh token é `SameSite=Lax` com `Secure`; site e API em origens
   diferentes dariam problema de cookie e de CORS. Com o Caddy na frente, tudo sai do mesmo domínio.
-- Custo previsível: cerca de **US$ 30–40 por mês** (t3.medium, disco, IP, DNS), contra mais de US$ 100 por mês na
-  versão "totalmente gerenciada" (ver a seção 8).
-- Ensina o essencial da AWS: conta e IAM, VPC e Security Groups, EC2, EBS, Elastic IP, Route 53, SSM, CloudWatch.
+- Custo baixo e previsível: cerca de **US$ 21 por mês** (ver a seção de custos abaixo), contra mais de US$ 100 por mês
+  na versão "totalmente gerenciada" (seção 10).
+- Ensina o essencial da AWS: conta e IAM, VPC e Security Groups, EC2, EBS, Elastic IP, SSM, CloudWatch.
 
 **Dimensionamento.** O worker baixa e analisa repositórios de terceiros (até 400 MB extraídos, ADR-009), e até 4
-análises síncronas rodam ao mesmo tempo. Com `t3.small` (2 GB) isso fica apertado; use **`t3.medium` (4 GB)** e crie
-2 GB de swap. Dá para reduzir depois, olhando o consumo real no CloudWatch.
+análises síncronas rodam ao mesmo tempo. Para economizar, comece com **`t3.small` (2 GB) e 2 GB de swap**, e reduza
+`MAX_CONCURRENT_SYNC_ANALYSES` para 2 no `.env` (cada análise usa menos memória ao mesmo tempo). Se o consumo real
+(`docker stats`, CloudWatch) mostrar falta de memória, suba para `t3.medium` (~US$ 15 a mais por mês) — a troca leva
+minutos. Se quiser economizar mais, a `t4g.small` (ARM, ~US$ 3 a menos) serve, mas exige conferir que todas as
+dependências têm versão para ARM; só vale se o teste passar.
+
+## Custos (valores aproximados: confirme na calculadora da AWS)
+
+| Item | Valor/mês | Observação |
+|---|---|---|
+| EC2 `t3.small` (us-east-1) | ~US$ 15 | modo de crédito **standard** (não "unlimited", que cobra CPU extra) |
+| IP público (Elastic IP) | ~US$ 3,6 | a AWS cobra todo IPv4 público desde 2024 |
+| Disco gp3 de 20 GB | ~US$ 1,6 | 20 GB bastam (sistema + imagens + dados) |
+| Backup (S3 + 1 snapshot semanal) | ~US$ 0,5 | cresce pouco |
+| DNS | US$ 0 | DNS do próprio Registro.br; Route 53 custa +US$ 0,5 e é opcional |
+| Tráfego de saída | US$ 0 | os primeiros 100 GB/mês são gratuitos |
+| **Total** | **~US$ 21** | |
+
+**Para não passar disso**
+- **Não criar** NAT Gateway (~US$ 32), Load Balancer (~US$ 18), RDS, ElastiCache nem Fargate.
+- **Budget** de US$ 25 com avisos aos 80%, ao previsto e aos 100%, e o *Cost Anomaly Detection* (gratuito).
+- CloudWatch só com métricas básicas e até 10 alarmes (gratuitos); **não** ligar o monitoramento detalhado nem enviar
+  logs ao CloudWatch (a ingestão de logs é cobrada).
+- Snapshots com retenção curta; apagar volumes e snapshots órfãos.
+- **Plano de desligamento:** depois da avaliação da banca, apague a instância, o disco, o Elastic IP e o bucket. Parar a
+  instância não basta: disco e IP continuam cobrando.
+- **Créditos:** contas novas podem receber créditos de boas-vindas e a faculdade pode ter AWS Academy; confira ao criar a
+  conta e use primeiro o que for gratuito.
 
 ## 2. Decisões e pré-requisitos (resolver antes de começar)
 
 | # | Item | Observação |
 |---|---|---|
-| 1 | **Domínio próprio** (T079) | Necessário também para o e-mail (item 2). Registro.br (`.com.br`) ou Route 53 (`.com`, ~US$ 15/ano). |
+| 1 | **Domínio próprio** (T079) | Necessário também para o e-mail (item 2). Registro.br (`.com.br`, ~R$ 40/ano, só CPF). |
 | 2 | **Resend com domínio verificado** | Sem isso o Resend só entrega e-mails à conta dona da chave (ADR-005): **a recuperação de senha não funcionaria para os usuários**. Verifique o domínio no Resend (registros DNS SPF/DKIM) e defina `RESEND_API_KEY` e `EMAIL_FROM`. |
 | 3 | **Conta AWS** | Ative o MFA no usuário raiz e crie um usuário administrador (não use o raiz no dia a dia). Veja se há créditos (conta nova, AWS Academy ou programa da faculdade). |
-| 4 | **Região** | `sa-east-1` (São Paulo) tem menos latência e custa mais; `us-east-1` é mais barata. Recomendo **`sa-east-1`** se o público for o Brasil; para o TCC a diferença de custo é pequena. |
-| 5 | **Alerta de custo** | Crie um *Budget* (ex.: US$ 40/mês) com e-mail de aviso **antes** de criar qualquer recurso. |
+| 4 | **Região** | **`us-east-1` (Virgínia)**: a mais barata. `sa-east-1` (São Paulo) tem menos latência, mas custa ~30% mais; para uma demonstração de TCC a latência não compensa. |
+| 5 | **Alerta de custo** | Crie um *Budget* de US$ 25/mês, com avisos aos 80%, ao previsto e aos 100%, **antes** de criar qualquer recurso. |
 | 6 | **`GITHUB_TOKEN` no servidor** | Sem token, a API do GitHub limita a 60 requisições por hora no IP do servidor, e a cobertura de testes depende dele. Vale até 01/02/2027 (renovar). |
 
 ## 3. Passo 1 — preparar o repositório (um PR)
@@ -67,15 +93,15 @@ Mudanças de código/infra que o deploy precisa e que ainda não existem:
 - [ ] **Security Group**: entrada só **80 e 443** (0.0.0.0/0). **Sem porta 22**: o acesso administrativo é pelo
   **SSM Session Manager** (perfil IAM `AmazonSSMManagedInstanceCore` na instância). Menos superfície de ataque e é um
   bom aprendizado.
-- [ ] **EC2**: Ubuntu 24.04 LTS, `t3.medium`, disco **gp3 de 30 GB** (com *Delete on termination* **desligado** para o
-  volume de dados, ou use um volume separado para `/var/lib/docker`).
+- [ ] **EC2**: Ubuntu 24.04 LTS, `t3.small` com crédito **standard**, disco **gp3 de 20 GB**.
 - [ ] **Elastic IP** associado à instância (o IP não muda se ela for reiniciada).
 - [ ] Swap de 2 GB; atualizações automáticas de segurança (`unattended-upgrades`).
 - [ ] Docker Engine + plugin do Compose (repositório oficial da Docker).
 
 ## 6. Passo 4 — DNS e HTTPS
 
-- [ ] Zona hospedada no **Route 53** (ou apontar o domínio do Registro.br para ela) e registro **A** para o Elastic IP.
+- [ ] No painel de DNS do **Registro.br** (gratuito), registro **A** do domínio para o Elastic IP (Route 53 é opcional e
+  custa ~US$ 0,5/mês).
 - [ ] Subir o Caddy: ele obtém e renova o certificado sozinho (as portas 80/443 precisam estar abertas e o DNS
   propagado).
 
@@ -102,9 +128,9 @@ Mudanças de código/infra que o deploy precisa e que ainda não existem:
 
 ## 9. Operação depois do deploy
 
-- **Backup** (o volume dos PDFs e o do Postgres precisam entrar, ADR-007): *snapshots* diários do EBS pelo **Data
-  Lifecycle Manager** (retenção de 7 dias) + `pg_dump` diário enviado a um bucket **S3** com ciclo de vida. **Teste uma
-  restauração** pelo menos uma vez.
+- **Backup** (o volume dos PDFs e o do Postgres precisam entrar, ADR-007): `pg_dump` diário enviado a um bucket **S3**
+  (centavos por mês, com ciclo de vida de 14 dias) + **um snapshot semanal** do EBS (retenção de 2), que guarda também
+  o volume dos PDFs. **Teste uma restauração** pelo menos uma vez.
 - **Monitoramento**: alarmes do CloudWatch (CPU, disco, falha de status da instância) com aviso por e-mail (SNS);
   conferir `docker compose logs` em caso de erro.
 - **Atualizar**: `scripts/deploy.sh` (o Dependabot e o `audit.yml` continuam avisando de vulnerabilidades).
