@@ -135,13 +135,11 @@ jobs:
           name: frontend-coverage
           path: src/frontend/coverage
 
-      # Os relatórios trazem caminhos relativos às pastas dos projetos (coverage.xml: relativo a src/backend/app, ex.:
-      # main.py; lcov: relativo a src/frontend, ex.: src/App.tsx); o SonarCloud os resolve a partir da raiz do repositório.
-      - name: Ajustar os caminhos da cobertura
+      # O lcov.info traz os caminhos relativos a src/frontend (ex.: src/App.tsx); o SonarCloud os resolve a partir da raiz do
+      # repositório. O coverage.xml não precisa de ajuste: o SonarCloud o resolve pelo <source> do próprio relatório.
+      - name: Ajustar os caminhos da cobertura do frontend
         if: env.SONAR_TOKEN != ''
-        run: |
-          sed -i 's|filename="|filename="src/backend/app/|g' src/backend/coverage.xml
-          sed -i 's|^SF:|SF:src/frontend/|' src/frontend/coverage/lcov.info
+        run: sed -i 's|^SF:|SF:src/frontend/|' src/frontend/coverage/lcov.info
 
       - name: Análise do SonarCloud
         if: env.SONAR_TOKEN != ''
