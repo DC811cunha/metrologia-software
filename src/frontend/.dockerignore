@@ -1,0 +1,7 @@
+# O contexto do build é src/frontend: sem isto, o `COPY . .` do Dockerfile copiava o node_modules do HOST
+# (versões e binários do Windows) por cima do que o `npm install` da imagem acabou de instalar.
+node_modules
+dist
+coverage
+.vite
+*.log
