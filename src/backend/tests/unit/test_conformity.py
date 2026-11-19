@@ -1,7 +1,6 @@
 from app.analysis.metrics_catalog import ConformityStatus
 from app.services.conformity_service import calculate_overall_status, classify_measurements
 
-
 ALL_CONFORME_VALUES = {
     "complexidade_ciclomatica": 5,
     "loc": 20,

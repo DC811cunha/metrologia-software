@@ -11,7 +11,7 @@ gráficos de evolução. Identidade visual e formatação ficam em `report_theme
 from __future__ import annotations
 
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from xml.sax.saxutils import escape
 
 from reportlab.lib import colors
@@ -27,7 +27,13 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from app.analysis.metrics_catalog import METRICS_CATALOG, SCOPE_NOTE, ConformityStatus, Direcao, MetricDefinition
+from app.analysis.metrics_catalog import (
+    METRICS_CATALOG,
+    SCOPE_NOTE,
+    ConformityStatus,
+    Direcao,
+    MetricDefinition,
+)
 from app.services.report_charts import (
     band_gauge,
     index_bar,
@@ -242,7 +248,7 @@ class _NumberedCanvas(pdf_canvas.Canvas):
         super().__init__(*args, **kwargs)
         self._saved_states: list[dict] = []
 
-    def showPage(self):  # noqa: N802 - API do reportlab
+    def showPage(self):
         self._saved_states.append(dict(self.__dict__))
         self._startPage()
 
@@ -667,7 +673,7 @@ def build_single_analysis_report(
 ) -> bytes:
     """`previous`: `{concluida_em, measurements, status_conformidade_geral}` da análise concluída
     imediatamente anterior do mesmo repositório (opcional) — habilita a comparação."""
-    generated_at = generated_at or datetime.now(timezone.utc)
+    generated_at = generated_at or datetime.now(UTC)
     measurements = _ordered(measurements)
     meta = [
         ("Repositório", escape(repository_url)),
@@ -836,7 +842,7 @@ def build_history_report(
     generated_at: datetime | None = None,
 ) -> bytes:
     """`analyses`: lista cronológica de `{id, concluida_em, measurements, status_conformidade_geral}`."""
-    generated_at = generated_at or datetime.now(timezone.utc)
+    generated_at = generated_at or datetime.now(UTC)
     analyses = [{**a, "measurements": _ordered(a["measurements"])} for a in analyses]
     first, last = analyses[0], analyses[-1]
     period = (

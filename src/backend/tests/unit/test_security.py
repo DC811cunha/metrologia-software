@@ -1,17 +1,16 @@
 import uuid
 
-import pytest
-
 import jwt
+import pytest
 
 from app.core.config import settings
 from app.core.security import (
     InvalidTokenError,
-    equalize_login_timing,
     create_access_token,
     create_refresh_token,
     decode_access_token,
     decode_refresh_token,
+    equalize_login_timing,
     hash_password,
     verify_password,
 )

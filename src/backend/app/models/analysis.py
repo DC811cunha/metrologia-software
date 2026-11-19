@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -45,7 +45,7 @@ class Analysis(Base):
     )
     motivo_falha: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     solicitada_em: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     concluida_em: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     status_conformidade_geral: Mapped[str | None] = mapped_column(String(20), nullable=True)

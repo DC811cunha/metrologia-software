@@ -1,7 +1,7 @@
 """Uma análise em andamento por repositório (409) e teto de análises síncronas simultâneas (fila quando lotado)."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import pytest
@@ -41,7 +41,7 @@ def _add_analysis(db_session, repository_id: str, status: AnalysisStatus, age_s:
     analysis = Analysis(
         repositorio_id=uuid.UUID(repository_id),
         status=status,
-        solicitada_em=datetime.now(timezone.utc) - timedelta(seconds=age_s),
+        solicitada_em=datetime.now(UTC) - timedelta(seconds=age_s),
     )
     db_session.add(analysis)
     db_session.commit()

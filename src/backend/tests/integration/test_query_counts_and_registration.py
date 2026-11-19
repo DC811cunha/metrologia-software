@@ -1,7 +1,7 @@
 """Desempenho das listas (sem consulta por item) e cadastro com URL normalizada e sem duplicata por caixa."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import event
@@ -98,7 +98,7 @@ class TestRepositoryListQueryCount:
         failed = Analysis(
             repositorio_id=uuid.UUID(repository["id"]),
             status=AnalysisStatus.FALHOU,
-            solicitada_em=datetime.now(timezone.utc) + timedelta(minutes=1),  # explícito: relógio do Windows tem passo grosso
+            solicitada_em=datetime.now(UTC) + timedelta(minutes=1),  # explícito: relógio do Windows tem passo grosso
         )
         db_session.add(failed)
         db_session.commit()

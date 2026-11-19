@@ -1,7 +1,7 @@
 """Pedido de recuperação de senha: o endpoint só enfileira (resposta independente da conta) e o worker decide,
 com limite por e-mail e limpeza de tokens antigos."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import event
@@ -122,7 +122,7 @@ class TestPerEmailThrottle:
     def test_tokens_older_than_an_hour_do_not_count(self, client, db_session, sent_emails):
         _register(client, "old@example.com")
         user = db_session.query(User).one()
-        long_ago = datetime.now(timezone.utc) - timedelta(hours=2)
+        long_ago = datetime.now(UTC) - timedelta(hours=2)
         for i in range(settings.password_reset_max_per_hour):
             db_session.add(
                 PasswordResetToken(
@@ -141,7 +141,7 @@ class TestHousekeeping:
     def test_old_used_and_expired_tokens_are_removed_but_recent_and_valid_ones_stay(self, client, db_session, sent_emails):
         _register(client, "reset@example.com")
         user = db_session.query(User).one()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         long_ago = now - timedelta(hours=3)
         db_session.add_all(
             [

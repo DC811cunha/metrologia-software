@@ -396,7 +396,7 @@ class TestLogoutRevokesTheSession:
     def test_logging_out_twice_revokes_only_once(self, client, db_session):
         from app.models.user import User
 
-        access, cookie = self._signed_in(client, "twice@example.com")
+        _access, cookie = self._signed_in(client, "twice@example.com")
         client.post("/api/v1/auth/logout")
         client.cookies.set(REFRESH_COOKIE, cookie, path="/api/v1/auth")  # a mesma cópia, já revogada
 

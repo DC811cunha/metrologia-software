@@ -62,7 +62,7 @@ PyYAML==6.0.3
 radon==6.0.1
 redis==8.1.0
 reportlab==5.1.0
-ruff==0.15.19
+ruff==0.17.5
 six==1.17.0
 # Editable install with no version control (softmeter-backend==0.1.0)
 SQLAlchemy==2.0.58

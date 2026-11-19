@@ -7,7 +7,7 @@ Não-Conforme) e o status nunca é indicado só por cor: o texto do status sempr
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_RIGHT
@@ -58,7 +58,7 @@ def status_solid_color(status: str) -> colors.Color:
 
 
 def _style(name: str, **kwargs) -> ParagraphStyle:
-    base = dict(fontName="Vera", fontSize=9, leading=12.5, textColor=INK)
+    base = {"fontName": "Vera", "fontSize": 9, "leading": 12.5, "textColor": INK}
     base.update(kwargs)
     return ParagraphStyle(name, **base)
 
@@ -120,7 +120,7 @@ SCALE: dict[str, tuple[float, float]] = {
 _BRT = timezone(timedelta(hours=-3))
 
 
-def format_number(value: float | int, decimals: int = 2, strip: bool = True) -> str:
+def format_number(value: float, decimals: int = 2, strip: bool = True) -> str:
     """Formato brasileiro (vírgula decimal). `strip` remove zeros à direita (bom para limites: "5");
     sem ele as casas ficam fixas (bom para valores medidos: "17,0", alinhado com "29,5")."""
     text = f"{value:.{decimals}f}"
@@ -153,7 +153,7 @@ def format_datetime(value: datetime | None) -> str:
     if value is None:
         return "N/A"
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
+        value = value.replace(tzinfo=UTC)
     return value.astimezone(_BRT).strftime("%d/%m/%Y %H:%M")
 
 
@@ -161,7 +161,7 @@ def format_date(value: datetime | None) -> str:
     if value is None:
         return "N/A"
     if value.tzinfo is None:
-        value = value.replace(tzinfo=timezone.utc)
+        value = value.replace(tzinfo=UTC)
     return value.astimezone(_BRT).strftime("%d/%m/%Y")
 
 

@@ -1,10 +1,9 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
-
-from sqlalchemy import DateTime, ForeignKey, String
 from typing import TYPE_CHECKING
 
+from sqlalchemy import DateTime, ForeignKey, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -32,7 +31,7 @@ class Report(Base):
         ForeignKey("analyses.id"), nullable=True
     )
     gerado_em: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
     caminho_arquivo: Mapped[str] = mapped_column(String(500), nullable=False)
 

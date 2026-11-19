@@ -13,7 +13,6 @@ import app.api.analyses as analyses_module
 import app.api.repositories as repositories_module
 import app.core.config as config_module
 
-
 # ── fixtures ──────────────────────────────────────────────────────────────────
 
 @pytest.fixture(autouse=True)

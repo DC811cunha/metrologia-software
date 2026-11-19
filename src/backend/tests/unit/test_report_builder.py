@@ -1,5 +1,5 @@
 import io
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from pypdf import PdfReader
 
@@ -43,7 +43,7 @@ class TestBuildSingleAnalysisReport:
         pdf_bytes = build_single_analysis_report(
             repository_url="https://github.com/octocat/Hello-World",
             analysis_id="analysis-1",
-            concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
+            concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
             measurements=MEASUREMENTS,
             overall_status="Conforme",
         )
@@ -53,7 +53,7 @@ class TestBuildSingleAnalysisReport:
         pdf_bytes = build_single_analysis_report(
             repository_url="https://github.com/octocat/Hello-World",
             analysis_id="analysis-1",
-            concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
+            concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
             measurements=MEASUREMENTS,
             overall_status="Conforme",
         )
@@ -72,7 +72,7 @@ class TestBuildSingleAnalysisReport:
         pdf_bytes = build_single_analysis_report(
             repository_url="https://github.com/octocat/Hello-World",
             analysis_id="analysis-1",
-            concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
+            concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
             measurements=MEASUREMENTS,
             overall_status="Conforme",
         )
@@ -83,7 +83,7 @@ class TestBuildSingleAnalysisReport:
         pdf_bytes = build_single_analysis_report(
             repository_url="https://github.com/octocat/Hello-World",
             analysis_id="analysis-1",
-            concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
+            concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
             measurements=MEASUREMENTS,
             overall_status="Conforme",
         )
@@ -97,7 +97,7 @@ class TestBuildSingleAnalysisReport:
         pdf_bytes = build_single_analysis_report(
             repository_url="https://github.com/octocat/Hello-World",
             analysis_id="analysis-1",
-            concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
+            concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
             measurements=MEASUREMENTS_WITH_ISSUE,
             overall_status="Condicional",
         )
@@ -114,13 +114,13 @@ class TestBuildHistoryReport:
         analyses = [
             {
                 "id": "analysis-1",
-                "concluida_em": datetime(2026, 6, 1, tzinfo=timezone.utc),
+                "concluida_em": datetime(2026, 6, 1, tzinfo=UTC),
                 "measurements": MEASUREMENTS,
                 "status_conformidade_geral": "Conforme",
             },
             {
                 "id": "analysis-2",
-                "concluida_em": datetime(2026, 6, 15, tzinfo=timezone.utc),
+                "concluida_em": datetime(2026, 6, 15, tzinfo=UTC),
                 "measurements": MEASUREMENTS,
                 "status_conformidade_geral": "Conforme",
             },
@@ -139,13 +139,13 @@ class TestBuildHistoryReport:
         analyses = [
             {
                 "id": "analysis-1",
-                "concluida_em": datetime(2026, 6, 1, tzinfo=timezone.utc),
+                "concluida_em": datetime(2026, 6, 1, tzinfo=UTC),
                 "measurements": MEASUREMENTS,
                 "status_conformidade_geral": "Conforme",
             },
             {
                 "id": "analysis-2",
-                "concluida_em": datetime(2026, 6, 15, tzinfo=timezone.utc),
+                "concluida_em": datetime(2026, 6, 15, tzinfo=UTC),
                 "measurements": MEASUREMENTS_WITH_ISSUE,
                 "status_conformidade_geral": "Condicional",
             },
@@ -165,7 +165,7 @@ class TestScopeNote:
         pdf = build_single_analysis_report(
             repository_url="https://github.com/octocat/Hello-World",
             analysis_id="a-1",
-            concluida_em=datetime(2026, 6, 1, tzinfo=timezone.utc),
+            concluida_em=datetime(2026, 6, 1, tzinfo=UTC),
             measurements=MEASUREMENTS,
             overall_status="Conforme",
         )
@@ -181,7 +181,7 @@ class TestScopeNote:
             analyses=[
                 {
                     "id": "a-1",
-                    "concluida_em": datetime(2026, 6, 1, tzinfo=timezone.utc),
+                    "concluida_em": datetime(2026, 6, 1, tzinfo=UTC),
                     "measurements": MEASUREMENTS,
                     "status_conformidade_geral": "Conforme",
                 }
@@ -210,13 +210,13 @@ MEASUREMENTS_CURRENT = [
 
 
 def _single(**overrides) -> str:
-    kwargs = dict(
-        repository_url="https://github.com/octocat/Hello-World",
-        analysis_id="analysis-1",
-        concluida_em=datetime(2026, 6, 1, 12, 0, tzinfo=timezone.utc),
-        measurements=MEASUREMENTS_CURRENT,
-        overall_status="Condicional",
-    )
+    kwargs = {
+        "repository_url": "https://github.com/octocat/Hello-World",
+        "analysis_id": "analysis-1",
+        "concluida_em": datetime(2026, 6, 1, 12, 0, tzinfo=UTC),
+        "measurements": MEASUREMENTS_CURRENT,
+        "overall_status": "Condicional",
+    }
     kwargs.update(overrides)
     return _extract_text(build_single_analysis_report(**kwargs))
 
@@ -259,7 +259,7 @@ class TestReportData:
     def test_compares_with_the_previous_analysis_when_available(self):
         text = _single(
             previous={
-                "concluida_em": datetime(2026, 5, 1, 12, 0, tzinfo=timezone.utc),
+                "concluida_em": datetime(2026, 5, 1, 12, 0, tzinfo=UTC),
                 "measurements": MEASUREMENTS_PREVIOUS,
                 "status_conformidade_geral": "Condicional",
             }
@@ -303,13 +303,13 @@ class TestHistoryReportCharts:
     ANALYSES = [
         {
             "id": "analysis-1",
-            "concluida_em": datetime(2026, 5, 1, tzinfo=timezone.utc),
+            "concluida_em": datetime(2026, 5, 1, tzinfo=UTC),
             "measurements": MEASUREMENTS_PREVIOUS,
             "status_conformidade_geral": "Condicional",
         },
         {
             "id": "analysis-2",
-            "concluida_em": datetime(2026, 6, 1, tzinfo=timezone.utc),
+            "concluida_em": datetime(2026, 6, 1, tzinfo=UTC),
             "measurements": MEASUREMENTS_CURRENT,
             "status_conformidade_geral": "Condicional",
         },

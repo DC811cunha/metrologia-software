@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import uuid
 from collections.abc import Sequence
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -30,7 +30,7 @@ def expire_stale_analyses(db: Session, repository_ids: Sequence[uuid.UUID]) -> i
     quantas foram marcadas."""
     if not repository_ids:
         return 0
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     cutoff = now - timedelta(seconds=settings.stale_analysis_after_s)
     stale = (
         db.execute(

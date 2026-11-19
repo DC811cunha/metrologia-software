@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from typing import TYPE_CHECKING
 
@@ -36,7 +36,7 @@ class Repository(Base):
         String(20), nullable=False, default=AccessStatus.ATIVO
     )
     criado_em: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
 
     user: Mapped["User"] = relationship(back_populates="repositories")

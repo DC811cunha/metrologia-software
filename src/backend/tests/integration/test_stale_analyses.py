@@ -1,7 +1,7 @@
 """Análises perdidas (worker caiu/reiniciou) e o link do dashboard depois de uma tentativa que falhou."""
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import app.api.repositories as repositories_module
 from app.core.config import settings
@@ -18,8 +18,8 @@ def _analysis(db_session, repository_id: str, status: AnalysisStatus, *, age_s: 
     analysis = Analysis(
         repositorio_id=uuid.UUID(repository_id),
         status=status,
-        solicitada_em=datetime.now(timezone.utc) - timedelta(seconds=age_s),
-        concluida_em=datetime.now(timezone.utc) if status in (AnalysisStatus.CONCLUIDA, AnalysisStatus.FALHOU) else None,
+        solicitada_em=datetime.now(UTC) - timedelta(seconds=age_s),
+        concluida_em=datetime.now(UTC) if status in (AnalysisStatus.CONCLUIDA, AnalysisStatus.FALHOU) else None,
         status_conformidade_geral="Conforme" if status is AnalysisStatus.CONCLUIDA else None,
     )
     db_session.add(analysis)
@@ -117,8 +117,9 @@ class TestWorkerWhenTheRepositoryIsDeletedMidAnalysis:
     """Log real de 13/11: StaleDataError + PendingRollbackError com traceback no worker."""
 
     def test_the_task_discards_the_result_instead_of_crashing(self, client, auth_headers, monkeypatch, db_session):
-        import app.workers.analysis_tasks as tasks_module
         from sqlalchemy.orm.exc import StaleDataError
+
+        import app.workers.analysis_tasks as tasks_module
 
         repository = _register(client, auth_headers, monkeypatch)
         analysis = _analysis(db_session, repository["id"], AnalysisStatus.PROCESSANDO)

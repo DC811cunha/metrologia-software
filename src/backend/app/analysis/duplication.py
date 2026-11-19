@@ -90,9 +90,7 @@ def _js_ts_import_rows(root: Node) -> set[int]:
     rows: set[int] = set()
     for node in walk_tree(root):
         target: Node | None = None
-        if node.type == "import_statement":
-            target = node
-        elif node.type == "export_statement" and any(child.type == "string" for child in node.children):
+        if node.type == "import_statement" or node.type == "export_statement" and any(child.type == "string" for child in node.children):
             target = node
         elif node.type == "call_expression":
             function_node = node.child_by_field_name("function")

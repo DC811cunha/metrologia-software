@@ -17,7 +17,6 @@ updates:
       - dependency-name: mando             # radon 6 exige mando<0.8
         versions: [">=0.8"]
       - dependency-name: python-dateutil   # dependência indireta (celery/kombu): o resolvedor do pip decide
-      - dependency-name: ruff              # versão fixada em pyproject.toml; a 0.17 acrescenta ~200 achados de lint
 
   - package-ecosystem: npm
     directory: /src/frontend
