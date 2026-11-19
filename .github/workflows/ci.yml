@@ -135,3 +135,43 @@ jobs:
           JWT_REFRESH_SECRET: y
           CORS_ORIGINS: '["https://exemplo.com.br"]'
           FRONTEND_URL: https://exemplo.com.br
+
+  # Análise estática de qualidade e segurança (SonarCloud). Reaproveita a cobertura dos jobs de testes. Só roda
+  # quando o segredo SONAR_TOKEN existe (PRs do Dependabot e de forks não o recebem e não devem falhar por isso).
+  sonar:
+    name: Qualidade — SonarCloud
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    env:
+      SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    steps:
+      - name: Checkout
+        if: env.SONAR_TOKEN != ''
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0 # o SonarCloud precisa do histórico completo para atribuir problemas novos
+
+      - name: Baixar a cobertura do backend
+        if: env.SONAR_TOKEN != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: backend-coverage
+          path: src/backend
+
+      - name: Baixar a cobertura do frontend
+        if: env.SONAR_TOKEN != ''
+        uses: actions/download-artifact@v8
+        with:
+          name: frontend-coverage
+          path: src/frontend/coverage
+
+      # O lcov.info traz os caminhos relativos a src/frontend (ex.: src/App.tsx); o SonarCloud os resolve a partir da raiz do
+      # repositório. O coverage.xml não precisa de ajuste: o SonarCloud o resolve pelo <source> do próprio relatório.
+      - name: Ajustar os caminhos da cobertura do frontend
+        if: env.SONAR_TOKEN != ''
+        run: sed -i 's|^SF:|SF:src/frontend/|' src/frontend/coverage/lcov.info
+
+      - name: Análise do SonarCloud
+        if: env.SONAR_TOKEN != ''
+        uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
