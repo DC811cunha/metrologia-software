@@ -260,6 +260,8 @@ próprio cadastrou.
 - [X] T109 `eslint-plugin-react-hooks` 7 (preset `flat.recommended`): `DashboardPage` e `RepositoriesPage` deixam de chamar `setState` direto em efeitos (ADR-007)
 - [X] T110 ESLint 10 (`eslint` e `@eslint/js` 10) sem mudança na configuração; as mesmas regras confirmadas com um arquivo de sonda (ADR-007)
 - [X] T111 `ruff` 0.17 (conjunto de regras padrão maior): `datetime.UTC`, imports ordenados, `noqa` obsoletos removidos, `SIM102`/`RUF059`/`PLW1510` corrigidos; B008 do `Depends` do FastAPI configurado como esperado e FLY002/RUF012 liberados só nos testes (`pyproject.toml`)
+- [X] T112 Roteiro de deploy público na AWS (`docs/deploy/roteiro-deploy-aws.md`): arquitetura em EC2 + Caddy + Route 53, decisões prévias, passos, verificação, backup e evolução
+- [ ] T113 Executar o deploy público seguindo o roteiro (Caddy no compose de produção, servidor, DNS/HTTPS, verificação) e registrar o resultado em um ADR
 - [X] T114 Infra de produção: Caddy (HTTPS automático, frontend estático e `/api` no mesmo domínio) no `docker-compose.prod.yml`, `scripts/deploy.sh`, `packaging` nas dependências de execução (o worker não subia na imagem `prod`) e job de CI que constrói a imagem de produção (ADR-007)
 - [ ] T079 Registrar domínio próprio e verificá-lo no Resend (SPF/DKIM); atualizar `EMAIL_FROM` — pré-requisito para entregar o e-mail de recuperação a usuários externos e para o deploy público (ADR-005)
 - [ ] T080 Revisão das métricas solicitada na orientação de 15/09/2026 — escopo a definir com o orientador. *(Nota de 2026-11-17: a revisão por pares do Sandro já corrigiu a corretude e o escopo das métricas — T088 a T090, ADR-010 a ADR-012 — e ajustou o texto de fórmula do catálogo; os limites de especificação continuam os de 25/06/2026.)*
