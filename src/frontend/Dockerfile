@@ -12,7 +12,10 @@ COPY package*.json ./
 # --ignore-scripts: scripts de instalação (postinstall etc.) de dependências não rodam no build.
 RUN npm ci --ignore-scripts
 
-COPY . .
+# Só o que o build usa (em vez de `COPY . .`, que levaria junto qualquer arquivo largado na pasta, como um .env).
+COPY index.html vite.config.ts tsconfig.json tsconfig.node.json tailwind.config.js postcss.config.js ./
+COPY public ./public
+COPY src ./src
 
 # Vazio = mesma origem: o navegador chama /api no próprio domínio do site, e o Caddy encaminha ao backend.
 ARG VITE_API_URL=
@@ -38,9 +41,14 @@ USER node
 
 COPY --chown=node:node package*.json ./
 
-RUN npm install --ignore-scripts
+# `npm ci`: instala exatamente as versões do package-lock.json.
+RUN npm ci --ignore-scripts
 
-COPY --chown=node:node . .
+# Configuração e código (o docker-compose.yml de desenvolvimento ainda monta ./src/frontend por cima, para o HMR).
+COPY --chown=node:node index.html vite.config.ts tsconfig.json tsconfig.node.json tailwind.config.js postcss.config.js      babel.config.js eslint.config.js jest.config.js jest.setup.ts ./
+COPY --chown=node:node public ./public
+COPY --chown=node:node src ./src
+COPY --chown=node:node tests ./tests
 
 EXPOSE 3000
 
