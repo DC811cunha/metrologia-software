@@ -1,14 +1,17 @@
-# SoftMeter — compose de PRODUÇÃO (backend, worker, Postgres e Redis).
+# SoftMeter — compose de PRODUÇÃO (Caddy + frontend, backend, worker, Postgres e Redis).
 #
 # Diferenças em relação ao docker-compose.yml (desenvolvimento):
-#   - Postgres e Redis NÃO publicam portas no host (só são alcançáveis pela rede interna);
+#   - só o Caddy (`web`) publica portas no host (80/443): Postgres, Redis e a API só são alcançáveis pela rede interna;
+#   - o Caddy serve o build estático do frontend e encaminha /api e /health ao backend, com HTTPS automático
+#     (Let's Encrypt) — site e API no mesmo domínio (cookie SameSite=Lax);
 #   - Redis exige senha;
 #   - sem `--reload` e sem o código montado como volume;
-#   - a API só escuta em 127.0.0.1 — quem a expõe é o proxy reverso com HTTPS;
 #   - toda credencial é obrigatória: o compose recusa subir se alguma variável faltar.
 #
-# O frontend não faz parte deste arquivo: gere o build estático (`npm run build` em src/frontend)
-# e sirva-o pelo mesmo proxy que encaminha `/api` ao backend. Ver README ("Desenvolvimento × produção").
+# Atualizar no servidor: ./scripts/deploy.sh. Passo a passo: docs/deploy/roteiro-deploy-aws.md.
+# O `name` separa este projeto do compose de desenvolvimento (mesmos nomes de serviço, outros volumes).
+
+name: softmeter-prod
 
 x-backend-env: &backend-env
   ENVIRONMENT: production
@@ -73,14 +76,38 @@ services:
       <<: *backend-env
       # IPs do proxy reverso em que o backend confia para ler X-Forwarded-For (o uvicorn lê esta
       # variável). Sem isto, atrás de um proxy todos os usuários apareceriam com o IP do proxy.
-      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:?defina FORWARDED_ALLOW_IPS (IP/rede do proxy reverso)}
-    ports:
-      - "127.0.0.1:3001:3001"
+      # A API só é alcançável pela rede do compose (sem porta publicada): o único cliente é o Caddy. A sub-rede é fixa
+      # (ver `networks` abaixo), então o padrão já está correto; só mude se mudar a sub-rede.
+      FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.29.0.0/24}
     volumes:
       # Sem este volume os PDFs moravam no sistema de arquivos do container e sumiam a cada recriação
       # (deploy, atualização de imagem): todo relatório já emitido passava a dar 404.
       - reports_data_prod:/app/generated_reports
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "3001", "--proxy-headers"]
+
+  web:
+    # Caddy com o build estático do frontend (estágio `prod` do Dockerfile). `VITE_API_URL` vazio = mesma origem.
+    build:
+      context: ./src/frontend
+      dockerfile: Dockerfile
+      target: prod
+      args:
+        VITE_API_URL: ""
+    container_name: softmeter_web_prod
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      # Domínio público (ex.: softmeter.com.br). Com `localhost` o Caddy usa um certificado interno (teste local).
+      SITE_ADDRESS: "${SITE_ADDRESS:?defina SITE_ADDRESS com o dominio publico, ex. softmeter.com.br}"
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
 
   celery-worker:
     build:
@@ -98,6 +125,16 @@ services:
       <<: *backend-env
     command: ["celery", "-A", "app.core.celery_app", "worker", "--loglevel=info"]
 
+networks:
+  default:
+    # Sub-rede fixa: o uvicorn só confia no X-Forwarded-For vindo daqui (FORWARDED_ALLOW_IPS).
+    ipam:
+      config:
+        - subnet: 172.29.0.0/24
+
 volumes:
   postgres_data_prod:
   reports_data_prod:
+  # Certificados do Caddy: se este volume se perder, o Let's Encrypt emite outros (com limite de emissões por semana).
+  caddy_data:
+  caddy_config:

@@ -105,6 +105,37 @@ jobs:
           name: frontend-coverage
           path: src/frontend/coverage/
 
+  # O que roda em produção é a imagem do estágio `prod` (só as dependências de execução, sem as de teste). Uma
+  # dependência que só o pytest trazia (ex.: `packaging`, exigido pelo kombu) passava no CI e derrubava o worker
+  # ao subir em produção. Aqui a imagem é construída e os módulos que o worker e a API carregam são importados.
+  prod-image:
+    name: Produção — imagem do backend e compose
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Construir a imagem de produção do backend
+        run: docker build --target prod -t softmeter-backend-prod src/backend
+
+      - name: Importar os módulos do worker e da API na imagem de produção
+        run: >-
+          docker run --rm softmeter-backend-prod python -c
+          "import app.main, app.core.celery_app, app.workers.analysis_tasks, app.workers.auth_tasks,
+          app.workers.email_tasks, kombu.transport.redis; print('ok')"
+
+      - name: Validar o docker-compose.prod.yml
+        run: docker compose -f docker-compose.prod.yml config -q
+        env:
+          SITE_ADDRESS: exemplo.com.br
+          DB_PASSWORD: x
+          REDIS_PASSWORD: x
+          JWT_SECRET: x
+          JWT_REFRESH_SECRET: y
+          CORS_ORIGINS: '["https://exemplo.com.br"]'
+          FRONTEND_URL: https://exemplo.com.br
+
   # Análise estática de qualidade e segurança (SonarCloud). Reaproveita a cobertura dos jobs de testes. Só roda
   # quando o segredo SONAR_TOKEN existe (PRs do Dependabot e de forks não o recebem e não devem falhar por isso).
   sonar:

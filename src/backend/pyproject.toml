@@ -13,6 +13,9 @@ dependencies = [
     "pydantic-settings>=2.2",
     "celery>=5.3",
     "redis>=5.0",
+    # O transporte Redis do kombu (usado pelo Celery) importa `packaging` sem declará-lo; só o pytest (dev) o trazia,
+    # e a imagem de produção ficava sem ele: o worker caía ao iniciar e o backend não conseguia enfileirar tarefas.
+    "packaging>=23",
     "pyjwt>=2.8",
     "bcrypt>=4.1,<6",
     "defusedxml>=0.7",
