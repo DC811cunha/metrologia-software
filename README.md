@@ -61,7 +61,7 @@ metrologia-software/
 │   └── e2e/                        # Playwright — fluxos ponta a ponta pela UI real
 ├── docs/
 │   ├── rfc/                        # RFC-001 (v2.2): proposta, requisitos, arquitetura, segurança
-│   ├── adr/                        # Decisões de arquitetura (ADR-001 a ADR-015)
+│   ├── adr/                        # Decisões de arquitetura (ADR-001 a ADR-016)
 │   ├── architecture/               # Diagramas C4 e fluxos de dados
 │   ├── deploy/                     # Roteiro de deploy público na AWS
 │   ├── archive/                    # Backend Node/Express original (descontinuado, ADR-003)

@@ -1,11 +1,13 @@
 name: Deploy — SoftMeter (AWS)
 
 # Entrega contínua: depois que o CI passa na `main`, este fluxo manda o servidor da AWS atualizar a aplicação.
-# Não há SSH nem chaves de acesso fixas no repositório:
-#   1. o GitHub Actions prova quem é à AWS por OIDC (token temporário) e assume a função `softmeter-github-deploy`;
-#   2. essa função só pode mandar comandos (AWS Systems Manager) para a instância de produção;
+# Não há SSH: o acesso é pelo AWS Systems Manager (SSM), com uma chave de acesso de privilégio mínimo:
+#   1. o usuário IAM `softmeter-github-deploy` (sem acesso ao console) só pode mandar comandos (SSM) para a instância
+#      de produção — não cria recursos nem gera cobrança;
+#   2. a chave fica em segredos do *environment* `production` do GitHub, que só libera a `main`;
 #   3. na instância roda `scripts/deploy.sh` (git pull, build, migrations, up -d, teste de /health).
-# Configuração única na AWS e no GitHub: docs/deploy/roteiro-deploy-aws.md (seção "Entrega contínua").
+# O OIDC (token temporário, sem chave fixa) seria preferível, mas exige os "recursos avançados" da AWS, que pedem o
+# upgrade da conta e um cartão de pagamento: ver ADR-016. Configuração: docs/deploy/roteiro-deploy-aws.md (seção 12).
 
 on:
   workflow_run:
@@ -21,32 +23,37 @@ concurrency:
 
 permissions:
   contents: read
-  id-token: write # necessário para o OIDC com a AWS
 
 jobs:
   deploy:
     name: Deploy — produção
     runs-on: ubuntu-latest
     timeout-minutes: 40
-    # Só depois de um CI verde na main (ou quando disparado à mão). Variáveis do repositório: AWS_DEPLOY_ROLE_ARN,
-    # AWS_REGION e EC2_INSTANCE_ID (não são segredos).
+    # Só depois de um CI verde na main (ou quando disparado à mão).
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    # Os segredos e as variáveis abaixo ficam neste environment (Settings > Environments), restrito à `main`.
+    environment: production
     env:
       AWS_REGION: ${{ vars.AWS_REGION }}
       INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
     steps:
       - name: Conferir a configuração
         run: |
           for v in AWS_REGION INSTANCE_ID; do
-            if [ -z "${!v}" ]; then echo "::error::Defina a variável do repositório correspondente a $v (ver o roteiro de deploy)."; exit 1; fi
+            if [ -z "${!v}" ]; then echo "::error::Defina a variável do environment production correspondente a $v (ver o roteiro de deploy, seção 12)."; exit 1; fi
           done
-          if [ -z "${{ vars.AWS_DEPLOY_ROLE_ARN }}" ]; then echo "::error::Defina a variável AWS_DEPLOY_ROLE_ARN."; exit 1; fi
+          for v in AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY; do
+            if [ -z "${!v}" ]; then echo "::error::Defina o segredo $v no environment production (ver o roteiro de deploy, seção 12)."; exit 1; fi
+          done
 
-      - name: Credenciais temporárias da AWS (OIDC)
+      - name: Credenciais da AWS (usuário de deploy com privilégio mínimo)
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ vars.AWS_REGION }}
 
       - name: Atualizar a aplicação no servidor (AWS Systems Manager)

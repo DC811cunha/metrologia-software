@@ -11,7 +11,7 @@ Redis) mais um **proxy reverso Caddy** que serve o build estático do frontend e
 automático (Let's Encrypt).
 
 ```
-Usuário ──HTTPS──▶ DNS (A) ──▶ Elastic IP ──▶ EC2 (Ubuntu 24.04, t3.small, 20 GB gp3, us-east-1)
+Usuário ──HTTPS──▶ DNS (A) ──▶ Elastic IP ──▶ EC2 (Ubuntu 24.04, t3.small, 20 GB gp3, us-east-2)
                                                     └─ Caddy :80/:443
                                                          ├─ /            → frontend estático (npm run build)
                                                          └─ /api/*       → backend :3001 (rede interna do compose)
@@ -38,7 +38,7 @@ dependências têm versão para ARM; só vale se o teste passar.
 
 | Item | Valor/mês | Observação |
 |---|---|---|
-| EC2 `t3.small` (us-east-1) | ~US$ 15 | modo de crédito **standard** (não "unlimited", que cobra CPU extra) |
+| EC2 `t3.small` (us-east-2) | ~US$ 15 | modo de crédito **standard** (não "unlimited", que cobra CPU extra) |
 | IP público (Elastic IP) | ~US$ 3,6 | a AWS cobra todo IPv4 público desde 2024 |
 | Disco gp3 de 20 GB | ~US$ 1,6 | 20 GB bastam (sistema + imagens + dados) |
 | Backup (S3 + 1 snapshot semanal) | ~US$ 0,5 | cresce pouco |
@@ -64,7 +64,7 @@ dependências têm versão para ARM; só vale se o teste passar.
 | 1 | **Domínio próprio** (T079) | Necessário também para o e-mail (item 2). Registro.br (`.com.br`, ~R$ 40/ano, só CPF). |
 | 2 | **Resend com domínio verificado** | Sem isso o Resend só entrega e-mails à conta dona da chave (ADR-005): **a recuperação de senha não funcionaria para os usuários**. Verifique o domínio no Resend (registros DNS SPF/DKIM) e defina `RESEND_API_KEY` e `EMAIL_FROM`. |
 | 3 | **Conta AWS** | Ative o MFA no usuário raiz e crie um usuário administrador (não use o raiz no dia a dia). Veja se há créditos (conta nova, AWS Academy ou programa da faculdade). |
-| 4 | **Região** | **`us-east-1` (Virgínia)**: a mais barata. `sa-east-1` (São Paulo) tem menos latência, mas custa ~30% mais; para uma demonstração de TCC a latência não compensa. |
+| 4 | **Região** | **`us-east-2` (Ohio)**: tem o mesmo preço da `us-east-1` (Virgínia), as mais baratas. `sa-east-1` (São Paulo) tem menos latência, mas custa ~30% mais; para uma demonstração de TCC a latência não compensa. |
 | 5 | **Alerta de custo** | Crie um *Budget* de US$ 25/mês, com avisos aos 80%, ao previsto e aos 100%, **antes** de criar qualquer recurso. |
 | 6 | **`GITHUB_TOKEN` no servidor** | Sem token, a API do GitHub limita a 60 requisições por hora no IP do servidor, e a cobertura de testes depende dele. Vale até 01/02/2027 (renovar). |
 
@@ -148,7 +148,7 @@ Cada item abaixo muda a arquitetura e o custo; só faça depois que a fase 1 est
 | **RDS PostgreSQL** no lugar do container | banco gerenciado, backups automáticos | +US$ 15–25/mês; só mudar `DATABASE_URL` |
 | **S3 + CloudFront** para o frontend | CDN, ACM, origens múltiplas (CloudFront também encaminha `/api`) | baixo; pede ajuste de cookie/CORS |
 | **PDFs no S3** | armazenamento de objetos, IAM por perfil | exige **alterar o código** (hoje os PDFs são arquivos locais) |
-| **CI/CD** com GitHub Actions + OIDC | deploy sem chaves de acesso fixas | médio |
+| **OIDC** no lugar da chave do deploy (exige os recursos avançados da AWS) | deploy sem chaves de acesso fixas | baixo no código, mas pede upgrade e cartão |
 | **Terraform** | infraestrutura como código | médio; ótimo para o currículo |
 | **ECS Fargate + ALB + ElastiCache** | orquestração gerenciada | alto (US$ 100+/mês) e muito mais configuração |
 
@@ -166,18 +166,21 @@ Cada item abaixo muda a arquitetura e o custo; só faça depois que a fase 1 est
 ## 12. Entrega contínua (GitHub Actions + SSM) e primeira partida
 
 O Playbook veda o deploy manual por SSH/FTP. Por isso a aplicação **não é atualizada por acesso ao servidor**: depois que o
-CI passa na `main`, o fluxo `.github/workflows/deploy.yml` assume uma função da AWS por **OIDC** (token temporário, sem
-chaves fixas no repositório) e manda o servidor rodar `scripts/deploy.sh` pelo **AWS Systems Manager (SSM)**. O
-servidor nem precisa ter a porta 22 aberta (e não tem).
+CI passa na `main`, o fluxo `.github/workflows/deploy.yml` usa uma credencial da AWS de **privilégio mínimo** para mandar o
+servidor rodar `scripts/deploy.sh` pelo **AWS Systems Manager (SSM)**. O servidor não tem a porta 22 aberta.
 
-### 12.1 Configuração única na AWS
+> **Por que uma chave de acesso e não o OIDC?** O OIDC (token temporário, sem chave fixa) seria o melhor, mas o provedor de
+> identidade só existe com os "recursos avançados" da AWS, que exigem o upgrade da conta e um cartão de pagamento. Com a
+> conta no plano gratuito e sem cartão (decisão de segurança financeira pessoal), usa-se um usuário IAM que **só** pode
+> mandar comandos SSM para a instância: a chave não cria recursos nem gera cobrança. Ver o ADR-016. Se um dia a conta
+> tiver os recursos avançados, troque a etapa de credenciais do workflow pelo OIDC (`role-to-assume`).
 
-1. **Provedor OIDC.** IAM → *Provedores de identidade* → *Adicionar provedor* → **OpenID Connect**. URL do provedor:
-   `https://token.actions.githubusercontent.com`; público: `sts.amazonaws.com`.
-2. **Função `softmeter-github-deploy`.** IAM → *Funções* → *Criar função* → **Identidade da Web**: provedor
-   `token.actions.githubusercontent.com`, público `sts.amazonaws.com`, organização `DC811cunha`, repositório
-   `metrologia-software`, ramo `main`. Não anexe nenhuma política gerenciada.
-3. **Política em linha** nessa função (só pode mandar comandos para a instância de produção):
+### 12.1 Usuário IAM de deploy (uma vez, na AWS)
+
+1. **IAM → Usuários → Criar usuário**, nome `softmeter-github-deploy`. **Não** marque o acesso ao console.
+2. Em permissões, **não** anexe nenhuma política gerenciada. Depois de criado, abra o usuário → *Adicionar permissões* →
+   **Criar política em linha** → aba **JSON**, com este conteúdo (troque `<ID-DA-CONTA>` e `<ID-DA-INSTANCIA>`; a região é
+   a do servidor, `us-east-2`):
 
 ```json
 {
@@ -187,8 +190,8 @@ servidor nem precisa ter a porta 22 aberta (e não tem).
       "Effect": "Allow",
       "Action": "ssm:SendCommand",
       "Resource": [
-        "arn:aws:ec2:<REGIAO>:<ID-DA-CONTA>:instance/<ID-DA-INSTANCIA>",
-        "arn:aws:ssm:<REGIAO>::document/AWS-RunShellScript"
+        "arn:aws:ec2:us-east-2:<ID-DA-CONTA>:instance/<ID-DA-INSTANCIA>",
+        "arn:aws:ssm:us-east-2::document/AWS-RunShellScript"
       ]
     },
     {
@@ -200,15 +203,27 @@ servidor nem precisa ter a porta 22 aberta (e não tem).
 }
 ```
 
-### 12.2 Variáveis do repositório (não são segredos)
+3. No usuário → **Credenciais de segurança → Criar chave de acesso**, caso de uso **"Aplicativo em execução fora da AWS"**.
+   Copie os dois valores (ID e chave secreta) **direto para o GitHub** (12.2). A chave secreta só aparece uma vez; não a
+   cole em chats, e-mails nem arquivos.
 
-GitHub → *Settings* → *Secrets and variables* → *Actions* → aba **Variables**:
+### 12.2 GitHub: environment `production`, variáveis e segredos
+
+1. **Settings → Environments → New environment**, nome `production`.
+2. Em **Deployment branches and tags**, escolha **Selected branches and tags** e adicione a regra `main` (só a `main`
+   consegue usar os segredos).
+3. Ainda no environment, em **Environment variables**:
 
 | Variável | Valor |
 |---|---|
-| `AWS_DEPLOY_ROLE_ARN` | ARN da função `softmeter-github-deploy` |
-| `AWS_REGION` | região do servidor (`us-east-2`) |
-| `EC2_INSTANCE_ID` | ID da instância `softmeter-prod` |
+| `AWS_REGION` | `us-east-2` |
+| `EC2_INSTANCE_ID` | ID da instância `softmeter-prod` (começa com `i-`) |
+
+4. Em **Environment secrets**: `AWS_ACCESS_KEY_ID` e `AWS_SECRET_ACCESS_KEY` (os valores do passo 3 do 12.1).
+5. **Actions → Deploy — SoftMeter (AWS) → Run workflow** (ramo `main`) e confira que a execução termina em verde.
+
+**Higiene da chave:** troque-a (crie outra e apague a antiga) se houver qualquer suspeita de vazamento, e **apague o usuário
+e a chave** quando a avaliação da banca terminar.
 
 ### 12.3 Primeira partida do servidor (uma vez)
 
