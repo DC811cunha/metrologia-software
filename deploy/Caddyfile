@@ -1,0 +1,41 @@
+# Proxy reverso de produção (HTTPS automático): serve o frontend estático e encaminha a API ao backend.
+#
+# SITE_ADDRESS vem do .env (docker-compose.prod.yml): o domínio público (ex.: softmeter.com.br) obtém e renova o
+# certificado Let's Encrypt sozinho — precisa das portas 80/443 abertas e do DNS apontando para o servidor.
+# Com `localhost` o Caddy usa um certificado interno (serve para testar na própria máquina).
+#
+# Site e API saem do MESMO domínio: o cookie do refresh token é SameSite=Lax + Secure e a API fica em /api/v1.
+# O Caddy já define X-Forwarded-For/Proto para o backend e descarta os que o cliente enviar (anti-falsificação);
+# o uvicorn só confia neles vindos da rede do compose (FORWARDED_ALLOW_IPS, ADR-007).
+
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		# 1 dia por enquanto; aumente (ex.: 31536000) depois que o HTTPS estiver estável.
+		Strict-Transport-Security "max-age=86400"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	@backend path /api/* /health
+	handle @backend {
+		reverse_proxy backend:3001
+	}
+
+	handle {
+		root * /srv
+
+		# Arquivos com hash no nome podem ficar em cache para sempre; o HTML nunca (senão uma versão nova não chega).
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@html not path /assets/*
+		header @html Cache-Control "no-cache"
+
+		# Rotas do React Router (ex.: /repositories/123): devolve o index.html.
+		try_files {path} /index.html
+		file_server
+	}
+}

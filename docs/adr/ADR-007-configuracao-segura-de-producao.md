@@ -90,6 +90,23 @@ faltando, `setState` em efeito, `debugger`, `any`, variável sem uso). O ESLint 
 Ficaram de fora, por exigirem migração própria: React 19, Tailwind 4, TypeScript 7, Babel 8 e Jest 30 (que traz
 `glob`/`minimatch` com avisos de segurança em dev).
 
+## Atualização (19/11/2026): Caddy no compose de produção e a imagem que não subia o worker
+
+O `docker-compose.prod.yml` ganhou o serviço `web` (Caddy com o build estático do frontend, estágio `prod` do
+`src/frontend/Dockerfile`), que passou a ser o **único** a publicar portas (80/443). O backend deixou de publicar a
+porta 3001 no host. O Caddy encaminha `/api` e `/health` ao backend, obtém e renova o certificado sozinho
+(`deploy/Caddyfile`) e acrescenta os cabeçalhos básicos de segurança; site e API saem do mesmo domínio (o cookie do
+refresh token é `SameSite=Lax`). A sub-rede do compose é fixa (`172.29.0.0/24`) e é o padrão de `FORWARDED_ALLOW_IPS`:
+o uvicorn confia no `X-Forwarded-For` só vindo do Caddy, e o Caddy descarta o que o cliente enviar. `scripts/deploy.sh`
+atualiza o servidor (código, imagens, migrations, containers e um teste de `/health`).
+
+Testar a stack de produção de ponta a ponta (build, migrations, HTTPS local, cadastro, rate limit, tarefa Celery)
+revelou um defeito que o CI não via: a imagem `prod` **não tinha o `packaging`**, que o transporte Redis do kombu
+importa sem declarar e que só o pytest (dependência de desenvolvimento) instalava. O worker caía ao iniciar
+(`ModuleNotFoundError`) e o backend não conseguiria enfileirar tarefas — inclusive a recuperação de senha. O
+`packaging` entrou nas dependências de execução e o CI ganhou o job "Produção — imagem do backend e compose", que
+constrói a imagem `prod`, importa os módulos do worker e da API nela e valida o `docker-compose.prod.yml`.
+
 ## Consequências
 
 - O deploy público precisa gerar segredos próprios (`python -c "import secrets; print(secrets.token_urlsafe(48))"`)
