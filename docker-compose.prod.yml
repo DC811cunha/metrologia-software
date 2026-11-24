@@ -27,6 +27,8 @@ x-backend-env: &backend-env
   RESEND_API_KEY: ${RESEND_API_KEY:-}
   EMAIL_FROM: ${EMAIL_FROM:-SoftMeter <onboarding@resend.dev>}
   PASSWORD_RESET_TOKEN_EXPIRES_MINUTES: ${PASSWORD_RESET_TOKEN_EXPIRES_MINUTES:-60}
+  # Análises síncronas simultâneas por processo da API (servidor pequeno: poucas; as demais vão para a fila, ADR-008).
+  MAX_CONCURRENT_SYNC_ANALYSES: ${MAX_CONCURRENT_SYNC_ANALYSES:-4}
   # PDFs dos relatórios: diretório absoluto, montado em um volume nomeado (ver o serviço backend).
   REPORTS_DIR: /app/generated_reports
 
