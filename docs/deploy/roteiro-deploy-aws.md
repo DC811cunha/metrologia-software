@@ -162,3 +162,63 @@ Cada item abaixo muda a arquitetura e o custo; só faça depois que a fase 1 est
    limita a 60 requisições por hora por IP.
 5. **Disco cheio**: imagens antigas do Docker acumulam; rodar `docker image prune` de vez em quando e acompanhar o
    alarme de disco.
+
+## 12. Entrega contínua (GitHub Actions + SSM) e primeira partida
+
+O Playbook veda o deploy manual por SSH/FTP. Por isso a aplicação **não é atualizada por acesso ao servidor**: depois que o
+CI passa na `main`, o fluxo `.github/workflows/deploy.yml` assume uma função da AWS por **OIDC** (token temporário, sem
+chaves fixas no repositório) e manda o servidor rodar `scripts/deploy.sh` pelo **AWS Systems Manager (SSM)**. O
+servidor nem precisa ter a porta 22 aberta (e não tem).
+
+### 12.1 Configuração única na AWS
+
+1. **Provedor OIDC.** IAM → *Provedores de identidade* → *Adicionar provedor* → **OpenID Connect**. URL do provedor:
+   `https://token.actions.githubusercontent.com`; público: `sts.amazonaws.com`.
+2. **Função `softmeter-github-deploy`.** IAM → *Funções* → *Criar função* → **Identidade da Web**: provedor
+   `token.actions.githubusercontent.com`, público `sts.amazonaws.com`, organização `DC811cunha`, repositório
+   `metrologia-software`, ramo `main`. Não anexe nenhuma política gerenciada.
+3. **Política em linha** nessa função (só pode mandar comandos para a instância de produção):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ec2:<REGIAO>:<ID-DA-CONTA>:instance/<ID-DA-INSTANCIA>",
+        "arn:aws:ssm:<REGIAO>::document/AWS-RunShellScript"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": ["ssm:GetCommandInvocation", "ssm:ListCommandInvocations"],
+      "Resource": "*"
+    }
+  ]
+}
+```
+
+### 12.2 Variáveis do repositório (não são segredos)
+
+GitHub → *Settings* → *Secrets and variables* → *Actions* → aba **Variables**:
+
+| Variável | Valor |
+|---|---|
+| `AWS_DEPLOY_ROLE_ARN` | ARN da função `softmeter-github-deploy` |
+| `AWS_REGION` | região do servidor (`us-east-2`) |
+| `EC2_INSTANCE_ID` | ID da instância `softmeter-prod` |
+
+### 12.3 Primeira partida do servidor (uma vez)
+
+Pelo console da AWS: *Systems Manager* → *Session Manager* → *Iniciar sessão* → `softmeter-prod` (um terminal no
+navegador, sem SSH). Lá:
+
+```bash
+sudo bash -c "$(curl -fsSL https://raw.githubusercontent.com/DC811cunha/metrologia-software/main/scripts/bootstrap-server.sh)" -- softmeter.com.br
+```
+
+O script clona o repositório em `/opt/softmeter`, cria o `.env` (os segredos são gerados no próprio servidor e nunca
+aparecem na tela; ele só pergunta, sem mostrar, o `GITHUB_TOKEN` e a `RESEND_API_KEY`) e dá a primeira partida. A partir daí,
+cada merge na `main` com o CI verde publica sozinho.

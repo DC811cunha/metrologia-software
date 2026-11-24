@@ -1,0 +1,90 @@
+name: Deploy — SoftMeter (AWS)
+
+# Entrega contínua: depois que o CI passa na `main`, este fluxo manda o servidor da AWS atualizar a aplicação.
+# Não há SSH nem chaves de acesso fixas no repositório:
+#   1. o GitHub Actions prova quem é à AWS por OIDC (token temporário) e assume a função `softmeter-github-deploy`;
+#   2. essa função só pode mandar comandos (AWS Systems Manager) para a instância de produção;
+#   3. na instância roda `scripts/deploy.sh` (git pull, build, migrations, up -d, teste de /health).
+# Configuração única na AWS e no GitHub: docs/deploy/roteiro-deploy-aws.md (seção "Entrega contínua").
+
+on:
+  workflow_run:
+    workflows: ["CI — SoftMeter"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Um deploy por vez; um novo espera o anterior terminar (não interrompe um deploy no meio).
+concurrency:
+  group: deploy-producao
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  id-token: write # necessário para o OIDC com a AWS
+
+jobs:
+  deploy:
+    name: Deploy — produção
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    # Só depois de um CI verde na main (ou quando disparado à mão). Variáveis do repositório: AWS_DEPLOY_ROLE_ARN,
+    # AWS_REGION e EC2_INSTANCE_ID (não são segredos).
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+
+    steps:
+      - name: Conferir a configuração
+        run: |
+          for v in AWS_REGION INSTANCE_ID; do
+            if [ -z "${!v}" ]; then echo "::error::Defina a variável do repositório correspondente a $v (ver o roteiro de deploy)."; exit 1; fi
+          done
+          if [ -z "${{ vars.AWS_DEPLOY_ROLE_ARN }}" ]; then echo "::error::Defina a variável AWS_DEPLOY_ROLE_ARN."; exit 1; fi
+
+      - name: Credenciais temporárias da AWS (OIDC)
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - name: Atualizar a aplicação no servidor (AWS Systems Manager)
+        run: |
+          set -euo pipefail
+          COMMENT="deploy ${GITHUB_SHA::7}"
+          CMD_ID=$(aws ssm send-command \
+            --instance-ids "$INSTANCE_ID" \
+            --document-name "AWS-RunShellScript" \
+            --comment "$COMMENT" \
+            --timeout-seconds 3000 \
+            --parameters 'commands=["cd /opt/softmeter && ./scripts/deploy.sh"],executionTimeout=["2400"]' \
+            --query "Command.CommandId" --output text)
+          echo "Comando enviado: $CMD_ID"
+
+          # O deploy reconstrói imagens (alguns minutos): consulta o estado a cada 10 s, por até 40 min.
+          status="Pending"
+          for _ in $(seq 1 240); do
+            sleep 10
+            status=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+              --query "Status" --output text 2>/dev/null || echo "Pending")
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut|Cancelling) break ;;
+            esac
+          done
+
+          echo "::group::Saída do deploy"
+          aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query "StandardOutputContent" --output text || true
+          echo "::endgroup::"
+          errors=$(aws ssm get-command-invocation --command-id "$CMD_ID" --instance-id "$INSTANCE_ID" \
+            --query "StandardErrorContent" --output text || true)
+          if [ -n "$errors" ] && [ "$errors" != "None" ]; then
+            echo "::group::Erros do deploy"; echo "$errors"; echo "::endgroup::"
+          fi
+
+          if [ "$status" != "Success" ]; then
+            echo "::error::O deploy terminou com o estado: $status"
+            exit 1
+          fi
+          echo "Deploy concluído."
