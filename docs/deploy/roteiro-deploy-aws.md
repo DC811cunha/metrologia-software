@@ -84,6 +84,16 @@ dependências têm versão para ARM; só vale se o teste passar.
 - [x] README/ADR-007: documentar a topologia nova.
 - [x] Achado no teste: a imagem de produção não tinha o `packaging` e o worker não subia (corrigido; o CI agora constrói a imagem `prod`).
 
+## Estado do deploy (24/11/2026)
+
+A aplicação está **no ar em https://softmeter.com.br** (EC2 `softmeter-prod`, `t3.small`, `us-east-2`). Confirmado:
+DNS apontando para o servidor, certificado Let's Encrypt válido, HTTP redirecionando para HTTPS, `/health` respondendo, só as
+portas 80 e 443 abertas (22, 3001, 5432 e 6379 fechadas), deploy automático **disparado à mão** com sucesso pelo GitHub Actions
+(seção 12). Testado pelo dono do projeto em produção: login, cadastro de repositório, análise, emissão de relatório e
+recuperação de senha. **Pendências:** disparo automático do deploy após o CI, backups, alarmes e Budget, e-mail de recuperação
+para uma caixa que não seja a do dono da conta Resend, rate limit pelo IP real, PDF depois de reiniciar os containers.
+Os itens marcados abaixo foram conferidos; os demais continuam abertos.
+
 ## 4. Passo 2 — conta AWS e segurança básica
 
 - [ ] MFA no usuário raiz; usuário/perfil administrador; Budget configurado (item 5 acima).
@@ -91,41 +101,41 @@ dependências têm versão para ARM; só vale se o teste passar.
 
 ## 5. Passo 3 — rede e servidor
 
-- [ ] **Security Group**: entrada só **80 e 443** (0.0.0.0/0). **Sem porta 22**: o acesso administrativo é pelo
+- [x] **Security Group**: entrada só **80 e 443** (0.0.0.0/0). **Sem porta 22**: o acesso administrativo é pelo
   **SSM Session Manager** (perfil IAM `AmazonSSMManagedInstanceCore` na instância). Menos superfície de ataque e é um
   bom aprendizado.
-- [ ] **EC2**: Ubuntu 24.04 LTS, `t3.small` com crédito **standard**, disco **gp3 de 20 GB**.
+- [x] **EC2**: Ubuntu 24.04 LTS, `t3.small` com crédito **standard**, disco **gp3 de 20 GB**.
 - [ ] **Elastic IP** associado à instância (o IP não muda se ela for reiniciada).
 - [ ] Swap de 2 GB; atualizações automáticas de segurança (`unattended-upgrades`).
-- [ ] Docker Engine + plugin do Compose (repositório oficial da Docker).
+- [x] Docker Engine + plugin do Compose (repositório oficial da Docker).
 
 ## 6. Passo 4 — DNS e HTTPS
 
-- [ ] No painel de DNS do **Registro.br** (gratuito), registro **A** do domínio para o Elastic IP (Route 53 é opcional e
+- [x] No painel de DNS do **Registro.br** (gratuito), registro **A** do domínio para o Elastic IP (Route 53 é opcional e
   custa ~US$ 0,5/mês).
-- [ ] Subir o Caddy: ele obtém e renova o certificado sozinho (as portas 80/443 precisam estar abertas e o DNS
+- [x] Subir o Caddy: ele obtém e renova o certificado sozinho (as portas 80/443 precisam estar abertas e o DNS
   propagado).
 
 ## 7. Passo 5 — subir a aplicação
 
-- [ ] Clonar o repositório no servidor e criar o `.env` de produção **no servidor** (nunca no Git), com permissão `600`:
+- [x] Clonar o repositório no servidor e criar o `.env` de produção **no servidor** (nunca no Git), com permissão `600`:
   segredos gerados com `python -c "import secrets; print(secrets.token_urlsafe(48))"` para `JWT_SECRET`,
   `JWT_REFRESH_SECRET`, `DB_PASSWORD` e `REDIS_PASSWORD`; `FRONTEND_URL=https://seu-dominio`;
   `CORS_ORIGINS=["https://seu-dominio"]`; `GITHUB_TOKEN`; `RESEND_API_KEY` e `EMAIL_FROM`.
   Guarde uma cópia dos segredos no **SSM Parameter Store** (`SecureString`) ou no seu gerenciador de senhas.
-- [ ] `docker compose -f docker-compose.prod.yml up -d --build` e `alembic upgrade head`.
-- [ ] A API recusa iniciar com segredo fraco (ADR-007): se não subir, leia a mensagem — ela lista tudo que está errado.
+- [x] `docker compose -f docker-compose.prod.yml up -d --build` e `alembic upgrade head` (hoje feito por `scripts/deploy.sh`).
+- [x] A API recusa iniciar com segredo fraco (ADR-007): se não subir, leia a mensagem — ela lista tudo que está errado.
 
 ## 8. Passo 6 — verificação pós-deploy
 
-- [ ] `https://seu-dominio/health` responde; o certificado é válido; HTTP redireciona para HTTPS.
-- [ ] Cadastro, login e logout; o cookie do refresh token vem `HttpOnly; Secure; SameSite=Lax`.
-- [ ] Cadastrar um repositório e executar uma análise (síncrona e uma grande, assíncrona); histórico e tendência.
+- [x] `https://seu-dominio/health` responde; o certificado é válido; HTTP redireciona para HTTPS.
+- [x] Cadastro, login e logout (testado em produção); o cookie do refresh token vem `HttpOnly; Secure; SameSite=Lax`.
+- [x] Cadastrar um repositório e executar uma análise (testado em produção; falta testar uma grande, assíncrona); histórico e tendência.
 - [ ] Gerar o PDF do laudo e reiniciar os containers: o PDF continua baixando (volume `reports_data_prod`).
 - [ ] **Recuperar senha para um e-mail de outra pessoa**: o e-mail chega (domínio verificado no Resend).
 - [ ] **Rate limit pelo IP real**: 11 logins errados em 1 minuto devolvem 429 só para você, e não para todos.
 - [ ] Rodar a suíte E2E do Playwright apontando para a URL pública (`E2E_BASE_URL`); os testes criam contas e repositórios de verdade, então use uma conta de teste e apague os dados depois.
-- [ ] Postgres e Redis não respondem de fora (varredura de portas a partir de outra máquina: só 80/443 abertas).
+- [x] Postgres e Redis não respondem de fora (varredura a partir de outra máquina em 24/11: 22, 3001, 5432 e 6379 fechadas ou filtradas; só 80 e 443 abertas).
 
 ## 9. Operação depois do deploy
 
