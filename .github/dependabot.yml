@@ -37,6 +37,25 @@ updates:
         versions: [">=30.0.0"]
       - dependency-name: "@types/jest"
         versions: [">=30.0.0"]
+      # O ambiente do Jest deve ter a mesma versão principal do Jest (hoje 29): o jsdom-env 30 passa nos testes, mas é uma
+      # combinação sem suporte. Subir junto com o Jest 30.
+      - dependency-name: jest-environment-jsdom
+        versions: [">=30.0.0"]
+      # Babel 8 precisa subir inteiro (core + preset-env + preset-react + preset-typescript); atualizações isoladas deixam os
+      # presets 7 com dependência de par inválida, e só serve à transpilação dos testes. Reavaliar em um PR único.
+      - dependency-name: "@babel/core"
+        versions: [">=8.0.0"]
+      - dependency-name: "@babel/preset-env"
+        versions: [">=8.0.0"]
+      - dependency-name: "@babel/preset-react"
+        versions: [">=8.0.0"]
+      - dependency-name: "@babel/preset-typescript"
+        versions: [">=8.0.0"]
+      # recharts 3: o CI passa, mas as faixas ReferenceArea/ReferenceLine do TrendChart passam a capturar o mouse e o tooltip, o
+      # cursor e o ponto ativo deixam de aparecer. Correção testada: style={{ pointerEvents: 'none' }} nessas faixas. Migrar
+      # depois da entrega, com a suíte E2E completa.
+      - dependency-name: recharts
+        versions: [">=3.0.0"]
 
   - package-ecosystem: npm
     directory: /tests/e2e
