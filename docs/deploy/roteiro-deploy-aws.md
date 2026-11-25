@@ -90,8 +90,8 @@ A aplicação está **no ar em https://softmeter.com.br** (EC2 `softmeter-prod`,
 DNS apontando para o servidor, certificado Let's Encrypt válido, HTTP redirecionando para HTTPS, `/health` respondendo, só as
 portas 80 e 443 abertas (22, 3001, 5432 e 6379 fechadas), deploy automático **disparado à mão** com sucesso pelo GitHub Actions
 (seção 12). Testado pelo dono do projeto em produção: login, cadastro de repositório, análise, emissão de relatório e
-recuperação de senha. **Pendência:** uma análise assíncrona (repositório grande). O rate limit pelo IP real e a persistência dos PDFs já foram
-conferidos (ver abaixo). O e-mail de recuperação de senha foi entregue a uma caixa de terceiros em 25/11 (ver abaixo). O disparo automático do deploy após o CI,
+recuperação de senha. **Sem pendências de verificação em produção.** A análise assíncrona, o rate limit pelo IP real e a persistência dos PDFs
+foram conferidos (ver abaixo). O e-mail de recuperação de senha foi entregue a uma caixa de terceiros em 25/11 (ver abaixo). O disparo automático do deploy após o CI,
 os backups, o alarme e o Budget já foram conferidos (ver abaixo).
 Os itens marcados abaixo foram conferidos; os demais continuam abertos.
 
@@ -134,7 +134,7 @@ Os itens marcados abaixo foram conferidos; os demais continuam abertos.
 
 - [x] `https://seu-dominio/health` responde; o certificado é válido; HTTP redireciona para HTTPS.
 - [x] Cadastro, login e logout (testado em produção); o cookie do refresh token vem `HttpOnly; Secure; SameSite=Lax`.
-- [x] Cadastrar um repositório e executar uma análise (testado em produção; falta testar uma grande, assíncrona); histórico e tendência.
+- [x] Cadastrar um repositório e executar uma análise (testado em produção); histórico e tendência. **Análise assíncrona testada em 25/11** com `pallets/flask` (12,2 MB, acima do limite de 5 MB): o log do worker mostra `run_analysis` recebida pela fila e concluída em 1,4 s (download do GitHub e consulta dos artifacts de cobertura com resposta 200); o dashboard exibiu as seis métricas (cobertura "Não disponível", pois o Flask não publica relatório de cobertura legível) e a memória ficou estável (912 MiB usados de 1,9 GiB, swap sem uso).
 - [x] Gerar o PDF do laudo e reiniciar os containers: o PDF continua baixando (volume `reports_data_prod`). Conferido em 25/11 pelo servidor: os dois PDFs em `/app/generated_reports` são de 24/11 (18:50 e 22:20 UTC), **anteriores** à última criação do container `backend` (24/11 às 23:59 UTC), ou seja, sobreviveram à recriação.
 - [x] **Recuperar senha para um e-mail de outra pessoa**: o e-mail chega (domínio verificado no Resend). Testado em 25/11 com uma caixa do Outlook: o e-mail de `noreply@softmeter.com.br` chegou e a redefinição completa funcionou, **mas caiu na pasta de lixo eletrônico**. O DNS tem o DKIM (`resend._domainkey`) e o SPF/MX do subdomínio `send`, **mas não tem DMARC** (`_dmarc`); crie um TXT `_dmarc` com `v=DMARC1; p=none;` no Registro.br para melhorar a entrega, e peça ao usuário de teste para marcar a mensagem como "Não é lixo eletrônico".
 - [x] **Rate limit pelo IP real**: 11 logins errados em 1 minuto devolvem 429 só para você, e não para todos. Conferido em 25/11: 10 tentativas passam e a 11ª e a 12ª recebem 429 (`Retry-After`); o log do backend mostra o **IP público do cliente** (e não o do proxy, `172.29.0.x`), e um login de outro IP no mesmo intervalo respondeu 200. O worker também executou, em produção, a tarefa `request_password_reset` (Resend respondeu 200).
