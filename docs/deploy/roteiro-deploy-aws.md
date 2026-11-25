@@ -90,8 +90,8 @@ A aplicação está **no ar em https://softmeter.com.br** (EC2 `softmeter-prod`,
 DNS apontando para o servidor, certificado Let's Encrypt válido, HTTP redirecionando para HTTPS, `/health` respondendo, só as
 portas 80 e 443 abertas (22, 3001, 5432 e 6379 fechadas), deploy automático **disparado à mão** com sucesso pelo GitHub Actions
 (seção 12). Testado pelo dono do projeto em produção: login, cadastro de repositório, análise, emissão de relatório e
-recuperação de senha. **Pendências:** rate limit pelo IP real, PDF depois de reiniciar os containers e uma execução assíncrona (repositório grande).
-O e-mail de recuperação de senha foi entregue a uma caixa de terceiros em 25/11 (ver abaixo). O disparo automático do deploy após o CI,
+recuperação de senha. **Pendência:** uma análise assíncrona (repositório grande). O rate limit pelo IP real e a persistência dos PDFs já foram
+conferidos (ver abaixo). O e-mail de recuperação de senha foi entregue a uma caixa de terceiros em 25/11 (ver abaixo). O disparo automático do deploy após o CI,
 os backups, o alarme e o Budget já foram conferidos (ver abaixo).
 Os itens marcados abaixo foram conferidos; os demais continuam abertos.
 
@@ -135,9 +135,9 @@ Os itens marcados abaixo foram conferidos; os demais continuam abertos.
 - [x] `https://seu-dominio/health` responde; o certificado é válido; HTTP redireciona para HTTPS.
 - [x] Cadastro, login e logout (testado em produção); o cookie do refresh token vem `HttpOnly; Secure; SameSite=Lax`.
 - [x] Cadastrar um repositório e executar uma análise (testado em produção; falta testar uma grande, assíncrona); histórico e tendência.
-- [ ] Gerar o PDF do laudo e reiniciar os containers: o PDF continua baixando (volume `reports_data_prod`).
+- [x] Gerar o PDF do laudo e reiniciar os containers: o PDF continua baixando (volume `reports_data_prod`). Conferido em 25/11 pelo servidor: os dois PDFs em `/app/generated_reports` são de 24/11 (18:50 e 22:20 UTC), **anteriores** à última criação do container `backend` (24/11 às 23:59 UTC), ou seja, sobreviveram à recriação.
 - [x] **Recuperar senha para um e-mail de outra pessoa**: o e-mail chega (domínio verificado no Resend). Testado em 25/11 com uma caixa do Outlook: o e-mail de `noreply@softmeter.com.br` chegou e a redefinição completa funcionou, **mas caiu na pasta de lixo eletrônico**. O DNS tem o DKIM (`resend._domainkey`) e o SPF/MX do subdomínio `send`, **mas não tem DMARC** (`_dmarc`); crie um TXT `_dmarc` com `v=DMARC1; p=none;` no Registro.br para melhorar a entrega, e peça ao usuário de teste para marcar a mensagem como "Não é lixo eletrônico".
-- [ ] **Rate limit pelo IP real**: 11 logins errados em 1 minuto devolvem 429 só para você, e não para todos.
+- [x] **Rate limit pelo IP real**: 11 logins errados em 1 minuto devolvem 429 só para você, e não para todos. Conferido em 25/11: 10 tentativas passam e a 11ª e a 12ª recebem 429 (`Retry-After`); o log do backend mostra o **IP público do cliente** (e não o do proxy, `172.29.0.x`), e um login de outro IP no mesmo intervalo respondeu 200. O worker também executou, em produção, a tarefa `request_password_reset` (Resend respondeu 200).
 - [ ] Rodar a suíte E2E do Playwright apontando para a URL pública (`E2E_BASE_URL`); os testes criam contas e repositórios de verdade, então use uma conta de teste e apague os dados depois.
 - [x] Postgres e Redis não respondem de fora (varredura a partir de outra máquina em 24/11: 22, 3001, 5432 e 6379 fechadas ou filtradas; só 80 e 443 abertas).
 
