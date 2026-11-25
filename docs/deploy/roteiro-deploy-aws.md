@@ -11,7 +11,7 @@ Redis) mais um **proxy reverso Caddy** que serve o build estático do frontend e
 automático (Let's Encrypt).
 
 ```
-Usuário ──HTTPS──▶ DNS (A) ──▶ Elastic IP ──▶ EC2 (Ubuntu 24.04, t3.small, 20 GB gp3, us-east-2)
+Usuário ──HTTPS──▶ DNS (A) ──▶ Elastic IP ──▶ EC2 (Ubuntu 26.04, t3.small, 30 GiB gp3, us-east-2)
                                                     └─ Caddy :80/:443
                                                          ├─ /            → frontend estático (npm run build)
                                                          └─ /api/*       → backend :3001 (rede interna do compose)
@@ -40,15 +40,15 @@ dependências têm versão para ARM; só vale se o teste passar.
 |---|---|---|
 | EC2 `t3.small` (us-east-2) | ~US$ 15 | modo de crédito **standard** (não "unlimited", que cobra CPU extra) |
 | IP público (Elastic IP) | ~US$ 3,6 | a AWS cobra todo IPv4 público desde 2024 |
-| Disco gp3 de 20 GB | ~US$ 1,6 | 20 GB bastam (sistema + imagens + dados) |
-| Backup (S3 + 1 snapshot semanal) | ~US$ 0,5 | cresce pouco |
+| Disco gp3 de 30 GiB | ~US$ 2,4 | sistema, imagens do Docker e dados (o volume criado tem 30 GiB) |
+| Backup (snapshot semanal do EBS, retenção 2) | ~US$ 0,5 a 1 | só os blocos usados; sem S3 |
 | DNS | US$ 0 | DNS do próprio Registro.br; Route 53 custa +US$ 0,5 e é opcional |
 | Tráfego de saída | US$ 0 | os primeiros 100 GB/mês são gratuitos |
-| **Total** | **~US$ 21** | |
+| **Total** | **~US$ 22** | |
 
 **Para não passar disso**
 - **Não criar** NAT Gateway (~US$ 32), Load Balancer (~US$ 18), RDS, ElastiCache nem Fargate.
-- **Budget** de US$ 25 com avisos aos 80%, ao previsto e aos 100%, e o *Cost Anomaly Detection* (gratuito).
+- **Budget** de US$ 25 com avisos quando o gasto real passar de 85% e de 100% e quando o previsto passar de 100% (criado como `orcamento-softmeter`; o e-mail do destinatário precisa estar **verificado**, senão os avisos não chegam), e o *Cost Anomaly Detection* (gratuito).
 - CloudWatch só com métricas básicas e até 10 alarmes (gratuitos); **não** ligar o monitoramento detalhado nem enviar
   logs ao CloudWatch (a ingestão de logs é cobrada).
 - Snapshots com retenção curta; apagar volumes e snapshots órfãos.
@@ -94,18 +94,21 @@ recuperação de senha. **Pendências:** disparo automático do deploy após o C
 para uma caixa que não seja a do dono da conta Resend, rate limit pelo IP real, PDF depois de reiniciar os containers.
 Os itens marcados abaixo foram conferidos; os demais continuam abertos.
 
+**Conferido no console em 25/11/2026:** Budget `orcamento-softmeter` (US$ 25/mês) com e-mail verificado; Elastic IP `3.16.242.174` associado à instância; Security Group `launch-wizard-1` só com HTTP (80) e HTTPS (443) de entrada; crédito da instância **standard** (sem cobrança extra por CPU); IMDSv2 obrigatório; AMI **Ubuntu 26.04**; volume **gp3 de 30 GiB** (não criptografado); nenhum bucket S3, nenhum segredo no Secrets Manager e nenhum alarme. **Backup criado em 25/11:** política do Data Lifecycle Manager `policy-01d161371a0141256` (snapshot semanal do volume marcado `backup=semanal`, domingo às 03:00 UTC, retenção de 2). A conta está no plano gratuito (valor devido US$ 0,00): **o acesso à AWS termina em 19/05/2027** ou quando os créditos acabarem, o que vier primeiro; a banca precisa ocorrer antes.
+
 ## 4. Passo 2 — conta AWS e segurança básica
 
-- [ ] MFA no usuário raiz; usuário/perfil administrador; Budget configurado (item 5 acima).
-- [ ] Região escolhida (item 4), usada em tudo.
+- [ ] MFA no usuário raiz; usuário/perfil administrador.
+- [x] Budget configurado (item 5 acima): `orcamento-softmeter`, e-mail verificado.
+- [x] Região escolhida (item 4), usada em tudo: `us-east-2`.
 
 ## 5. Passo 3 — rede e servidor
 
 - [x] **Security Group**: entrada só **80 e 443** (0.0.0.0/0). **Sem porta 22**: o acesso administrativo é pelo
   **SSM Session Manager** (perfil IAM `AmazonSSMManagedInstanceCore` na instância). Menos superfície de ataque e é um
   bom aprendizado.
-- [x] **EC2**: Ubuntu 24.04 LTS, `t3.small` com crédito **standard**, disco **gp3 de 20 GB**.
-- [ ] **Elastic IP** associado à instância (o IP não muda se ela for reiniciada).
+- [x] **EC2**: Ubuntu 26.04 LTS, `t3.small` com crédito **standard**, disco **gp3 de 30 GiB**.
+- [x] **Elastic IP** associado à instância (o IP não muda se ela for reiniciada).
 - [ ] Swap de 2 GB; atualizações automáticas de segurança (`unattended-upgrades`).
 - [x] Docker Engine + plugin do Compose (repositório oficial da Docker).
 
@@ -139,9 +142,12 @@ Os itens marcados abaixo foram conferidos; os demais continuam abertos.
 
 ## 9. Operação depois do deploy
 
-- **Backup** (o volume dos PDFs e o do Postgres precisam entrar, ADR-007): `pg_dump` diário enviado a um bucket **S3**
-  (centavos por mês, com ciclo de vida de 14 dias) + **um snapshot semanal** do EBS (retenção de 2), que guarda também
-  o volume dos PDFs. **Teste uma restauração** pelo menos uma vez.
+- **Backup** (o volume dos PDFs e o do Postgres precisam entrar, ADR-007): **snapshot semanal do EBS** pelo Data Lifecycle
+  Manager (`policy-01d161371a0141256`: volume com a etiqueta `backup=semanal`, domingo às 03:00 UTC, retenção de 2), que
+  guarda o Postgres e os PDFs juntos (consistência de falha, suficiente para a demonstração). Não há `pg_dump` para o S3, para
+  não criar mais um serviço. Para ter uma cópia fora do calendário, crie um snapshot manual (Volumes → Ações → Criar
+  snapshot) e apague-o depois da banca. **Teste uma restauração** (criar um volume a partir do snapshot e apagá-lo em seguida)
+  pelo menos uma vez.
 - **Monitoramento**: alarmes do CloudWatch (CPU, disco, falha de status da instância) com aviso por e-mail (SNS);
   conferir `docker compose logs` em caso de erro.
 - **Atualizar**: `scripts/deploy.sh` (o Dependabot e o `audit.yml` continuam avisando de vulnerabilidades).
