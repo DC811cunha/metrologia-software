@@ -11,7 +11,7 @@ Redis) mais um **proxy reverso Caddy** que serve o build estático do frontend e
 automático (Let's Encrypt).
 
 ```
-Usuário ──HTTPS──▶ DNS (A) ──▶ Elastic IP ──▶ EC2 (Ubuntu 24.04, t3.small, 20 GB gp3, us-east-2)
+Usuário ──HTTPS──▶ DNS (A) ──▶ Elastic IP ──▶ EC2 (Ubuntu 26.04, t3.small, 30 GiB gp3, us-east-2)
                                                     └─ Caddy :80/:443
                                                          ├─ /            → frontend estático (npm run build)
                                                          └─ /api/*       → backend :3001 (rede interna do compose)
@@ -40,15 +40,15 @@ dependências têm versão para ARM; só vale se o teste passar.
 |---|---|---|
 | EC2 `t3.small` (us-east-2) | ~US$ 15 | modo de crédito **standard** (não "unlimited", que cobra CPU extra) |
 | IP público (Elastic IP) | ~US$ 3,6 | a AWS cobra todo IPv4 público desde 2024 |
-| Disco gp3 de 20 GB | ~US$ 1,6 | 20 GB bastam (sistema + imagens + dados) |
-| Backup (S3 + 1 snapshot semanal) | ~US$ 0,5 | cresce pouco |
+| Disco gp3 de 30 GiB | ~US$ 2,4 | sistema, imagens do Docker e dados (o volume criado tem 30 GiB) |
+| Backup (snapshot semanal do EBS, retenção 2) | ~US$ 0,5 a 1 | só os blocos usados; sem S3 |
 | DNS | US$ 0 | DNS do próprio Registro.br; Route 53 custa +US$ 0,5 e é opcional |
 | Tráfego de saída | US$ 0 | os primeiros 100 GB/mês são gratuitos |
-| **Total** | **~US$ 21** | |
+| **Total** | **~US$ 22** | |
 
 **Para não passar disso**
 - **Não criar** NAT Gateway (~US$ 32), Load Balancer (~US$ 18), RDS, ElastiCache nem Fargate.
-- **Budget** de US$ 25 com avisos aos 80%, ao previsto e aos 100%, e o *Cost Anomaly Detection* (gratuito).
+- **Budget** de US$ 25 com avisos quando o gasto real passar de 85% e de 100% e quando o previsto passar de 100% (criado como `orcamento-softmeter`; o e-mail do destinatário precisa estar **verificado**, senão os avisos não chegam), e o *Cost Anomaly Detection* (gratuito).
 - CloudWatch só com métricas básicas e até 10 alarmes (gratuitos); **não** ligar o monitoramento detalhado nem enviar
   logs ao CloudWatch (a ingestão de logs é cobrada).
 - Snapshots com retenção curta; apagar volumes e snapshots órfãos.
@@ -90,23 +90,27 @@ A aplicação está **no ar em https://softmeter.com.br** (EC2 `softmeter-prod`,
 DNS apontando para o servidor, certificado Let's Encrypt válido, HTTP redirecionando para HTTPS, `/health` respondendo, só as
 portas 80 e 443 abertas (22, 3001, 5432 e 6379 fechadas), deploy automático **disparado à mão** com sucesso pelo GitHub Actions
 (seção 12). Testado pelo dono do projeto em produção: login, cadastro de repositório, análise, emissão de relatório e
-recuperação de senha. **Pendências:** disparo automático do deploy após o CI, backups, alarmes e Budget, e-mail de recuperação
-para uma caixa que não seja a do dono da conta Resend, rate limit pelo IP real, PDF depois de reiniciar os containers.
+recuperação de senha. **Sem pendências de verificação em produção.** A análise assíncrona, o rate limit pelo IP real e a persistência dos PDFs
+foram conferidos (ver abaixo). O e-mail de recuperação de senha foi entregue a uma caixa de terceiros em 25/11 (ver abaixo). O disparo automático do deploy após o CI,
+os backups, o alarme e o Budget já foram conferidos (ver abaixo).
 Os itens marcados abaixo foram conferidos; os demais continuam abertos.
+
+**Conferido no console em 25/11/2026:** Budget `orcamento-softmeter` (US$ 25/mês) com e-mail verificado; Elastic IP `3.16.242.174` associado à instância; Security Group `launch-wizard-1` só com HTTP (80) e HTTPS (443) de entrada; crédito da instância **standard** (sem cobrança extra por CPU); IMDSv2 obrigatório; AMI **Ubuntu 26.04**; volume **gp3 de 30 GiB** (não criptografado); nenhum bucket S3 e nenhum segredo no Secrets Manager. **Backup criado em 25/11:** política do Data Lifecycle Manager `policy-01d161371a0141256` (snapshot semanal do volume marcado `backup=semanal`, domingo às 03:00 UTC, retenção de 2). **Também em 25/11:** snapshot manual `snap-0a14eee3cfb73cd8d` (12,4 GiB gravados, concluído); **teste de restauração** feito (um volume criado a partir dele ficou *Disponível*, com verificação de status OK, e foi apagado); **alarme** `softmeter-prod-status-check` (falha de verificação de status, 2 períodos de 5 minutos) em estado OK, com aviso por e-mail pelo tópico SNS `softmeter-alertas` (assinatura confirmada). Pelo Session Manager: swap de 2 GB ativo (`/swapfile`), `unattended-upgrades` habilitado e ativo (`20auto-upgrades` com `Unattended-Upgrade "1"`), disco com 26% de uso (7,1 de 28 GB) e os 5 containers de pé (`db` e `redis` *healthy*). A conta está no plano gratuito (valor devido US$ 0,00): **o acesso à AWS termina em 19/05/2027** ou quando os créditos acabarem, o que vier primeiro; a banca precisa ocorrer antes.
 
 ## 4. Passo 2 — conta AWS e segurança básica
 
-- [ ] MFA no usuário raiz; usuário/perfil administrador; Budget configurado (item 5 acima).
-- [ ] Região escolhida (item 4), usada em tudo.
+- [ ] MFA no usuário raiz; usuário/perfil administrador.
+- [x] Budget configurado (item 5 acima): `orcamento-softmeter`, e-mail verificado.
+- [x] Região escolhida (item 4), usada em tudo: `us-east-2`.
 
 ## 5. Passo 3 — rede e servidor
 
 - [x] **Security Group**: entrada só **80 e 443** (0.0.0.0/0). **Sem porta 22**: o acesso administrativo é pelo
   **SSM Session Manager** (perfil IAM `AmazonSSMManagedInstanceCore` na instância). Menos superfície de ataque e é um
   bom aprendizado.
-- [x] **EC2**: Ubuntu 24.04 LTS, `t3.small` com crédito **standard**, disco **gp3 de 20 GB**.
-- [ ] **Elastic IP** associado à instância (o IP não muda se ela for reiniciada).
-- [ ] Swap de 2 GB; atualizações automáticas de segurança (`unattended-upgrades`).
+- [x] **EC2**: Ubuntu 26.04 LTS, `t3.small` com crédito **standard**, disco **gp3 de 30 GiB**.
+- [x] **Elastic IP** associado à instância (o IP não muda se ela for reiniciada).
+- [x] Swap de 2 GB; atualizações automáticas de segurança (`unattended-upgrades`).
 - [x] Docker Engine + plugin do Compose (repositório oficial da Docker).
 
 ## 6. Passo 4 — DNS e HTTPS
@@ -130,20 +134,24 @@ Os itens marcados abaixo foram conferidos; os demais continuam abertos.
 
 - [x] `https://seu-dominio/health` responde; o certificado é válido; HTTP redireciona para HTTPS.
 - [x] Cadastro, login e logout (testado em produção); o cookie do refresh token vem `HttpOnly; Secure; SameSite=Lax`.
-- [x] Cadastrar um repositório e executar uma análise (testado em produção; falta testar uma grande, assíncrona); histórico e tendência.
-- [ ] Gerar o PDF do laudo e reiniciar os containers: o PDF continua baixando (volume `reports_data_prod`).
-- [ ] **Recuperar senha para um e-mail de outra pessoa**: o e-mail chega (domínio verificado no Resend).
-- [ ] **Rate limit pelo IP real**: 11 logins errados em 1 minuto devolvem 429 só para você, e não para todos.
+- [x] Cadastrar um repositório e executar uma análise (testado em produção); histórico e tendência. **Análise assíncrona testada em 25/11** com `pallets/flask` (12,2 MB, acima do limite de 5 MB): o log do worker mostra `run_analysis` recebida pela fila e concluída em 1,4 s (download do GitHub e consulta dos artifacts de cobertura com resposta 200); o dashboard exibiu as seis métricas (cobertura "Não disponível", pois o Flask não publica relatório de cobertura legível) e a memória ficou estável (912 MiB usados de 1,9 GiB, swap sem uso).
+- [x] Gerar o PDF do laudo e reiniciar os containers: o PDF continua baixando (volume `reports_data_prod`). Conferido em 25/11 pelo servidor: os dois PDFs em `/app/generated_reports` são de 24/11 (18:50 e 22:20 UTC), **anteriores** à última criação do container `backend` (24/11 às 23:59 UTC), ou seja, sobreviveram à recriação.
+- [x] **Recuperar senha para um e-mail de outra pessoa**: o e-mail chega (domínio verificado no Resend). Testado em 25/11 com uma caixa do Outlook: o e-mail de `noreply@softmeter.com.br` chegou e a redefinição completa funcionou, **mas caiu na pasta de lixo eletrônico**. O DNS tem o DKIM (`resend._domainkey`) e o SPF/MX do subdomínio `send`, **mas não tem DMARC** (`_dmarc`); crie um TXT `_dmarc` com `v=DMARC1; p=none;` no Registro.br para melhorar a entrega, e peça ao usuário de teste para marcar a mensagem como "Não é lixo eletrônico".
+- [x] **Rate limit pelo IP real**: 11 logins errados em 1 minuto devolvem 429 só para você, e não para todos. Conferido em 25/11: 10 tentativas passam e a 11ª e a 12ª recebem 429 (`Retry-After`); o log do backend mostra o **IP público do cliente** (e não o do proxy, `172.29.0.x`), e um login de outro IP no mesmo intervalo respondeu 200. O worker também executou, em produção, a tarefa `request_password_reset` (Resend respondeu 200).
 - [ ] Rodar a suíte E2E do Playwright apontando para a URL pública (`E2E_BASE_URL`); os testes criam contas e repositórios de verdade, então use uma conta de teste e apague os dados depois.
 - [x] Postgres e Redis não respondem de fora (varredura a partir de outra máquina em 24/11: 22, 3001, 5432 e 6379 fechadas ou filtradas; só 80 e 443 abertas).
 
 ## 9. Operação depois do deploy
 
-- **Backup** (o volume dos PDFs e o do Postgres precisam entrar, ADR-007): `pg_dump` diário enviado a um bucket **S3**
-  (centavos por mês, com ciclo de vida de 14 dias) + **um snapshot semanal** do EBS (retenção de 2), que guarda também
-  o volume dos PDFs. **Teste uma restauração** pelo menos uma vez.
-- **Monitoramento**: alarmes do CloudWatch (CPU, disco, falha de status da instância) com aviso por e-mail (SNS);
-  conferir `docker compose logs` em caso de erro.
+- **Backup** (o volume dos PDFs e o do Postgres precisam entrar, ADR-007): **snapshot semanal do EBS** pelo Data Lifecycle
+  Manager (`policy-01d161371a0141256`: volume com a etiqueta `backup=semanal`, domingo às 03:00 UTC, retenção de 2), que
+  guarda o Postgres e os PDFs juntos (consistência de falha, suficiente para a demonstração). Não há `pg_dump` para o S3, para
+  não criar mais um serviço. Para ter uma cópia fora do calendário, crie um snapshot manual (Volumes → Ações → Criar
+  snapshot) e apague-o depois da banca. **Restauração testada em 25/11** (criar um volume a partir do snapshot, ver que ele fica
+  *Disponível* e apagá-lo em seguida, sem anexá-lo e sem etiquetas, para a política semanal não o enxergar).
+- **Monitoramento**: alarme do CloudWatch `softmeter-prod-status-check` (falha de verificação de status da instância, 2 períodos
+  de 5 minutos) com aviso por e-mail pelo tópico SNS `softmeter-alertas` (a assinatura por e-mail precisa estar **confirmada**,
+  senão o aviso não chega). Alarmes de CPU e disco não foram criados; conferir `docker compose logs` em caso de erro.
 - **Atualizar**: `scripts/deploy.sh` (o Dependabot e o `audit.yml` continuam avisando de vulnerabilidades).
 - **Renovações**: `GITHUB_TOKEN` até 01/02/2027; domínio; certificado (automático).
 - **Rollback**: manter a tag/commit anterior e refazer `deploy.sh`; as migrations são aditivas, mas confirme antes de

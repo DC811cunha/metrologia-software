@@ -15,8 +15,8 @@ projeto. O sistema já tinha um `docker-compose.prod.yml` pensado para ficar atr
 
 ## Decisão
 
-- **Um único servidor EC2** (`softmeter-prod`, Ubuntu 24.04, `t3.small`, disco gp3 de 20 GB, região `us-east-2`) rodando
-  o `docker-compose.prod.yml`: Caddy, backend, worker Celery, Postgres e Redis. Custo estimado de ~US$ 21 por mês. Sem NAT
+- **Um único servidor EC2** (`softmeter-prod`, Ubuntu 26.04, `t3.small` com crédito *standard*, disco gp3 de 30 GiB, região `us-east-2`) rodando
+  o `docker-compose.prod.yml`: Caddy, backend, worker Celery, Postgres e Redis. Custo estimado de ~US$ 22 por mês. Sem NAT
   Gateway, balanceador, RDS, ElastiCache nem Fargate.
 - **Caddy** como proxy reverso: serve o build estático do frontend e encaminha `/api` e `/health` ao backend, com HTTPS
   automático (Let's Encrypt). Site e API ficam no **mesmo domínio** (`softmeter.com.br`), porque o cookie do refresh token
@@ -27,6 +27,8 @@ projeto. O sistema já tinha um `docker-compose.prod.yml` pensado para ficar atr
 - **Credencial do pipeline:** um **usuário IAM de privilégio mínimo** (`softmeter-github-deploy`, sem acesso ao console)
   cuja política só permite `ssm:SendCommand` para a instância de produção e o documento `AWS-RunShellScript` (mais a leitura
   do resultado). A chave de acesso fica em segredos do *environment* `production` do GitHub, restrito à `main`.
+- **Monitoramento:** alarme do CloudWatch de falha de verificação de status da instância, com aviso por e-mail pelo SNS.
+- **Backup:** snapshot semanal do volume do EBS pelo Data Lifecycle Manager (etiqueta `backup=semanal`, domingo 03:00 UTC, retenção de 2), que cobre o Postgres e os PDFs; sem `pg_dump` nem S3, para não criar mais serviços.
 - **DNS** no próprio Registro.br (gratuito); e-mail de recuperação de senha pelo Resend com o domínio verificado (ADR-005).
 
 ## Alternativas consideradas
@@ -46,6 +48,7 @@ projeto. O sistema já tinha um `docker-compose.prod.yml` pensado para ficar atr
   Mitigações: segredo apenas no *environment* `production` (só a `main` o acessa), troca imediata se houver suspeita e
   **exclusão do usuário e da chave quando a avaliação da banca terminar**. Se a conta passar a ter os recursos avançados,
   o OIDC substitui a chave trocando uma única etapa do workflow.
+- **Prazo e limites da conta:** a conta está no plano gratuito (créditos e período de teste, sem cartão); o console informa que o acesso à AWS termina quando os créditos acabam ou o período vence (19/05/2027), e o site sai do ar. A banca precisa ocorrer antes. O volume do disco não é criptografado e o backup é por snapshot (consistência de falha); ambos aceitos para a demonstração.
 - Um servidor único não tem alta disponibilidade: se a instância cair, o site cai até ela voltar. Aceito para a demonstração.
 - O deploy reconstrói as imagens no próprio servidor (alguns minutos de uso de CPU e memória); o `t3.small` com 2 GB de
   swap e `MAX_CONCURRENT_SYNC_ANALYSES` reduzido dá conta.
