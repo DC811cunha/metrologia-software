@@ -90,11 +90,12 @@ A aplicação está **no ar em https://softmeter.com.br** (EC2 `softmeter-prod`,
 DNS apontando para o servidor, certificado Let's Encrypt válido, HTTP redirecionando para HTTPS, `/health` respondendo, só as
 portas 80 e 443 abertas (22, 3001, 5432 e 6379 fechadas), deploy automático **disparado à mão** com sucesso pelo GitHub Actions
 (seção 12). Testado pelo dono do projeto em produção: login, cadastro de repositório, análise, emissão de relatório e
-recuperação de senha. **Pendências:** disparo automático do deploy após o CI, backups, alarmes e Budget, e-mail de recuperação
-para uma caixa que não seja a do dono da conta Resend, rate limit pelo IP real, PDF depois de reiniciar os containers.
+recuperação de senha. **Pendências:** e-mail de recuperação para uma caixa que não seja a do dono da conta Resend, rate limit pelo IP real,
+PDF depois de reiniciar os containers e uma execução assíncrona (repositório grande). O disparo automático do deploy após o CI,
+os backups, o alarme e o Budget já foram conferidos (ver abaixo).
 Os itens marcados abaixo foram conferidos; os demais continuam abertos.
 
-**Conferido no console em 25/11/2026:** Budget `orcamento-softmeter` (US$ 25/mês) com e-mail verificado; Elastic IP `3.16.242.174` associado à instância; Security Group `launch-wizard-1` só com HTTP (80) e HTTPS (443) de entrada; crédito da instância **standard** (sem cobrança extra por CPU); IMDSv2 obrigatório; AMI **Ubuntu 26.04**; volume **gp3 de 30 GiB** (não criptografado); nenhum bucket S3, nenhum segredo no Secrets Manager e nenhum alarme. **Backup criado em 25/11:** política do Data Lifecycle Manager `policy-01d161371a0141256` (snapshot semanal do volume marcado `backup=semanal`, domingo às 03:00 UTC, retenção de 2). A conta está no plano gratuito (valor devido US$ 0,00): **o acesso à AWS termina em 19/05/2027** ou quando os créditos acabarem, o que vier primeiro; a banca precisa ocorrer antes.
+**Conferido no console em 25/11/2026:** Budget `orcamento-softmeter` (US$ 25/mês) com e-mail verificado; Elastic IP `3.16.242.174` associado à instância; Security Group `launch-wizard-1` só com HTTP (80) e HTTPS (443) de entrada; crédito da instância **standard** (sem cobrança extra por CPU); IMDSv2 obrigatório; AMI **Ubuntu 26.04**; volume **gp3 de 30 GiB** (não criptografado); nenhum bucket S3 e nenhum segredo no Secrets Manager. **Backup criado em 25/11:** política do Data Lifecycle Manager `policy-01d161371a0141256` (snapshot semanal do volume marcado `backup=semanal`, domingo às 03:00 UTC, retenção de 2). **Também em 25/11:** snapshot manual `snap-0a14eee3cfb73cd8d` (12,4 GiB gravados, concluído); **teste de restauração** feito (um volume criado a partir dele ficou *Disponível*, com verificação de status OK, e foi apagado); **alarme** `softmeter-prod-status-check` (falha de verificação de status, 2 períodos de 5 minutos) em estado OK, com aviso por e-mail pelo tópico SNS `softmeter-alertas` (assinatura confirmada). Pelo Session Manager: swap de 2 GB ativo (`/swapfile`), `unattended-upgrades` habilitado e ativo (`20auto-upgrades` com `Unattended-Upgrade "1"`), disco com 26% de uso (7,1 de 28 GB) e os 5 containers de pé (`db` e `redis` *healthy*). A conta está no plano gratuito (valor devido US$ 0,00): **o acesso à AWS termina em 19/05/2027** ou quando os créditos acabarem, o que vier primeiro; a banca precisa ocorrer antes.
 
 ## 4. Passo 2 — conta AWS e segurança básica
 
@@ -109,7 +110,7 @@ Os itens marcados abaixo foram conferidos; os demais continuam abertos.
   bom aprendizado.
 - [x] **EC2**: Ubuntu 26.04 LTS, `t3.small` com crédito **standard**, disco **gp3 de 30 GiB**.
 - [x] **Elastic IP** associado à instância (o IP não muda se ela for reiniciada).
-- [ ] Swap de 2 GB; atualizações automáticas de segurança (`unattended-upgrades`).
+- [x] Swap de 2 GB; atualizações automáticas de segurança (`unattended-upgrades`).
 - [x] Docker Engine + plugin do Compose (repositório oficial da Docker).
 
 ## 6. Passo 4 — DNS e HTTPS
@@ -146,10 +147,11 @@ Os itens marcados abaixo foram conferidos; os demais continuam abertos.
   Manager (`policy-01d161371a0141256`: volume com a etiqueta `backup=semanal`, domingo às 03:00 UTC, retenção de 2), que
   guarda o Postgres e os PDFs juntos (consistência de falha, suficiente para a demonstração). Não há `pg_dump` para o S3, para
   não criar mais um serviço. Para ter uma cópia fora do calendário, crie um snapshot manual (Volumes → Ações → Criar
-  snapshot) e apague-o depois da banca. **Teste uma restauração** (criar um volume a partir do snapshot e apagá-lo em seguida)
-  pelo menos uma vez.
-- **Monitoramento**: alarmes do CloudWatch (CPU, disco, falha de status da instância) com aviso por e-mail (SNS);
-  conferir `docker compose logs` em caso de erro.
+  snapshot) e apague-o depois da banca. **Restauração testada em 25/11** (criar um volume a partir do snapshot, ver que ele fica
+  *Disponível* e apagá-lo em seguida, sem anexá-lo e sem etiquetas, para a política semanal não o enxergar).
+- **Monitoramento**: alarme do CloudWatch `softmeter-prod-status-check` (falha de verificação de status da instância, 2 períodos
+  de 5 minutos) com aviso por e-mail pelo tópico SNS `softmeter-alertas` (a assinatura por e-mail precisa estar **confirmada**,
+  senão o aviso não chega). Alarmes de CPU e disco não foram criados; conferir `docker compose logs` em caso de erro.
 - **Atualizar**: `scripts/deploy.sh` (o Dependabot e o `audit.yml` continuam avisando de vulnerabilidades).
 - **Renovações**: `GITHUB_TOKEN` até 01/02/2027; domínio; certificado (automático).
 - **Rollback**: manter a tag/commit anterior e refazer `deploy.sh`; as migrations são aditivas, mas confirme antes de

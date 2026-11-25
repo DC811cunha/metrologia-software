@@ -27,6 +27,7 @@ projeto. O sistema já tinha um `docker-compose.prod.yml` pensado para ficar atr
 - **Credencial do pipeline:** um **usuário IAM de privilégio mínimo** (`softmeter-github-deploy`, sem acesso ao console)
   cuja política só permite `ssm:SendCommand` para a instância de produção e o documento `AWS-RunShellScript` (mais a leitura
   do resultado). A chave de acesso fica em segredos do *environment* `production` do GitHub, restrito à `main`.
+- **Monitoramento:** alarme do CloudWatch de falha de verificação de status da instância, com aviso por e-mail pelo SNS.
 - **Backup:** snapshot semanal do volume do EBS pelo Data Lifecycle Manager (etiqueta `backup=semanal`, domingo 03:00 UTC, retenção de 2), que cobre o Postgres e os PDFs; sem `pg_dump` nem S3, para não criar mais serviços.
 - **DNS** no próprio Registro.br (gratuito); e-mail de recuperação de senha pelo Resend com o domínio verificado (ADR-005).
 
